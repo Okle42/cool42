@@ -10,5 +10,6 @@ let package = Package(
                 linkerSettings: [.linkedFramework("IOKit")]),
         .executableTarget(name: "cool42", dependencies: ["Cool42Core"], path: "Sources/cool42"),
         .executableTarget(name: "cool42-panel", dependencies: ["Cool42Core"], path: "Sources/cool42-panel"),
+        .testTarget(name: "Cool42CoreTests", dependencies: ["Cool42Core"], path: "Tests/Cool42CoreTests"),
     ]
 )

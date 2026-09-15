@@ -12,8 +12,8 @@ mv -f /usr/local/bin/cool42.new /usr/local/bin/cool42
 # 設定檔交給使用者可寫，面板才能改模式/曲線；guard 偵測到修改會自動重載
 chown "$USER_NAME" /etc/cool42/config.json
 # log 輪替
-cp "$SRC/launchd/newsyslog-cool42.conf" /etc/newsyslog.d/cool42.conf
-cp "$SRC/launchd/com.cool42.guard.plist" /Library/LaunchDaemons/
+cp "$SRC/install/newsyslog-cool42.conf" /etc/newsyslog.d/cool42.conf
+cp "$SRC/install/com.cool42.guard.plist" /Library/LaunchDaemons/
 chown root:wheel /Library/LaunchDaemons/com.cool42.guard.plist
 # bootout 後 guard 要先把風扇交還再退出，launchd 還沒清完就 bootstrap 會回 5 (I/O error)，等它真的消失再裝
 launchctl bootout system/com.cool42.guard 2>/dev/null || true
