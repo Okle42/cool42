@@ -3,8 +3,11 @@
 set -euo pipefail
 SRC="$1"; USER_NAME="$2"
 mkdir -p /usr/local/bin /etc/cool42 /etc/newsyslog.d
-cp "$SRC/.build/release/cool42" /usr/local/bin/cool42
-chmod 755 /usr/local/bin/cool42
+# 不能就地 cp 覆寫：舊 binary 的簽章快取還在，kernel 會用 OS_REASON_CODESIGNING 殺掉新啟動的 process。寫暫存檔再 mv 換 inode
+cp "$SRC/.build/release/cool42" /usr/local/bin/cool42.new
+chmod 755 /usr/local/bin/cool42.new
+codesign --force --sign - /usr/local/bin/cool42.new 2>/dev/null || true
+mv -f /usr/local/bin/cool42.new /usr/local/bin/cool42
 [ -f /etc/cool42/config.json ] || cp "$SRC/config.example.json" /etc/cool42/config.json
 # 設定檔交給使用者可寫，面板才能改模式/曲線；guard 偵測到修改會自動重載
 chown "$USER_NAME" /etc/cool42/config.json
