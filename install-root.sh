@@ -2,13 +2,20 @@
 # 需要 root 的步驟（由 install.sh 透過系統密碼視窗呼叫）。參數：$1 = 專案目錄，$2 = 使用者名稱
 set -euo pipefail
 SRC="$1"; USER_NAME="$2"
-mkdir -p /usr/local/bin /etc/cool42
+mkdir -p /usr/local/bin /etc/cool42 /etc/newsyslog.d
 cp "$SRC/.build/release/cool42" /usr/local/bin/cool42
 chmod 755 /usr/local/bin/cool42
 [ -f /etc/cool42/config.json ] || cp "$SRC/config.example.json" /etc/cool42/config.json
 # 設定檔交給使用者可寫，面板才能改模式/曲線；guard 偵測到修改會自動重載
 chown "$USER_NAME" /etc/cool42/config.json
+# log 輪替
+cp "$SRC/launchd/newsyslog-cool42.conf" /etc/newsyslog.d/cool42.conf
 cp "$SRC/launchd/com.cool42.guard.plist" /Library/LaunchDaemons/
 chown root:wheel /Library/LaunchDaemons/com.cool42.guard.plist
+# bootout 後 guard 要先把風扇交還再退出，launchd 還沒清完就 bootstrap 會回 5 (I/O error)，等它真的消失再裝
 launchctl bootout system/com.cool42.guard 2>/dev/null || true
-launchctl bootstrap system /Library/LaunchDaemons/com.cool42.guard.plist
+for _ in $(seq 1 20); do launchctl print system/com.cool42.guard >/dev/null 2>&1 || break; sleep 0.5; done
+for i in 1 2 3; do
+  launchctl bootstrap system /Library/LaunchDaemons/com.cool42.guard.plist && break
+  echo "bootstrap 失敗，重試 $i…"; sleep 2
+done
