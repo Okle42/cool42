@@ -3,14 +3,12 @@ import PackageDescription
 
 let package = Package(
     name: "cool42",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
     targets: [
         .target(name: "CSMC", path: "Sources/CSMC"),
-        .executableTarget(
-            name: "cool42",
-            dependencies: ["CSMC"],
-            path: "Sources/cool42",
-            linkerSettings: [.linkedFramework("IOKit")]
-        ),
+        .target(name: "Cool42Core", dependencies: ["CSMC"], path: "Sources/Cool42Core",
+                linkerSettings: [.linkedFramework("IOKit")]),
+        .executableTarget(name: "cool42", dependencies: ["Cool42Core"], path: "Sources/cool42"),
+        .executableTarget(name: "cool42-panel", dependencies: ["Cool42Core"], path: "Sources/cool42-panel"),
     ]
 )
