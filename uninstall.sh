@@ -1,7 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 sudo launchctl bootout system/com.cool42.guard 2>/dev/null
-sudo rm -rf /Library/LaunchDaemons/com.cool42.guard.plist /usr/local/bin/cool42 /etc/newsyslog.d/cool42.conf /tmp/cool42.json /tmp/cool42.history.json /tmp/cool42.events
+sudo rm -rf /Library/LaunchDaemons/com.cool42.guard.plist /usr/local/bin/cool42 /usr/local/bin/cool42-guard /etc/newsyslog.d/cool42.conf /tmp/cool42.json /tmp/cool42.history.json /tmp/cool42.events
 launchctl bootout "gui/$(id -u)/com.cool42.panel" 2>/dev/null
 rm -f "$HOME/Library/LaunchAgents/com.cool42.panel.plist"
 pkill -x cool42-panel 2>/dev/null
