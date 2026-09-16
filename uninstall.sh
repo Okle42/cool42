@@ -1,6 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 sudo launchctl bootout system/com.cool42.guard 2>/dev/null
+sudo /usr/local/bin/cool42 fan auto 2>/dev/null   # guard 收 SIGTERM 會保持轉速（等重啟接管），移除時要明確交還
 sudo rm -rf /Library/LaunchDaemons/com.cool42.guard.plist /usr/local/bin/cool42 /usr/local/bin/cool42-guard /etc/newsyslog.d/cool42.conf /tmp/cool42.json /tmp/cool42.history.json /tmp/cool42.events
 launchctl bootout "gui/$(id -u)/com.cool42.panel" 2>/dev/null
 rm -f "$HOME/Library/LaunchAgents/com.cool42.panel.plist"
