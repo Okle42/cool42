@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.3 — 2026-09-20
+
+一個安靜的把關漏洞：`includeGPU` 開著，但 GPU 溫度從來沒被算進去。
+
+- **GPU 感測器清單會被空快取毒化**：`Snapshot.take` 判斷「要不要重掃 SMC」只看 `cachedCPUKeys.isEmpty`，採用舊快照時也只驗 `cpuPrefixes`，GPU 則是 `cachedGPUKeys = saved.gpuKeys ?? []` 照單全收。`gpuKeys` 為 `nil`（這份快照沒掃過 GPU）和空陣列（掃過、這台真的沒有）被混為一談，於是空清單自我延續 —— guard 吃到空的再原樣寫回快照，之後永遠不重掃。M4 上 SMC 明明有 18 個 `Tg0*`、config 也寫著 `gpuPrefixes: ["Tg"]`，`doctor` 卻一直報「GPU 感測器：0 個」
+- **後果**：`gpuMax` 恆為 0，`control = includeGPU ? max(cpuMax, gpuMax) : cpuMax` 等於永遠只看 CPU。GPU 才是熱源的工作（算圖、影片轉檔）不會把風扇拉上去；面板的 GPU 熱度格也是空的
+- **修法**：採納條件抽成 `Snapshot.canReuse(cpuKeys:gpuKeys:config:)`，CPU 與 GPU 前綴都要驗，`gpuKeys` 為 `nil` 不再當成空陣列；並加一條自癒出口 —— `includeGPU` 開著卻拿到空 GPU 清單就不信這份快取，重掃一次確認。真的沒有 GPU 感測器的機器掃完仍是空，程式生命週期內不會重複掃
+- 6 條回歸測試（`SnapshotTests`），涵蓋空 GPU 清單、`includeGPU` 關閉時空清單仍合法、CPU/GPU 前綴不符、舊快照 `gpuKeys` 為 `nil`
+- **升級後**：guard 重啟會重掃並把正確的 18 個 key 寫回快照，不必手動清 `/var/run/cool42/state.json`
+
 ## 1.0.2 — 2026-09-18
 
 安全審視（「一個 root daemon 會被怎麼看」）修出來的，行為不變。README 新增威脅模型表。

@@ -130,13 +130,27 @@ public struct Snapshot: Codable {
     /// 強制重新掃描（cool42 chip / sensors 用）
     public static var forceRescan = false
 
+    /// 快照裡 guard 掃好的 keys 能不能直接採用（不必重掃 1375 個 SMC key）。
+    ///
+    /// gpuKeys 是 nil 代表「這份快照沒掃過 GPU」，空陣列代表「掃過、這台真的沒有」—— 兩者不可混為一談。
+    /// 以前 take() 用 `saved.gpuKeys ?? []` 把 nil 直接當成空，空清單便會自我延續：guard 吃到空的
+    /// 再原樣寫回快照，之後永遠不重掃，includeGPU 形同關閉（gpuMax 恆為 0，把關溫度看不到 GPU）。
+    static func canReuse(cpuKeys ck: [String], gpuKeys gk: [String], config: Config) -> Bool {
+        guard !ck.isEmpty,
+              ck.allSatisfy({ k in config.cpuPrefixes.contains { k.hasPrefix($0) } }),
+              gk.allSatisfy({ k in config.gpuPrefixes.contains { k.hasPrefix($0) } })
+        else { return false }
+        // 設定要求納入 GPU 卻一個感測器也沒有：不信這份快取，重掃一次確認（毒化快取的自癒出口）
+        return !(config.includeGPU && gk.isEmpty)
+    }
+
     public static func take(config: Config) -> Snapshot {
         if cachedCPUKeys.isEmpty {
             // 先拿快照裡 guard 掃好的清單（前綴設定相同才用），省掉 1375 次 SMC 呼叫；沒有才自己掃
-            if !forceRescan, let saved = load(), let ck = saved.cpuKeys, !ck.isEmpty,
-               ck.allSatisfy({ k in config.cpuPrefixes.contains { k.hasPrefix($0) } }) {
+            if !forceRescan, let saved = load(), let ck = saved.cpuKeys, let gk = saved.gpuKeys,
+               canReuse(cpuKeys: ck, gpuKeys: gk, config: config) {
                 cachedCPUKeys = ck
-                cachedGPUKeys = saved.gpuKeys ?? []
+                cachedGPUKeys = gk
             } else {
                 let all = SMC.scanTemperatureKeys().map { $0.0 }
                 cachedCPUKeys = all.filter { k in config.cpuPrefixes.contains { k.hasPrefix($0) } }
