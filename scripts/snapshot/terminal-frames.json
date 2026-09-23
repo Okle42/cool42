@@ -1,0 +1,134 @@
+[
+ {
+  "name": "term-1-wait",
+  "title": "claude — ~/project",
+  "lines": [
+   {
+    "text": "> 幫我跑一次 release build",
+    "style": "prompt"
+   },
+   {
+    "text": "",
+    "style": "blank"
+   },
+   {
+    "text": "⏺ Bash(swift build -c release)",
+    "style": "cmd"
+   },
+   {
+    "text": "  # PreToolUse hook：/usr/local/bin/cool42 hook",
+    "style": "note"
+   },
+   {
+    "text": "  # thermal pressure 不是 Nominal → 降頻中，先等降溫",
+    "style": "note"
+   },
+   {
+    "text": "  # 每 2 秒重讀快照，最多 90 秒；狀態（cool42 check 同格式）：",
+    "style": "note"
+   },
+   {
+    "text": "  🟠 97°C 🌀4900rpm ⚡3.52GHz 降頻(Moderate)",
+    "style": "hot"
+   }
+  ],
+  "footnote": "示意畫面：字串格式取自 cool42 原始碼（Hook.swift、Snapshot.short）；數值為受控情境。",
+  "caption": "Claude Code 要跑 build，hook 先問 cool42：降頻中 → 先等降溫"
+ },
+ {
+  "name": "term-2-wait",
+  "title": "claude — ~/project",
+  "lines": [
+   {
+    "text": "> 幫我跑一次 release build",
+    "style": "prompt"
+   },
+   {
+    "text": "",
+    "style": "blank"
+   },
+   {
+    "text": "⏺ Bash(swift build -c release)",
+    "style": "cmd"
+   },
+   {
+    "text": "  # PreToolUse hook：/usr/local/bin/cool42 hook",
+    "style": "note"
+   },
+   {
+    "text": "  # thermal pressure 不是 Nominal → 降頻中，先等降溫",
+    "style": "note"
+   },
+   {
+    "text": "  # 每 2 秒重讀快照，最多 90 秒；狀態（cool42 check 同格式）：",
+    "style": "note"
+   },
+   {
+    "text": "  🟠 97°C 🌀4900rpm ⚡3.52GHz 降頻(Moderate)",
+    "style": "hot"
+   },
+   {
+    "text": "  🟠 96°C 🌀4900rpm ⚡3.61GHz 降頻(Moderate)",
+    "style": "hot"
+   },
+   {
+    "text": "  🟠 95°C 🌀4900rpm ⚡3.74GHz 降頻(Moderate)",
+    "style": "hot"
+   }
+  ],
+  "footnote": "示意畫面：字串格式取自 cool42 原始碼（Hook.swift、Snapshot.short）；數值為受控情境。",
+  "caption": "每 2 秒重看一次，風扇頂滿、溫度往下走"
+ },
+ {
+  "name": "term-3-pass",
+  "title": "claude — ~/project",
+  "lines": [
+   {
+    "text": "> 幫我跑一次 release build",
+    "style": "prompt"
+   },
+   {
+    "text": "",
+    "style": "blank"
+   },
+   {
+    "text": "⏺ Bash(swift build -c release)",
+    "style": "cmd"
+   },
+   {
+    "text": "  # PreToolUse hook：/usr/local/bin/cool42 hook",
+    "style": "note"
+   },
+   {
+    "text": "  🟠 97°C 🌀4900rpm ⚡3.52GHz 降頻(Moderate)",
+    "style": "hot"
+   },
+   {
+    "text": "  🟠 95°C 🌀4900rpm ⚡3.74GHz 降頻(Moderate)",
+    "style": "hot"
+   },
+   {
+    "text": "  🟡 89°C 🌀4900rpm ⚡3.94GHz",
+    "style": "warn"
+   },
+   {
+    "text": "  # pressure 回到 Nominal → 放行；hook 回傳 systemMessage：",
+    "style": "note"
+   },
+   {
+    "text": "  cool42 🟡 89°C 風扇 4900 rpm P-core 3.94 GHz pressure Nominal：剛才降頻中，已等待 34 秒已恢復。",
+    "style": "ok"
+   },
+   {
+    "text": "",
+    "style": "blank"
+   },
+   {
+    "text": "  ⎿  Building for production...",
+    "style": "out"
+   }
+  ],
+  "footnote": "示意畫面：字串格式取自 cool42 原始碼（Hook.swift、Snapshot.short）；數值為受控情境。",
+  "caption": "pressure 回到 Nominal → 放行，build 照常開跑"
+ }
+]

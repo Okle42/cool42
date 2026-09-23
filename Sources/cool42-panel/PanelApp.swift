@@ -8,7 +8,7 @@ import Cool42Core
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    static let panelWidth: CGFloat = 348      // PanelView 320 + 兩側 14 padding
+    static let panelWidth: CGFloat = PanelView.contentWidth + 2 * PanelView.edgePadding   // 320 + 兩側 16
     let monitor = Monitor()
     private var statusItem: NSStatusItem!
     private var panel: NSPanel!
@@ -27,7 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory) // 不顯示 Dock 圖示
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let b = statusItem.button {
+            // 溫度每 3 秒變一次：等寬數字，選單列上的圖示才不會跟著左右抖
+            b.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
             b.title = monitor.menuTitle
+            b.setAccessibilityLabel("cool42 溫度")
             b.target = self
             b.action = #selector(statusClicked)
             b.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -41,8 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func buildPanel() {
+        // 外觀跟系統走（淺 / 深色都有對應色值），不再鎖死 darkAqua
         let host = NSHostingView(rootView: PanelView(monitor: monitor))
-        host.appearance = NSAppearance(named: .darkAqua)
         let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: 760),
             styleMask: [.titled, .fullSizeContentView, .resizable, .utilityWindow, .nonactivatingPanel],
@@ -54,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         p.standardWindowButton(.miniaturizeButton)?.isHidden = true
         p.standardWindowButton(.zoomButton)?.isHidden = true
         p.isMovableByWindowBackground = true      // 抓卡片任何空白處都能拖
-        p.backgroundColor = NSColor(Neon.panelBG) // 讓視窗自己畫圓角與陰影，SwiftUI 內容背景透明
+        p.backgroundColor = Neon.panelBGColor     // 讓視窗自己畫圓角與陰影，SwiftUI 內容背景透明；動態色，切外觀自動換
         p.isOpaque = false
         p.hasShadow = true
         p.isFloatingPanel = true
@@ -93,7 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         f.origin.y += f.height - h   // 保持頂邊
         f.size.height = h
         programmaticResize = true
-        p.setFrame(f, display: true, animate: p.isVisible)
+        // 「減少動態效果」開著就直接跳到新高度，不做縮放動畫
+        p.setFrame(f, display: true, animate: p.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         programmaticResize = false
     }
 
@@ -365,17 +369,44 @@ extension Level {
 // MARK: - 漸層微光風格
 
 /// 深色底 + 霓虹線 + 線下漸層消失。發光用三層同路徑線疊出來（Charts 的 mark 不能 blur）
+/// 每個色都有淺 / 深兩版（跟系統外觀走）：深色是原本的霓虹；淺色把同一色相壓暗，白底上文字對比才夠（≥ 4.5:1）
 enum Neon {
-    static let cyan   = Color(red: 0.16, green: 0.87, blue: 0.96)
-    static let green  = Color(red: 0.36, green: 0.95, blue: 0.55)
-    static let purple = Color(red: 0.72, green: 0.56, blue: 1.00)
-    static let violet = Color(red: 0.50, green: 0.25, blue: 0.95)
-    static let amber  = Color(red: 1.00, green: 0.72, blue: 0.30)
-    static let red    = Color(red: 1.00, green: 0.36, blue: 0.42)
-    /// 面板整體深色玻璃底；plot 只比它再深一點點，不要浮出來
-    static let panelBG = Color(red: 0.06, green: 0.07, blue: 0.11).opacity(0.94)
-    static let plotBG  = Color.black.opacity(0.28)
-    static let cardBG  = Color.white.opacity(0.045)
+    /// 淺 / 深兩版的動態色：NSColor 依當下 appearance 解析，SwiftUI 與 NSWindow 背景都吃得到
+    /// highContrast：系統「增加對比」開著時把透明度乘上這個倍數（髮絲線、格線這類淡色才需要）
+    static func dynamic(_ name: String, light: (Double, Double, Double, Double), dark: (Double, Double, Double, Double),
+                        highContrast: Double = 1) -> NSColor {
+        NSColor(name: NSColor.Name("cool42." + name)) { ap in
+            let m = ap.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua])
+            let isDark = m == .darkAqua || m == .accessibilityHighContrastDarkAqua
+            let hc = m == .accessibilityHighContrastAqua || m == .accessibilityHighContrastDarkAqua
+            let c = isDark ? dark : light
+            return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: min(1, c.3 * (hc ? highContrast : 1)))
+        }
+    }
+    static let cyan   = Color(nsColor: dynamic("cyan",   light: (0.00, 0.47, 0.70, 1), dark: (0.16, 0.87, 0.96, 1)))
+    static let green  = Color(nsColor: dynamic("green",  light: (0.08, 0.55, 0.27, 1), dark: (0.36, 0.95, 0.55, 1)))
+    static let purple = Color(nsColor: dynamic("purple", light: (0.42, 0.26, 0.85, 1), dark: (0.72, 0.56, 1.00, 1)))
+    static let violet = Color(nsColor: dynamic("violet", light: (0.40, 0.20, 0.85, 1), dark: (0.50, 0.25, 0.95, 1)))
+    static let amber  = Color(nsColor: dynamic("amber",  light: (0.70, 0.42, 0.00, 1), dark: (1.00, 0.72, 0.30, 1)))
+    static let red    = Color(nsColor: dynamic("red",    light: (0.80, 0.13, 0.22, 1), dark: (1.00, 0.36, 0.42, 1)))
+    /// 面板整體玻璃底；plot 只比它再深一點點，不要浮出來
+    static let panelBGColor = dynamic("panelBG", light: (0.965, 0.966, 0.975, 0.96), dark: (0.06, 0.07, 0.11, 0.94))
+    static let panelBG = Color(nsColor: panelBGColor)
+    static let plotBG  = Color(nsColor: dynamic("plotBG", light: (0, 0, 0, 0.035), dark: (0, 0, 0, 0.28)))
+    static let cardBG  = Color(nsColor: dynamic("cardBG", light: (1, 1, 1, 0.85), dark: (1, 1, 1, 0.045)))
+    /// 卡片 / 視窗邊的髮絲線、圖表格線、座標字
+    static let hairline = Color(nsColor: dynamic("hairline", light: (0, 0, 0, 0.08), dark: (1, 1, 1, 0.08), highContrast: 3))
+    static let grid     = Color(nsColor: dynamic("grid", light: (0, 0, 0, 0.07), dark: (1, 1, 1, 0.06), highContrast: 2.5))
+    static let axis     = Color(nsColor: .secondaryLabelColor)
+    /// 間距節奏（4pt 基準）：卡片內 12、卡片之間 8、「看狀態」與「改設定」兩群之間 16
+    static let cardPadding: CGFloat = 12
+    static let cardRadius: CGFloat = 12
+    static let plotRadius: CGFloat = 4    // 同心圓角：卡片 12 − 內距 8 左右
+    static let stackSpacing: CGFloat = 8
+    static let groupSpacing: CGFloat = 16
+    /// 字級角色：macOS 可讀下限 10pt（HIG），所以最小字就是 caption2；會跳動的數字一律等寬數字
+    static let axisFont = Font.caption2.monospacedDigit()
+    static let valueFont = Font.system(size: 18, weight: .semibold, design: .rounded).monospacedDigit()
 
     /// 線下漸層：上濃下淡到透明
     static func fade(_ c: Color, top: Double = 0.45) -> LinearGradient {
@@ -414,24 +445,52 @@ func glowPoint<X: Plottable, Y: Plottable>(x: PlottableValue<X>, y: PlottableVal
     PointMark(x: x, y: y).foregroundStyle(color).symbolSize(size)
 }
 
-/// 所有圖共用的底：深色 plot 背景、淡格線、隱藏 X 軸
+/// 所有圖共用的底：plot 背景、淡格線、隱藏 X 軸
 struct NeonPlot: ViewModifier {
     func body(content: Content) -> some View {
         content
             .chartXAxis(.hidden)
             .chartYAxis { AxisMarks(position: .trailing) { _ in
-                AxisGridLine().foregroundStyle(Color.white.opacity(0.06))
-                AxisValueLabel().font(.system(size: 9)).foregroundStyle(Color.white.opacity(0.45))
+                AxisGridLine().foregroundStyle(Neon.grid)
+                AxisValueLabel().font(Neon.axisFont).foregroundStyle(Neon.axis)
             } }
-            .chartPlotStyle { $0.background(Neon.plotBG).clipShape(RoundedRectangle(cornerRadius: 6)) }
+            .chartPlotStyle { $0.background(Neon.plotBG).clipShape(RoundedRectangle(cornerRadius: Neon.plotRadius)) }
     }
 }
-extension View { func neonPlot() -> some View { modifier(NeonPlot()) } }
+
+/// 霓虹發光只在深色外觀出現：淺色底上的彩色陰影只會讓字糊掉
+struct NeonGlow: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    let color: Color
+    let radius: CGFloat
+    func body(content: Content) -> some View {
+        content.shadow(color: scheme == .dark ? color : .clear, radius: radius)
+    }
+}
+
+/// 卡片外框：統一內距、圓角、底色與髮絲線
+struct NeonCard: ViewModifier {
+    var padding: CGFloat = Neon.cardPadding
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .background(Neon.cardBG, in: RoundedRectangle(cornerRadius: Neon.cardRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Neon.cardRadius, style: .continuous).strokeBorder(Neon.hairline, lineWidth: 0.5))
+    }
+}
+
+extension View {
+    func neonPlot() -> some View { modifier(NeonPlot()) }
+    func neonGlow(_ color: Color, radius: CGFloat) -> some View { modifier(NeonGlow(color: color, radius: radius)) }
+    func neonCard(padding: CGFloat = Neon.cardPadding) -> some View { modifier(NeonCard(padding: padding)) }
+}
 
 // MARK: - 畫面
 
 struct PanelView: View {
     var monitor: Monitor
+    static let contentWidth: CGFloat = 320
+    static let edgePadding: CGFloat = 16      // 視窗邊距（4pt 節奏；原本 14）
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -443,48 +502,56 @@ struct PanelView: View {
                 })
         }
         .frame(width: AppDelegate.panelWidth)
-        .preferredColorScheme(.dark)
         .onAppear { monitor.tick() }
     }
 
+    /// 兩群：上面「看現在」（狀態 + 曲線 + 今日統計），下面「改設定」（風扇 / 提示音 / 套用）。
+    /// 群組內 8、群組之間 16 —— 靠留白分群，不再加分隔線
     var content: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Neon.groupSpacing) {
             if let s = monitor.snapshot {
-                header(s)
-                tempCard(s)
-                sensorGrid
-                fanCard(s)
-                if s.pcoreMHz != nil { freqCard(s) }
-                timeAxis
-                statsRow(s)
-                controls(s)
-                soundCard
-                applyBar
+                VStack(alignment: .leading, spacing: Neon.stackSpacing) {
+                    header(s)
+                    tempCard(s)
+                    sensorGrid
+                    fanCard(s)
+                    if s.pcoreMHz != nil { freqCard(s) }
+                    timeAxis
+                    statsRow(s)
+                }
+                VStack(alignment: .leading, spacing: Neon.stackSpacing) {
+                    controls(s)
+                    soundCard
+                    applyBar
+                }
                 footer
             } else {
-                Text("讀取 SMC 中…").padding()
+                Label("讀取 SMC 中…", systemImage: "thermometer.medium").foregroundStyle(.secondary).padding()
             }
         }
-        .padding(14)
-        .frame(width: 320)
+        .padding(Self.edgePadding)
+        .frame(width: Self.contentWidth + 2 * Self.edgePadding)
     }
 
     /// 標題列：名稱 + 狀態 chip，下面一行「結論」——現在能不能全力開工
     func header(_ s: Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text("cool42").font(.headline)
                 Spacer()
                 if let b = s.boostUntil, b > Date() {
-                    chipLabel("預熱 \(Int(b.timeIntervalSinceNow))s", Neon.cyan)
+                    chipLabel("預熱 \(Int(b.timeIntervalSinceNow))s", Neon.cyan, symbol: "wind")
                 }
-                chipLabel(s.guardRunning ? "guard 執行中" : "guard 未執行", s.guardRunning ? Color.white.opacity(0.6) : Neon.amber)
+                chipLabel(s.guardRunning ? "guard 執行中" : "guard 未執行", s.guardRunning ? Color.secondary : Neon.amber,
+                          symbol: s.guardRunning ? "checkmark.shield" : "exclamationmark.shield")
                 Button { monitor.onHide?() } label: {
                     Image(systemName: "xmark.circle.fill").font(.body).foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
                 .help("收起面板（點選單列圖示再打開）")
+                .accessibilityLabel("收起面板")
             }
+            .padding(.bottom, 2)
             statusLine(s)
             if let top = s.topProcesses, !top.isEmpty { busyLine(top) }
         }
@@ -496,7 +563,7 @@ struct PanelView: View {
             Image(systemName: "cpu").font(.caption2).foregroundStyle(.secondary)
             ForEach(Array(top.prefix(2).enumerated()), id: \.offset) { i, p in
                 if i > 0 { Text("·").foregroundStyle(.quaternary) }
-                Text(String(format: "%.0f%%", p.cpuPercent)).font(.system(.caption2, design: .rounded).weight(.semibold)).foregroundStyle(Neon.cyan)
+                Text(String(format: "%.0f%%", p.cpuPercent)).font(.caption2.weight(.semibold).monospacedDigit()).foregroundStyle(Neon.cyan)
                 Text(p.command).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 if let d = p.cwd { Text(d).font(.caption2).foregroundStyle(.tertiary).lineLimit(1) }
             }
@@ -504,11 +571,15 @@ struct PanelView: View {
         }
     }
 
-    func chipLabel(_ text: String, _ color: Color) -> some View {
-        Text(text).font(.caption2.weight(.medium))
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .foregroundStyle(color)
-            .background(color.opacity(0.14)).clipShape(Capsule())
+    func chipLabel(_ text: String, _ color: Color, symbol: String? = nil) -> some View {
+        HStack(spacing: 3) {
+            if let symbol { Image(systemName: symbol).imageScale(.small) }
+            Text(text).monospacedDigit()
+        }
+        .font(.caption2.weight(.medium))
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .foregroundStyle(color)
+        .background(color.opacity(0.14), in: Capsule())
     }
 
     /// 一句話結論：全速 / 降頻中 / 溫度危險 / 沒有頻率資料
@@ -523,13 +594,13 @@ struct PanelView: View {
             return ("bolt.fill", String(format: "全速運作 %.2f GHz · 未降頻", (s.pcoreMHz ?? 0) / 1000), Neon.green)
         }()
         return HStack(spacing: 6) {
-            Image(systemName: icon).font(.caption).foregroundStyle(color).shadow(color: color.opacity(0.8), radius: 4)
-            Text(text).font(.caption.weight(.medium)).foregroundStyle(color)
-            Spacer()
-            if let st = s.stats, st.throttleSeconds > 0 {
-                Text("今日降頻 \(Format.hms(st.throttleSeconds))").font(.caption2).foregroundStyle(Neon.red)
-            }
+            Image(systemName: icon).font(.callout).foregroundStyle(color).neonGlow(color.opacity(0.8), radius: 4)
+            Text(text).font(.callout.weight(.semibold)).foregroundStyle(color).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.85)
+            Spacer(minLength: 0)
+            // 今日降頻秒數不在這裡重複：下面統計列的「降頻」格已經是紅字
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: 三張卡：標題 + 目前值 + 5 分鐘曲線
@@ -537,22 +608,20 @@ struct PanelView: View {
     var window: ClosedRange<Date> { Date().addingTimeInterval(-History.keep)...Date() }
 
     func card<Chart: View>(title: String, @ViewBuilder value: () -> some View, @ViewBuilder chart: () -> Chart) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .lastTextBaseline) {
-                Text(title).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
                 value()
             }
             chart()
         }
-        .padding(8)
-        .background(Neon.cardBG)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .neonCard(padding: 8)
     }
 
     func bigValue(_ v: String, _ color: Color, unit: String = "") -> some View {
         HStack(alignment: .lastTextBaseline, spacing: 2) {
-            Text(v).font(.system(size: 18, weight: .semibold, design: .rounded)).foregroundStyle(color).shadow(color: color.opacity(0.5), radius: 5)
+            Text(v).font(Neon.valueFont).foregroundStyle(color).neonGlow(color.opacity(0.5), radius: 5)
             if !unit.isEmpty { Text(unit).font(.caption2).foregroundStyle(.secondary) }
         }
     }
@@ -563,10 +632,10 @@ struct PanelView: View {
                 HStack(spacing: 4) { legend("CPU", Neon.cyan); bigValue(String(format: "%.0f°", s.cpuMax), Neon.cyan) }
                 HStack(spacing: 4) {
                     legend("GPU", Neon.green); bigValue(String(format: "%.0f°", s.gpuMax), Neon.green)
-                    if let a = s.gpuActive { Text(String(format: "%.0f%%", a)).font(.caption2).foregroundStyle(.secondary) }
+                    if let a = s.gpuActive { Text(String(format: "%.0f%%", a)).font(.caption2).monospacedDigit().foregroundStyle(.secondary) }
                     if s.gpuThrottling { chipLabel("降頻", Neon.red) }
                 }
-                if let ssd = s.ssd { Text(String(format: "SSD %.0f°", ssd)).font(.caption2).foregroundStyle(.secondary) }
+                if let ssd = s.ssd { Text(String(format: "SSD %.0f°", ssd)).font(.caption2).monospacedDigit().foregroundStyle(.secondary) }
             }
         } chart: {
             Chart {
@@ -597,64 +666,70 @@ struct PanelView: View {
     /// 各感測器熱度格：P-core / E-core / GPU 三組，一格一個感測器，顏色隨溫度；滑過看 key 與度數
     var sensorGrid: some View {
         DisclosureGroup(isExpanded: Binding(get: { monitor.showSensors }, set: { monitor.showSensors = $0 })) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 sensorGroup("P-core", prefix: "Tp")
                 sensorGroup("E-core", prefix: "Te")
                 sensorGroup("GPU", prefix: "Tg")
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     ForEach([40, 60, 80, 95], id: \.self) { t in
-                        HStack(spacing: 2) {
+                        HStack(spacing: 3) {
                             RoundedRectangle(cornerRadius: 2).fill(tempColor(Double(t))).frame(width: 8, height: 8)
-                            Text("\(t)°").font(.system(size: 8)).foregroundStyle(.tertiary)
+                            Text("\(t)°").font(Neon.axisFont).foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
-                    Text("風扇看的是最熱那一格").font(.system(size: 8)).foregroundStyle(.tertiary)
+                    Text("風扇看最熱的那一格").font(.caption2).foregroundStyle(.secondary)
                 }
+                .accessibilityElement(children: .combine)
             }
-            .padding(.top, 6)
+            .padding(.top, 8)
         } label: {
-            HStack {
-                Text("各感測器").font(.caption2).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Image(systemName: "square.grid.3x3.fill").font(.caption).foregroundStyle(.secondary)
+                Text("熱度格").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 if monitor.showSensors {
-                    Text("\(monitor.sensorTemps.count) 個").font(.caption2).foregroundStyle(.tertiary)
+                    Text("\(monitor.sensorTemps.count) 個感測器").font(.caption2).monospacedDigit().foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(Neon.cardBG)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .neonCard(padding: 8)
     }
 
     func sensorGroup(_ name: String, prefix: String) -> some View {
         let items = monitor.sensorTemps.filter { $0.key.hasPrefix(prefix) }.sorted { $0.key < $1.key }
         let hi = items.map(\.value).max()
         let avg = items.isEmpty ? nil : items.map(\.value).reduce(0, +) / Double(items.count)
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                Text(name).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(name).font(.caption2.weight(.semibold)).foregroundStyle(.primary).frame(width: 44, alignment: .leading)
                 if let hi, let avg {
-                    Text(String(format: "最熱 %.0f°", hi)).font(.system(size: 10, design: .monospaced)).foregroundStyle(tempColor(hi))
-                    Text(String(format: "平均 %.0f°", avg)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
+                    Text(String(format: "最熱 %.0f°", hi)).font(.caption2.weight(.semibold).monospacedDigit()).foregroundStyle(tempText(hi))
+                    Text(String(format: "平均 %.0f°", avg)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 } else {
-                    Text("—").font(.system(size: 10)).foregroundStyle(.tertiary)
+                    Text("—").font(.caption2).foregroundStyle(.tertiary)
                 }
                 Spacer()
-                Text("×\(items.count)").font(.system(size: 9)).foregroundStyle(.quaternary)
+                Text("×\(items.count)").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 13, maximum: 13), spacing: 3)], alignment: .leading, spacing: 3) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 14, maximum: 14), spacing: 3)], alignment: .leading, spacing: 3) {
                 ForEach(items, id: \.key) { k, t in
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(tempColor(t))
-                        .frame(width: 13, height: 13)
-                        .shadow(color: t >= monitor.config.hotTemp ? tempColor(t).opacity(0.7) : .clear, radius: 3)
+                        .frame(width: 14, height: 14)
+                        .neonGlow(t >= monitor.config.hotTemp ? tempColor(t).opacity(0.7) : .clear, radius: 3)
                         .help(String(format: "%@  %.1f°C", k, t))
+                        .accessibilityLabel(String(format: "%@ %@ %.0f 度", name, k, t))
                 }
             }
         }
     }
 
-    /// 溫度 → 顏色：40 藍青、60 綠、80 琥珀、95+ 紅，中間線性混色
+    /// 熱度當文字色用：淺色外觀時格子的亮綠 / 琥珀在白底上太淡，改用同色相的壓暗版
+    func tempText(_ t: Double) -> Color {
+        t >= 90 ? Neon.red : t >= 75 ? Neon.amber : t >= 55 ? Neon.green : Neon.cyan
+    }
+
+    /// 溫度 → 顏色：40 藍青、60 綠、80 琥珀、95+ 紅，中間線性混色（格子本身兩種外觀共用同一組，色票才對得上）
     func tempColor(_ t: Double) -> Color {
         let stops: [(Double, (Double, Double, Double))] = [
             (40, (0.16, 0.55, 0.96)), (60, (0.36, 0.95, 0.55)), (80, (1.00, 0.72, 0.30)), (95, (1.00, 0.36, 0.42)),
@@ -673,7 +748,7 @@ struct PanelView: View {
         let f = s.fans.first
         return card(title: "風扇") {
             HStack(spacing: 8) {
-                if let f, f.manual { Text(String(format: "目標 %.0f", f.target)).font(.caption2).foregroundStyle(.secondary) }
+                if let f, f.manual { Text(String(format: "目標 %.0f", f.target)).font(.caption2).monospacedDigit().foregroundStyle(.secondary) }
                 else { Text("macOS 自動").font(.caption2).foregroundStyle(.secondary) }
                 bigValue(String(format: "%.0f", f?.rpm ?? 0), Neon.purple, unit: "rpm")
             }
@@ -685,7 +760,7 @@ struct PanelView: View {
                 }
                 ForEach(monitor.history.filter { $0.target != nil }, id: \.time) { p in
                     LineMark(x: .value("t", p.time), y: .value("target", p.target ?? 0), series: .value("s", "target"))
-                        .foregroundStyle(Color.white.opacity(0.35)).lineStyle(.init(lineWidth: 1, dash: [2, 3]))
+                        .foregroundStyle(Color.secondary).lineStyle(.init(lineWidth: 1, dash: [2, 3]))
                 }
                 ForEach(monitor.history, id: \.time) { p in
                     glowLine(x: .value("t", p.time), y: .value("rpm", p.rpm), series: "rpm", color: Neon.purple)
@@ -697,11 +772,11 @@ struct PanelView: View {
             .chartXScale(domain: window)
             .chartYScale(domain: 0...(f?.max ?? 5000))
             .chartYAxis { AxisMarks(position: .trailing, values: [1000, 2000, 3000, 4000]) { v in
-                AxisGridLine().foregroundStyle(Color.white.opacity(0.06))
-                AxisValueLabel { if let r = v.as(Int.self) { Text("\(r / 1000)k").font(.system(size: 9)).foregroundStyle(Color.white.opacity(0.45)) } }
+                AxisGridLine().foregroundStyle(Neon.grid)
+                AxisValueLabel { if let r = v.as(Int.self) { Text("\(r / 1000)k").font(Neon.axisFont).foregroundStyle(Neon.axis) } }
             } }
             .chartXAxis(.hidden)
-            .chartPlotStyle { $0.background(Neon.plotBG).clipShape(RoundedRectangle(cornerRadius: 6)) }
+            .chartPlotStyle { $0.background(Neon.plotBG).clipShape(RoundedRectangle(cornerRadius: Neon.plotRadius)) }
             .frame(height: 56)
         }
     }
@@ -712,7 +787,7 @@ struct PanelView: View {
         return card(title: "P-core 頻率") {
             HStack(spacing: 8) {
                 if s.throttling { chipLabel("降頻 \(s.thermalPressure ?? "")", Neon.red) }
-                else if !idle, let e = s.ecoreMHz { Text(String(format: "E %.1f", e / 1000)).font(.caption2).foregroundStyle(.secondary) }
+                else if !idle, let e = s.ecoreMHz { Text(String(format: "E %.1f", e / 1000)).font(.caption2).monospacedDigit().foregroundStyle(.secondary) }
                 if idle { bigValue("閒置", .secondary) }
                 else { bigValue(String(format: "%.2f", p / 1000), s.throttling ? Neon.red : Neon.green, unit: "GHz") }
             }
@@ -739,12 +814,14 @@ struct PanelView: View {
     /// 三張卡共用的時間軸
     var timeAxis: some View {
         HStack {
-            Text("5 分鐘前").font(.system(size: 9)).foregroundStyle(.quaternary)
+            Text("5 分鐘前")
             Spacer()
-            Text("現在").font(.system(size: 9)).foregroundStyle(.quaternary)
+            Text("現在")
         }
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
         .padding(.horizontal, 8)
-        .padding(.top, -6)
+        .padding(.top, -4)
     }
 
     func legend(_ name: String, _ color: Color, dashed: Bool = false) -> some View {
@@ -752,16 +829,16 @@ struct PanelView: View {
             if dashed {
                 Rectangle().fill(color).frame(width: 10, height: 1).overlay(Rectangle().stroke(style: .init(lineWidth: 1, dash: [2, 2])).foregroundStyle(color))
             } else {
-                Capsule().fill(color).frame(width: 10, height: 2).shadow(color: color.opacity(0.8), radius: 2)
+                Capsule().fill(color).frame(width: 10, height: 2).neonGlow(color.opacity(0.8), radius: 2)
             }
-            Text(name).font(.system(size: 9)).foregroundStyle(.secondary)
+            Text(name).font(.caption2).foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     func statsRow(_ s: Snapshot) -> some View {
         if let st = s.stats {
-            HStack(spacing: 10) {
+            HStack(spacing: 2) {
                 stat("今日最高", String(format: "%.0f°", st.maxTemp), color: monitor.config.level(for: st.maxTemp).neon)
                 stat("hot", Format.hms(st.hotSeconds), color: st.hotSeconds > 0 ? Neon.amber : .secondary)
                 stat("critical", Format.hms(st.criticalSeconds), color: st.criticalSeconds > 0 ? Neon.red : .secondary)
@@ -769,19 +846,17 @@ struct PanelView: View {
                 stat("hook 等/擋", "\(st.hookWaits)/\(st.hookDenies)", color: .secondary)
                 stat("預熱", "\(st.boosts)", color: .secondary)
             }
-            .font(.caption2)
-            .padding(.vertical, 6).padding(.horizontal, 4)
-            .background(Neon.cardBG)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .neonCard(padding: 8)
         }
     }
 
     func stat(_ name: String, _ v: String, color: Color) -> some View {
-        VStack(spacing: 1) {
-            Text(v).font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.8)
-            Text(name).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+        VStack(spacing: 2) {
+            Text(v).font(.system(.callout, design: .rounded).weight(.semibold).monospacedDigit()).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.8)
+            Text(name).font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: 控制區
@@ -798,13 +873,14 @@ struct PanelView: View {
         let fmax = s.fans.first?.max ?? 4900
         VStack(alignment: .leading, spacing: 8) {
             // 標題列：模式 + 狀態
-            HStack {
+            HStack(spacing: 6) {
+                Image(systemName: "fan").font(.caption).foregroundStyle(.secondary)
                 Text("風扇控制").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
                 if !s.guardRunning {
-                    Label("guard 未執行", systemImage: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(.orange)
+                    Label("guard 未執行", systemImage: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(Neon.amber)
                 } else if monitor.fanDirty {
-                    Text("未套用").font(.caption2).foregroundStyle(.orange)
+                    Text("未套用").font(.caption2.weight(.medium)).foregroundStyle(Neon.amber)
                 }
             }
             Picker("模式", selection: Binding(get: { monitor.draft.mode }, set: { monitor.draft.mode = $0 })) {
@@ -821,7 +897,7 @@ struct PanelView: View {
                 HStack {
                     Slider(value: Binding(get: { monitor.draft.fixedRPM }, set: { monitor.draft.fixedRPM = ($0 / 50).rounded() * 50 }),
                            in: fmin...fmax)
-                    Text("\(Int(monitor.draft.fixedRPM)) rpm").font(.system(.caption, design: .monospaced)).frame(width: 64, alignment: .trailing)
+                    Text("\(Int(monitor.draft.fixedRPM)) rpm").font(.caption.monospacedDigit()).frame(width: 64, alignment: .trailing)
                 }
             case "curve":
                 curvePreview(s, fixed: nil, fmin: fmin, fmax: fmax)
@@ -831,11 +907,11 @@ struct PanelView: View {
                         ForEach(monitor.draft.curve.indices, id: \.self) { i in
                             HStack(spacing: 6) {
                                 Stepper(value: Binding(get: { monitor.draft.curve[i].temp }, set: { monitor.draft.curve[i].temp = $0 }), in: 40...105, step: 1) {
-                                    Text("\(Int(monitor.draft.curve[i].temp))°").font(.system(.caption, design: .monospaced)).frame(width: 34, alignment: .trailing)
+                                    Text("\(Int(monitor.draft.curve[i].temp))°").font(.caption.monospacedDigit()).frame(width: 34, alignment: .trailing)
                                 }
                                 Slider(value: Binding(get: { monitor.draft.curve[i].rpm }, set: { monitor.draft.curve[i].rpm = ($0 / 50).rounded() * 50 }),
                                        in: fmin...fmax)
-                                Text("\(Int(monitor.draft.curve[i].rpm))").font(.system(.caption, design: .monospaced)).frame(width: 36, alignment: .trailing)
+                                Text("\(Int(monitor.draft.curve[i].rpm))").font(.caption.monospacedDigit()).frame(width: 36, alignment: .trailing)
                             }
                         }
                     }
@@ -853,9 +929,7 @@ struct PanelView: View {
             }
             .toggleStyle(.checkbox).controlSize(.mini)
         }
-        .padding(10)
-        .background(Neon.cardBG)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .neonCard()
     }
 
     /// 三組預設：選中的填色，自訂時全部不亮並多一個「自訂」
@@ -873,13 +947,14 @@ struct PanelView: View {
         Button(action: action) {
             Text(title)
                 .font(.caption.weight(selected ? .semibold : .regular))
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(selected ? AnyShapeStyle(Neon.sweep(Neon.cyan, Neon.violet)) : AnyShapeStyle(Color.white.opacity(0.08)))
+                .padding(.horizontal, 12).padding(.vertical, 4)
+                .background(selected ? AnyShapeStyle(Neon.sweep(Neon.cyan, Neon.violet)) : AnyShapeStyle(Neon.grid), in: Capsule())
                 .foregroundStyle(selected ? Color.white : Color.primary)
-                .clipShape(Capsule())
-                .shadow(color: selected ? Neon.cyan.opacity(0.5) : .clear, radius: 5)
+                .neonGlow(selected ? Neon.cyan.opacity(0.5) : .clear, radius: 5)
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     /// 曲線預覽：X 溫度、Y 轉速；畫 draft 曲線、hot/critical 門檻、目前溫度與風扇位置
@@ -912,32 +987,34 @@ struct PanelView: View {
             RuleMark(x: .value("now", tNow)).foregroundStyle(s.level.neon.opacity(0.45)).lineStyle(.init(lineWidth: 1))
             glowPoint(x: .value("now", tNow), y: .value("rpm", rpmNow), color: s.level.neon, size: 28)
             PointMark(x: .value("now", tNow), y: .value("rpm", rpmNow)).opacity(0)
-                .annotation(position: tNow > 85 ? .leading : .trailing, alignment: .center, spacing: 6) {
-                    Text(String(format: "%.0f° · %.0f rpm", s.controlTemp, rpmNow)).font(.system(size: 9, design: .monospaced)).foregroundStyle(s.level.neon)
+                // 點貼著圖頂（風扇快滿速）時字往下放，不然會被 plot 邊界切掉
+                .annotation(position: rpmNow > fmin + (fmax - fmin) * 0.8 ? (tNow > 85 ? .bottomLeading : .bottomTrailing) : (tNow > 85 ? .leading : .trailing),
+                            alignment: .center, spacing: 6) {
+                    Text(String(format: "%.0f° · %.0f rpm", s.controlTemp, rpmNow)).font(.caption2.weight(.medium).monospacedDigit()).foregroundStyle(s.level.neon)
                 }
         }
         .chartXScale(domain: 40...108)
         .chartYScale(domain: fmin...fmax)
         .chartXAxis { AxisMarks(values: [50, 60, 70, 80, 90, 100]) { v in
-            AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
-            AxisValueLabel { if let t = v.as(Int.self) { Text("\(t)°").font(.system(size: 9)).foregroundStyle(Color.white.opacity(0.45)) } }
+            AxisGridLine().foregroundStyle(Neon.grid)
+            AxisValueLabel { if let t = v.as(Int.self) { Text("\(t)°").font(Neon.axisFont).foregroundStyle(Neon.axis) } }
         } }
         .chartYAxis { AxisMarks(position: .trailing, values: [1000, 2000, 3000, 4000]) { v in
-            AxisGridLine().foregroundStyle(Color.white.opacity(0.06))
-            AxisValueLabel { if let r = v.as(Int.self) { Text("\(r / 1000)k").font(.system(size: 9)).foregroundStyle(Color.white.opacity(0.45)) } }
+            AxisGridLine().foregroundStyle(Neon.grid)
+            AxisValueLabel { if let r = v.as(Int.self) { Text("\(r / 1000)k").font(Neon.axisFont).foregroundStyle(Neon.axis) } }
         } }
-        .chartPlotStyle { $0.background(Neon.plotBG).clipShape(RoundedRectangle(cornerRadius: 6)) }
+        .chartPlotStyle { $0.background(Neon.plotBG).clipShape(RoundedRectangle(cornerRadius: Neon.plotRadius)) }
         .frame(height: 100)
     }
 
     /// 提示音卡：熱 / 冷兩列，每列 = 開關（即時生效）+ ▶ 試聽 + 觸發門檻（走「套用」寫進 config）
     var soundCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "speaker.wave.2.fill").font(.caption2).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Image(systemName: "speaker.wave.2").font(.caption).foregroundStyle(.secondary)
                 Text("提示音").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
-                if monitor.soundDirty { Text("未套用").font(.caption2).foregroundStyle(.orange) }
+                if monitor.soundDirty { Text("未套用").font(.caption2.weight(.medium)).foregroundStyle(Neon.amber) }
             }
             soundLine("過熱 / 降頻", Neon.red, hot: true,
                       isOn: Binding(get: { monitor.hotSoundOn }, set: { monitor.hotSoundOn = $0 }),
@@ -948,11 +1025,9 @@ struct PanelView: View {
                       threshold: Binding(get: { monitor.draftCooldownBelow }, set: { monitor.draftCooldownBelow = $0 }),
                       range: 40...(monitor.draftOverheatAbove - 1), prefix: "<")
             Text("CPU / GPU 一降頻就算過熱，不看溫度。門檻獨立於風扇與 hook 的 hot 線。")
-                .font(.system(size: 9)).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
-        .background(Neon.cardBG)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .neonCard()
     }
 
     func soundLine(_ title: String, _ color: Color, hot: Bool, isOn: Binding<Bool>, threshold: Binding<Double>,
@@ -962,14 +1037,15 @@ struct PanelView: View {
             Toggle(isOn: isOn) { Text(title).font(.caption2).foregroundStyle(isOn.wrappedValue ? color : .secondary) }
                 .toggleStyle(.checkbox).controlSize(.mini)
             Button { monitor.play(hot: hot) } label: {
-                Image(systemName: "play.circle").font(.caption2).foregroundStyle(.secondary)
+                Image(systemName: "play.circle").font(.caption).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("試聽\(title)提示音")
             .help("試聽：" + (file.map { ($0 as NSString).lastPathComponent } ?? "系統音 \(hot ? Monitor.hotSound : Monitor.coldSound)"))
             Spacer()
             Stepper(value: threshold, in: range, step: 1) {
                 Text("\(prefix) \(Int(threshold.wrappedValue))°")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(isOn.wrappedValue ? Color.primary : Color.secondary)
                     .frame(width: 44, alignment: .trailing)
             }
@@ -984,9 +1060,9 @@ struct PanelView: View {
         if monitor.dirty || monitor.saveMessage != nil {
             HStack {
                 if let m = monitor.saveMessage {
-                    Text(m).font(.caption2).foregroundStyle(m.hasPrefix("寫入失敗") ? .red : .secondary)
+                    Text(m).font(.caption2).foregroundStyle(m.hasPrefix("寫入失敗") ? Neon.red : .secondary)
                 } else if monitor.dirty {
-                    Text("有未套用的變更").font(.caption2).foregroundStyle(.orange)
+                    Text("有未套用的變更").font(.caption2).foregroundStyle(Neon.amber)
                 }
                 Spacer()
                 Button("還原") { monitor.revert() }.disabled(!monitor.dirty)
@@ -998,18 +1074,27 @@ struct PanelView: View {
     }
 
     var footer: some View {
-        HStack {
-            Button("看 log") { NSWorkspace.shared.open(URL(fileURLWithPath: "/var/log/cool42.log")) }
-            Text("·").foregroundStyle(.quaternary)
-            Button("設定檔") { NSWorkspace.shared.selectFile(monitor.config.loadedFrom ?? "/etc/cool42/config.json", inFileViewerRootedAtPath: "") }
+        // 文字按鈕前加 SF Symbol：一眼看得出是能按的動作，不是說明文字
+        HStack(spacing: 12) {
+            Button { NSWorkspace.shared.open(URL(fileURLWithPath: "/var/log/cool42.log")) } label: { Label("看 log", systemImage: "doc.text") }
+            Button { NSWorkspace.shared.selectFile(monitor.config.loadedFrom ?? "/etc/cool42/config.json", inFileViewerRootedAtPath: "") } label: {
+                Label("設定檔", systemImage: "folder")
+            }
             Spacer()
-            Text("cool42 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")").font(.caption2).foregroundStyle(.quaternary)
-            Button("重啟") { monitor.relaunch() }.help("重新啟動面板")
-            Text("·").foregroundStyle(.quaternary)
-            Button("結束") { NSApp.terminate(nil) }.help("結束面板程式（guard 不受影響）")
+            Text("cool42 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
+            Button { monitor.relaunch() } label: { Label("重啟", systemImage: "arrow.clockwise") }.help("重新啟動面板")
+            Button { NSApp.terminate(nil) } label: { Label("結束", systemImage: "power") }.help("結束面板程式（guard 不受影響）")
         }
+        .labelStyle(FooterLabelStyle())
         .font(.caption)
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+    }
+}
+
+/// 頁尾：小圖示 + 字，間距比系統預設 Label 緊（面板寬只有 320）
+struct FooterLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) { configuration.icon.imageScale(.small); configuration.title }
     }
 }
