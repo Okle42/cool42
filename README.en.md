@@ -2,6 +2,13 @@
 
 [繁體中文](README.md)
 
+**In one line: your AI coding agent checks the Mac's thermals before heavy work — full speed while there's no throttling, and it waits only when the CPU is actually throttled.**
+
+<p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 panel demo: idle → heavy load → throttling → Claude Code hook waits → allowed"></p>
+<p align="center"><sub>18-second demo. Idle and heavy-load frames are real captures; the "throttling" segment is a staged scenario (not a recorded event), and the terminal frames reproduce the source code's output format. The panel UI is Chinese-only for now.</sub></p>
+
+![cool42: your AI agent waits on thermal pressure, not temperature. Peak control temperature 95°C over 4 days, 0 s throttled, the hook made the AI wait 0 times](docs/img/screens/hero-en.png)
+
 > A menu-bar panel that shows CPU / GPU temperature, every core's own sensor (73 on an M4, as a heat grid), fan RPM, the P-cores' **actual** clock and whether macOS is quietly throttling you. Custom fan curves, overheat / cooled-down chimes with adjustable thresholds.
 > Then the part no other monitor has: **when an AI agent like Claude Code runs heavy work on your Mac, let the machine go full speed, let the fan prevent throttling, and only make the work wait when throttling actually happens.**
 > Whole stack idles at **0.3% CPU / 10 MB** (guard 0.1% + clock reader 0.18%); the panel 0.2% idle, 0–3% open.
@@ -67,6 +74,24 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 | Survives heavy load | Standard QoS + watchdog; keeps the fan speed across restarts |
 | Statusline snippet | Claude Code statusline shows `🌡85°🌀4896⚡3.9G`, ⚡ turns red when throttled |
 
+## Data
+
+Everything below comes from this Mac mini M4's guard log and the A/B run — nothing simulated. The generator [`extras/viz/build_charts.py`](extras/viz/build_charts.py) reads a frozen log snapshot in the repo, so the numbers can be recomputed. (Chart labels are in Chinese; the key numbers are restated under each chart.)
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/hook-timeline-dark.svg"><img src="docs/img/charts/hook-timeline-light.svg" alt="Over 94 hours, 31 moments at or above 90°C; the hook waited 0 times, denied 0 times, 0 s throttled"></picture>
+
+**Over 94 hours (2,184 SMC writes) the chip hit ≥ 90 °C at 31 moments, peaking at 95 °C — and the AI was never held up: 0 hook waits, 0 denials, 0 s throttled.** ("With the first version's wait-at-90 °C rule, all 31 would have blocked the agent" is an inference.)
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/ab-rpm-dark.svg"><img src="docs/img/charts/ab-rpm-light.svg" alt="A/B on the same load: the current default averages 3,150 rpm, 25% less than the old curve's 4,216 rpm"></picture>
+
+**Same load, 5 minutes per curve (first 60 s dropped): the current default averages 3,150 rpm vs the old curve's 4,216 (−25%) for only 3.8 °C more (83.0 → 86.8 °C).** (The ≈ −6 dB figure is a fan-law estimate, not a measurement.)
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/daily-max-dark.svg"><img src="docs/img/charts/daily-max-light.svg" alt="Daily peak 93–94°C, 0 s throttled and 0 hook waits over 4 days"></picture>
+
+**Daily peaks of 93–94 °C (09-23 only up to 23:42), 0 s throttled in total over 4 days.** "Seconds throttled" = cumulative seconds with thermal pressure other than Nominal; the daily summary truncates to an integer, which is why 95 °C shows up in the raw log.
+
+Limits, stated plainly: one Mac mini M4 only; in these 4 days there was no real throttling event, so the charts prove "doesn't get in the way when hot" — the "waits only when actually throttled" path is covered by unit tests and the staged segment of the demo above. All 9 charts with table views: [`docs/viz/index.html`](docs/viz/index.html) (download and open in a browser).
+
 ## Architecture
 
 ```
@@ -96,18 +121,7 @@ Sources/Cool42Core    Swift library: type decoding, sensor scan, fan curve, conf
 
 **Privilege separation is the heart of the design**: only guard needs root (writes SMC, runs powermetrics). Everything else — panel, hook, statusline — reads 644 JSON files. Non-root parts talk to guard through files: edit the config, or drop a small JSON into `/var/run/cool42/events/` (a 1733 directory: anyone can drop, nobody can list) that guard reads and deletes each round.
 
-**Threat model (how a root daemon should be judged)**
-
-| Who reaches what | Worst case | Why it stops there |
-|---|---|---|
-| Any local process → `/var/run/cool42/events/` (1733) | Spin the fan to `boostRPM` for two minutes, inflate stats | guard only accepts regular files ≤ 4 KB (lstat, no symlink following), 64 per round; rpm and duration in the event file are ignored — root uses its own config values, then clamps to firmware `F0Mn–F0Mx`; notes are stripped of control chars and cut to 60 chars before reaching the log |
-| User-level process → `/etc/cool42/config.json` (user-writable, read by root) | Flatten the curve so the CPU throttles, edit the hook allowlist | root **never takes a path or command from the config to execute** (sound paths are used only by the non-root panel); SMC firmware has its own thermal protection — worst case is slow, not broken |
-| Any local process → runtime directory | — | `/var/run/cool42` is root 755; guard creates it with `mkdir(2)` + `lstat` to confirm it owns a real directory and refuses to start otherwise; writes use `O_EXCL\|O_NOFOLLOW`. Before 1.0.2 this lived in `/tmp`, where a fixed name plus a symlink let root overwrite arbitrary files — moved |
-| Reading `/var/log/cool42.log` (644) | See who ran a heavy command when | Only the matched keyword (`swift build`) is logged, never the command itself — it may carry tokens or private paths |
-| Claude Code hook stdin | — | String matching only, decides whether to wait; executes nothing |
-| Subprocesses | — | `/usr/bin/powermetrics`, `/usr/bin/pgrep` by absolute path, `PATH` is not consulted |
-
-Not done yet: Developer ID signing and notarization (currently ad-hoc; `install.sh` builds locally and self-signs).
+What a local process can reach through the root daemon, and the worst it can do: see the [threat model](#threat-model) below.
 
 ## Gate logic (Claude Code hook)
 
@@ -126,9 +140,46 @@ Without guard (no pressure available) it falls back to temperature: ≥ 95 °C w
 
 **Allow-listed commands are never gated**: `cool42`, `kill`, `pkill`, `killall`, `ps`, `top`, `sleep`… — otherwise Claude couldn't even run the commands that cool things down. See `hookAllowCommands` in config.
 
+## Threat model
+
+How a root daemon should be judged:
+
+| Who reaches what | Worst case | Why it stops there |
+|---|---|---|
+| Any local process → `/var/run/cool42/events/` (1733) | Spin the fan to `boostRPM` for two minutes, inflate stats | guard only accepts regular files ≤ 4 KB (lstat, no symlink following), 64 per round; rpm and duration in the event file are ignored — root uses its own config values, then clamps to firmware `F0Mn–F0Mx`; notes are stripped of control chars and cut to 60 chars before reaching the log |
+| User-level process → `/etc/cool42/config.json` (user-writable, read by root) | Flatten the curve so the CPU throttles, edit the hook allowlist | root **never takes a path or command from the config to execute** (sound paths are used only by the non-root panel); SMC firmware has its own thermal protection — worst case is slow, not broken |
+| Any local process → runtime directory | — | `/var/run/cool42` is root 755; guard creates it with `mkdir(2)` + `lstat` to confirm it owns a real directory and refuses to start otherwise; writes use `O_EXCL\|O_NOFOLLOW`. Before 1.0.2 this lived in `/tmp`, where a fixed name plus a symlink let root overwrite arbitrary files — moved |
+| Reading `/var/log/cool42.log` (644) | See who ran a heavy command when | Only the matched keyword (`swift build`) is logged, never the command itself — it may carry tokens or private paths |
+| Claude Code hook stdin | — | String matching only, decides whether to wait; executes nothing |
+| Subprocesses | — | `/usr/bin/powermetrics`, `/usr/bin/pgrep` by absolute path, `PATH` is not consulted |
+
+Not done yet: Developer ID signing and notarization (currently ad-hoc; `install.sh` builds locally and self-signs).
+
 ## Install
 
-Needs Xcode Command Line Tools (`swiftc`). Quit other fan controllers first (e.g. Macs Fan Control, including its menu-bar resident); two writers fight over the fan.
+Quit other fan controllers first (e.g. Macs Fan Control, including its menu-bar resident); two writers fight over the fan. Apple Silicon and macOS 14+ only. guard is a root LaunchDaemon, so installing asks for your password once — see the [threat model](#threat-model) for what it can and can't do.
+
+**1. Homebrew (available once notarization is done)**
+
+```bash
+brew install okle42/tap/cool42 && cool42-setup
+```
+
+Releases are still ad-hoc signed and the tap isn't live yet; this path opens after Developer ID signing and notarization. `cool42-setup` installs the CLI, guard, Claude Code hook and MCP (asks for your password). Upgrade with `brew upgrade cool42 && cool42-setup`; remove completely with `brew uninstall --zap cool42` (a plain `brew uninstall` deliberately leaves guard running, so the fan isn't unmanaged mid-upgrade).
+
+**2. Download the release zip (no swift, no clone)**
+
+```bash
+V=1.0.3; curl -fsSL "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" -o /tmp/cool42.zip \
+  && rm -rf /tmp/cool42 && ditto -xk /tmp/cool42.zip /tmp/cool42 && /tmp/cool42/cool42-$V/install.sh
+cool42 doctor    # all 15 checks green = done
+```
+
+`install.sh --skip-claude` leaves Claude Code's hook and MCP alone. Remove with `/usr/local/share/cool42/uninstall.sh` (config kept). Support files go to `/usr/local/share/cool42`, so the unzipped folder can be deleted afterwards. Release process: [`docs/RELEASING.md`](docs/RELEASING.md) (Chinese).
+
+**3. From source**
+
+Needs Xcode Command Line Tools (`swiftc`).
 
 ```bash
 git clone https://github.com/Okle42/cool42.git
@@ -276,7 +327,13 @@ docs/                   A/B test data
 
 - [`docs/findings-m4-sensors.md`](docs/findings-m4-sensors.md) — **technical findings (zh / en)**: IOReport clocks vs IOHID temperatures vs SMC vs powermetrics on M4, second-by-second comparison, which ones are real; stock fan policy numbers; what an agent should use to self-throttle
 - [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/) — raw A/B curve data, powermetrics output, external references
+- [`docs/viz/index.html`](docs/viz/index.html) — interactive view of all 9 data charts (light / dark, table view), generated by [`extras/viz/build_charts.py`](extras/viz/build_charts.py)
+- [`docs/RELEASING.md`](docs/RELEASING.md) — release zip, signing / notarization, Homebrew tap (Chinese)
 - [`CHANGELOG.md`](CHANGELOG.md)
+
+## About
+
+**[Okle42](https://github.com/Okle42)** builds AI agents into real working pipelines. cool42 is one example: about 4 days and 42 commits from 0.1 to 1.0.3, mostly written together with Claude Code; the four fixes in 1.0.1 came from having the agent read guard's own log. Questions, chip reports and collaboration: open an [issue](https://github.com/Okle42/cool42/issues).
 
 ## License
 

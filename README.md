@@ -2,6 +2,13 @@
 
 [English](README.en.md)
 
+**一句話：AI 寫程式時自己看溫度排隊 —— 沒降頻就全速放行，只在真的降頻才等。**
+
+<p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 面板示意：閒置 → 重載 → 降頻 → Claude Code hook 等待 → 放行"></p>
+<p align="center"><sub>18 秒示意：閒置與重載是實機資料；「降頻」那一段是受控情境（非實機紀錄），終端機畫面照原始碼格式重現。</sub></p>
+
+![cool42：AI 寫程式時，自己看溫度排隊。近 4 天最高控制溫度 95°C、降頻 0 秒、hook 讓 AI 等待 0 次](docs/img/screens/hero.png)
+
 > 選單列一眼看到 CPU / GPU 溫度、每顆核心各幾度（M4 共 73 個感測器的熱度格）、風扇轉速、P-core **實際**頻率、有沒有被靜靜降頻；自訂風扇曲線，過熱 / 回穩有提示音，門檻自己調。
 > 然後是別的監控工具沒有的部分：**當 Claude Code 這類 AI agent 在你的 Mac 上跑重工作時，讓機器全力開工、風扇負責避免降頻；只有真的降頻了才讓工作等一下。**
 > 整套常駐 **0.3% CPU / 10 MB**（guard 0.1% + 頻率讀取 0.18%），面板閒置 0.2%、打開展開感測器 0.0–3%。
@@ -67,6 +74,24 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風�
 | 高負載下自己不會掛 | Standard 優先權 + watchdog；重啟時風扇維持不放手 |
 | 狀態列片段 | Claude Code statusline 顯示 `🌡85°🌀4896⚡3.9G`，降頻時 ⚡ 變紅 |
 
+## 數據
+
+以下都來自這台 Mac mini M4 的 guard log 與 A/B 實測（不是模擬）；產生器 [`extras/viz/build_charts.py`](extras/viz/build_charts.py) 讀 repo 內凍結的 log 快照，數字可重算。
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/hook-timeline-dark.svg"><img src="docs/img/charts/hook-timeline-light.svg" alt="近 94 小時 31 個時刻 ≥90°C，hook 等待 0 次、擋下 0 次、降頻 0 秒"></picture>
+
+**近 94 小時（2,184 筆 SMC 寫入）有 31 個時刻 ≥ 90°C、最高 95°C，AI 一次都沒被卡：hook 等待 0、擋下 0、降頻 0 秒。**（「若沿用第一版 90°C 就等，這 31 次都會卡住」是推論。）
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/ab-rpm-dark.svg"><img src="docs/img/charts/ab-rpm-light.svg" alt="A/B 同一負載：現行預設平均 3,150 rpm，比舊曲線 4,216 rpm 少 25%"></picture>
+
+**同一負載 A/B 各 5 分鐘（扣前 60 秒）：現行預設平均 3,150 rpm，比舊曲線的 4,216 少 25%，溫度只多 3.8°C（83.0 → 86.8°C）。**（約 −6 dB 是用風扇定律推估，非實測。）
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/daily-max-dark.svg"><img src="docs/img/charts/daily-max-light.svg" alt="每日最高溫 93–94°C，4 天降頻 0 秒、hook 等待 0 次"></picture>
+
+**每日結算的最高溫 93–94°C（09-23 只到 23:42），4 天降頻合計 0 秒。** 降頻秒數 = thermal pressure 不是 Nominal 的累計秒數；結算用整數截斷，所以 log 裡看得到 95°C。
+
+限制照實講：只有一台 Mac mini M4；近 4 天沒有一次真的降頻，所以這些圖證明的是「高溫時不擋路」，「真的降頻才等」那一段目前只有單元測試與上方 GIF 的受控示意。全部 9 張圖與表格檢視在 [`docs/viz/index.html`](docs/viz/index.html)（下載後用瀏覽器開）。
+
 ## 架構
 
 ```
@@ -96,18 +121,7 @@ Sources/Cool42Core    Swift library：型別解碼、感測器掃描、風扇曲
 
 **權限切分是整個設計的核心**：只有 guard 需要 root（寫 SMC、跑 powermetrics），其他所有東西 —— 面板、hook、statusline —— 都只讀 644 的 JSON 檔。非 root 元件要「告訴」guard 什麼事（面板改曲線、hook 要預熱）一律走檔案：改設定檔，或丟一個小 JSON 到 `/var/run/cool42/events/`（1733 目錄：能丟、不能看別人的），guard 每輪讀完就刪。
 
-**威脅模型（root daemon 該被怎麼看）**
-
-| 誰能碰到什麼 | 最壞能做到 | 為什麼止於此 |
-|---|---|---|
-| 本機任何程式 → `/var/run/cool42/events/`（1733） | 讓風扇轟 `boostRPM` 兩分鐘、統計灌水 | guard 只收 ≤ 4 KB 普通檔（lstat，不跟 symlink）、一輪 64 個；轉速與秒數不信事件檔裡的值，一律用 root 自己讀的 config，再夾在韌體 `F0Mn–F0Mx`；備註去控制字元、限 60 字才進 log |
-| 使用者層級程式 → `/etc/cool42/config.json`（使用者可寫，root 讀） | 把曲線壓到最低讓 CPU 降頻、改 hook 白名單 | root **不從 config 取任何路徑或指令去執行**（音檔路徑只有非 root 的面板用）；SMC 韌體自己有過熱保護，最壞是慢，不會壞 |
-| 本機任何程式 → 執行期目錄 | — | `/var/run/cool42` 是 root 755；guard 啟動用 `mkdir(2)`＋`lstat` 確認是自己的真目錄，不是就拒絕啟動；寫檔 `O_EXCL\|O_NOFOLLOW`。1.0.2 以前放 `/tmp`，固定檔名＋symlink 就能讓 root 覆寫任意檔，已搬 |
-| 讀 `/var/log/cool42.log`（644） | 看到誰在什麼時候跑了重指令 | log 只記命中的關鍵字（`swift build`），不記指令原文 —— 原文可能帶 token、私人路徑 |
-| Claude Code hook 的 stdin | — | 只做字串比對決定要不要等，不執行任何東西 |
-| 子行程 | — | `/usr/bin/powermetrics`、`/usr/bin/pgrep` 絕對路徑，不吃 `PATH` |
-
-還沒做的：Developer ID 簽章與 notarization（目前 ad-hoc，`install.sh` 在本機建置後自簽）。
+root daemon 能碰到什麼、最壞能做到什麼，見下面的[威脅模型](#威脅模型)。
 
 ## 把關邏輯（Claude Code hook）
 
@@ -128,9 +142,46 @@ guard 沒跑、拿不到 pressure 時退回溫度門檻：≥ 95°C 等、≥ 10
 
 第一版是純溫度門檻（90°C 就等）。換成省風扇的曲線後重載穩態落在 87–93°C，每個 Bash 前都在等 —— 拿工作進度換一個沒有意義的溫度數字。改成看 pressure 之後，同樣 90°C 但 P-core 3.94 GHz、Nominal，直接放行。
 
+## 威脅模型
+
+root daemon 該被怎麼看：
+
+| 誰能碰到什麼 | 最壞能做到 | 為什麼止於此 |
+|---|---|---|
+| 本機任何程式 → `/var/run/cool42/events/`（1733） | 讓風扇轟 `boostRPM` 兩分鐘、統計灌水 | guard 只收 ≤ 4 KB 普通檔（lstat，不跟 symlink）、一輪 64 個；轉速與秒數不信事件檔裡的值，一律用 root 自己讀的 config，再夾在韌體 `F0Mn–F0Mx`；備註去控制字元、限 60 字才進 log |
+| 使用者層級程式 → `/etc/cool42/config.json`（使用者可寫，root 讀） | 把曲線壓到最低讓 CPU 降頻、改 hook 白名單 | root **不從 config 取任何路徑或指令去執行**（音檔路徑只有非 root 的面板用）；SMC 韌體自己有過熱保護，最壞是慢，不會壞 |
+| 本機任何程式 → 執行期目錄 | — | `/var/run/cool42` 是 root 755；guard 啟動用 `mkdir(2)`＋`lstat` 確認是自己的真目錄，不是就拒絕啟動；寫檔 `O_EXCL\|O_NOFOLLOW`。1.0.2 以前放 `/tmp`，固定檔名＋symlink 就能讓 root 覆寫任意檔，已搬 |
+| 讀 `/var/log/cool42.log`（644） | 看到誰在什麼時候跑了重指令 | log 只記命中的關鍵字（`swift build`），不記指令原文 —— 原文可能帶 token、私人路徑 |
+| Claude Code hook 的 stdin | — | 只做字串比對決定要不要等，不執行任何東西 |
+| 子行程 | — | `/usr/bin/powermetrics`、`/usr/bin/pgrep` 絕對路徑，不吃 `PATH` |
+
+還沒做的：Developer ID 簽章與 notarization（目前 ad-hoc，`install.sh` 在本機建置後自簽）。
+
 ## 安裝
 
-需要 Xcode Command Line Tools（有 `swiftc` 即可）。先退出其他風扇控制程式（如 Macs Fan Control，含選單列常駐），兩者會互搶風扇。
+先退出其他風扇控制程式（如 Macs Fan Control，含選單列常駐），兩者會互搶風扇。只支援 Apple Silicon、macOS 14 以上。guard 是 root LaunchDaemon，安裝時會跳一次系統密碼視窗 —— 它能做什麼、不能做什麼見上面的[威脅模型](#威脅模型)。
+
+**1. Homebrew（公證完成後開放）**
+
+```bash
+brew install okle42/tap/cool42 && cool42-setup
+```
+
+目前 release 還是 ad-hoc 簽章、tap 尚未上線，這條路等 Developer ID 簽章與公證完成後開放。`cool42-setup` 裝 CLI、guard、Claude Code hook 與 MCP（會要系統密碼）；升級用 `brew upgrade cool42 && cool42-setup`，完整移除用 `brew uninstall --zap cool42`（只 `brew uninstall` 不會停 guard，避免升級途中風扇沒人管）。
+
+**2. 下載 release zip（不需要 swift、不需要 clone）**
+
+```bash
+V=1.0.3; curl -fsSL "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" -o /tmp/cool42.zip \
+  && rm -rf /tmp/cool42 && ditto -xk /tmp/cool42.zip /tmp/cool42 && /tmp/cool42/cool42-$V/install.sh
+cool42 doctor    # 15 項檢查全綠就對了
+```
+
+`install.sh --skip-claude` 不動 Claude Code 的 hook 與 MCP；移除：`/usr/local/share/cool42/uninstall.sh`（設定檔保留）。支援檔會裝到 `/usr/local/share/cool42`，解壓目錄裝完可以刪。發布流程見 [`docs/RELEASING.md`](docs/RELEASING.md)。
+
+**3. 原始碼安裝**
+
+需要 Xcode Command Line Tools（有 `swiftc` 即可）。
 
 ```bash
 git clone https://github.com/Okle42/cool42.git
@@ -318,7 +369,13 @@ docs/                   A/B 實測資料
 
 - [`docs/findings-m4-sensors.md`](docs/findings-m4-sensors.md) — **技術發現整理（中英）**：M4 上 IOReport 頻率 / IOHID 溫度 / SMC / powermetrics 四條路徑同秒對照，哪些是真的；原廠風扇策略數據；agent 自我節流的判斷依據
 - [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/) — 曲線 A/B 實測原始資料、powermetrics 輸出、外部參考資料
+- [`docs/viz/index.html`](docs/viz/index.html) — 9 張數據圖的互動比對頁（亮 / 暗、表格檢視），圖由 [`extras/viz/build_charts.py`](extras/viz/build_charts.py) 產生
+- [`docs/RELEASING.md`](docs/RELEASING.md) — release zip、簽章 / 公證、Homebrew tap 的發布流程
 - [`CHANGELOG.md`](CHANGELOG.md)
+
+## 作者
+
+**[Okle42](https://github.com/Okle42)** —— 把 AI agent 放進真實工作流程的實作團隊。cool42 本身就是一個例子：約 4 天、42 個 commit 從 0.1 走到 1.0.3，大部分程式和 Claude Code 一起寫；1.0.1 的四個修正是讓 agent 讀 guard 自己的 log 找出來的。問題、回報、合作請開 [issue](https://github.com/Okle42/cool42/issues)。
 
 ## 授權
 

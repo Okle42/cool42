@@ -3,3 +3,7 @@
 .DS_Store
 .claude/
 dist/
+
+# 宣傳稿（含內部操作手冊）不進公開 repo，放在 repo 外的私人目錄
+docs/promo/
+extras/viz/__pycache__/
