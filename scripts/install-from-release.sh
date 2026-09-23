@@ -58,8 +58,15 @@ wait_guard_gone() {
 
 # ───────────── root 步驟（由 as_root 呼叫自己） ─────────────
 root_install() {
-  local pay="$1" user_name="$2"
-  [ -x "$pay/bin/cool42" ] || die "payload 裡沒有 bin/cool42：$pay"
+  local src="$1" user_name="$2"
+  [ -x "$src/bin/cool42" ] || die "payload 裡沒有 bin/cool42：$src"
+  # 使用者可寫的暫存區只當來源：先複製到 root 自己用 mktemp 建、只有 root 能寫的目錄，之後的驗證、執行、安裝都用這份，
+  # 同 uid 的程式就沒辦法在驗證完到安裝之間把檔案換掉（TOCTOU）
+  local pay; pay="$(mktemp -d /var/tmp/cool42-root.XXXXXX)" || die "建不了 root 暫存目錄"
+  trap 'rm -rf "$pay"' EXIT
+  cp -R "$src/." "$pay/"
+  chown -R root:wheel "$pay"; chmod -R go-w "$pay"
+  verify_payload "$pay"
   mkdir -p /usr/local/bin /etc/cool42 /etc/newsyslog.d "$(dirname "$SHARE")"
 
   # 不能就地 cp 覆寫：舊 binary 的簽章快取還在，kernel 會用 OS_REASON_CODESIGNING 殺掉新 process。寫暫存檔再 mv 換 inode
@@ -70,8 +77,8 @@ root_install() {
     # 沒公證的 binary 帶 quarantine 會被 Gatekeeper 擋在 launchd 門外
     xattr -c /usr/local/bin/cool42.new 2>/dev/null || true
   fi
-  # 已是有效簽章（Developer ID）就保留，不能重簽成 ad-hoc；簽章壞了才補 ad-hoc
-  codesign --verify --strict /usr/local/bin/cool42.new 2>/dev/null || codesign --force --sign - /usr/local/bin/cool42.new
+  # 簽章一律不重簽：驗證失敗就中止（被竄改的 binary 不能被悄悄重簽成 ad-hoc 再以 root 裝進 LaunchDaemon）
+  codesign --verify --strict /usr/local/bin/cool42.new 2>/dev/null || { rm -f /usr/local/bin/cool42.new; die "bin/cool42 簽章驗證失敗，中止安裝"; }
   mv -f /usr/local/bin/cool42.new /usr/local/bin/cool42
   ln -sf cool42 /usr/local/bin/cool42-guard   # daemon 用這個名字啟動，登入項目才分得清
 
@@ -104,6 +111,26 @@ root_install() {
     echo "bootstrap 失敗，重試 ${i}…"; sleep 2
   done
   die "guard LaunchDaemon 啟動失敗，看 /var/log/cool42.err.log"
+}
+
+# payload 完整性：SHA256SUMS（打包時產生）逐檔核對；Developer ID / 公證版另外要求 codesign 驗證通過，失敗就中止、不重簽
+verify_payload() {
+  local pay="$1" signing
+  signing="$(cat "$pay/SIGNING" 2>/dev/null || echo unknown)"
+  if [ -f "$pay/SHA256SUMS" ]; then
+    (cd "$pay" && /usr/bin/shasum -a 256 -c -s SHA256SUMS) || die "SHA256SUMS 核對失敗：release 目錄內容被改過，中止安裝"
+  elif [ "$signing" = "adhoc" ]; then
+    die "ad-hoc 版缺 SHA256SUMS，無法確認內容沒被改過，中止安裝（請重新下載 release）"
+  fi
+  case "$signing" in
+    developer-id|notarized)
+      codesign --verify --strict "$pay/bin/cool42" || die "bin/cool42 的 Developer ID 簽章驗證失敗，中止安裝"
+      ;;
+    adhoc)
+      codesign --verify --strict "$pay/bin/cool42" || die "bin/cool42 的 ad-hoc 簽章驗證失敗，中止安裝"
+      ;;
+    *) die "不認得的簽章模式：${signing}" ;;
+  esac
 }
 
 root_uninstall() {
@@ -164,13 +191,16 @@ do_install() {
   PAYLOAD="$(mktemp -d "${TMPDIR:-/tmp}/cool42-install.XXXXXX")"
   trap 'rm -rf "$PAYLOAD"' EXIT
   local pay="$PAYLOAD"
-  for f in bin install.sh uninstall.sh install scripts mcp config.example.json LICENSE README.md README.en.md CHANGELOG.md VERSION SIGNING COMMIT; do
+  for f in bin install.sh uninstall.sh install scripts mcp config.example.json LICENSE README.md README.en.md CHANGELOG.md VERSION SIGNING COMMIT SHA256SUMS; do
     if [ -e "$SELF_DIR/$f" ]; then cp -R "$SELF_DIR/$f" "$pay/"; fi
   done
   chmod -R a+rX "$pay"; chmod a+rx "$pay"
+  # 先在使用者這邊核對一次（及早報錯）；root 那邊會在自己的目錄再核對一次才安裝
+  if [ -f "$pay/SHA256SUMS" ]; then (cd "$pay" && /usr/bin/shasum -a 256 -c -s SHA256SUMS) || die "SHA256SUMS 核對失敗：release 目錄內容被改過"; fi
 
   echo "▶ 安裝 CLI、guard LaunchDaemon、支援檔到 ${SHARE}（需要管理員密碼）"
-  as_root /bin/bash "$pay/install.sh" --root-install "$pay" "$(id -un)"
+  # root 不直接執行使用者可寫目錄裡的 install.sh：先複製到 root 擁有的暫存目錄、核對 SHA256SUMS，再從那份執行
+  as_root /bin/bash -c 'set -e; d="$(mktemp -d /var/tmp/cool42-boot.XXXXXX)"; trap "rm -rf \"$d\"" EXIT; cp "$1/install.sh" "$d/install.sh"; [ -f "$1/SHA256SUMS" ] && cp "$1/SHA256SUMS" "$d/SHA256SUMS"; if [ -f "$d/SHA256SUMS" ]; then want="$(awk "\$2==\"install.sh\"{print \$1}" "$d/SHA256SUMS")"; have="$(/usr/bin/shasum -a 256 "$d/install.sh" | awk "{print \$1}")"; [ -n "$want" ] && [ "$want" = "$have" ] || { echo "install.sh 與 SHA256SUMS 不符，中止" >&2; exit 1; }; fi; /bin/bash "$d/install.sh" --root-install "$1" "$2"' _ "$pay" "$(id -un)"
   sleep 3
   /usr/local/bin/cool42 status || echo "⚠️  guard 可能還在啟動，稍後再跑 cool42 status"
 

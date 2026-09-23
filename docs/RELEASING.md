@@ -6,12 +6,20 @@
 brew install okle42/tap/cool42 && cool42-setup
 ```
 
-或不用 Homebrew（curl 下載不會帶 quarantine）：
+或不用 Homebrew（curl 下載不會帶 quarantine）。暫存目錄一律用 `mktemp -d`（只有自己能寫），不要用固定的 `/tmp/cool42*` 路徑 ——
+`/tmp` 全機可寫，別的本機帳號可以預先放 symlink 或趁 `rm -rf` 與解壓之間塞進改過的 `install.sh`，使用者接著輸入管理員密碼就等於交出 root：
 
 ```bash
-V=1.0.3; curl -fsSL "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" -o /tmp/cool42.zip \
-  && rm -rf /tmp/cool42 && ditto -xk /tmp/cool42.zip /tmp/cool42 && /tmp/cool42/cool42-$V/install.sh
+V=1.0.3; T="$(mktemp -d)" && cd "$T" \
+  && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" \
+  && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip.sha256" \
+  && shasum -a 256 -c "cool42-$V-arm64.zip.sha256" \
+  && ditto -xk "cool42-$V-arm64.zip" "$T" && "$T/cool42-$V/install.sh"
 ```
+
+release 還是 ad-hoc 簽章、未公證時，`install.sh` 會替它清 quarantine —— README 要在同一段寫明。release 真的上線前，README 的這段要標「待 release 後開放」。
+
+包內另有 `SHA256SUMS`（`make-release.sh` 產生，不含面板 .app，.app 靠 codesign 驗證）：root 步驟會先把 payload 複製到 root 擁有的 `mktemp -d` 目錄、核對 `SHA256SUMS` 與 `codesign --verify --strict`，任何一項失敗就中止，**不會**把驗證失敗的 binary 重簽成 ad-hoc。
 
 ## 相關檔案
 
@@ -20,7 +28,7 @@ V=1.0.3; curl -fsSL "https://github.com/Okle42/cool42/releases/download/v$V/cool
 | `scripts/make-release.sh` | release build → 組 `cool42 Panel.app`＋CLI/guard＋安裝檔 → 簽章 → （可選）公證 → `dist/cool42-<ver>-arm64.zip` ＋ `.sha256` |
 | `scripts/install-from-release.sh` | 打包進 zip 後叫 `install.sh`（Homebrew 裝成 `cool42-setup`）。不需原始碼、不需 swift；`--uninstall` 移除、`--skip-claude` 不動 Claude Code、`--cask` 表示面板已在 `/Applications`（從 Caskroom 執行會自動判斷） |
 | `install.sh`（專案根目錄） | 原始碼安裝（先 `swift build`），跟以前一樣，沒有改動 |
-| `~/github-repos/homebrew-tap/Casks/cool42.rb` | Homebrew cask（本機骨架，GitHub 上要叫 `Okle42/homebrew-tap`） |
+| homebrew-tap repo 根目錄的 `Casks/cool42.rb` | Homebrew cask（本機骨架，GitHub 上要叫 `Okle42/homebrew-tap`；公證版 zip 出來之前不要 push） |
 
 zip 內容：
 
@@ -34,6 +42,7 @@ cool42-<ver>/
   mcp/cool42_mcp.py          MCP server（用 uv 跑）
   config.example.json  LICENSE  README*.md  CHANGELOG.md
   VERSION  SIGNING  COMMIT   版本號、簽章模式（adhoc / developer-id / notarized，install.sh 會讀）、打包的 commit
+  SHA256SUMS                 包內逐檔 sha256（不含 .app），root 步驟核對，不符就中止
 ```
 
 `make-release.sh` 只打包**已 commit** 的內容：把 `RELEASE_REF`（預設 `HEAD`，也可以 `RELEASE_REF=v1.0.3`）用 `git archive` 匯出到
@@ -142,14 +151,14 @@ cat "$T/cool42-$V/SIGNING"                                                      
 ## 四、更新 Homebrew tap
 
 ```bash
-~/github-repos/homebrew-tap/bin/bump-cool42.sh ~/github-repos/cool42/dist/cool42-1.0.3-arm64.zip
-cd ~/github-repos/homebrew-tap && ruby -c Casks/cool42.rb && git diff
+<homebrew-tap repo 根目錄>/bin/bump-cool42.sh <cool42 repo>/dist/cool42-1.0.3-arm64.zip
+cd <homebrew-tap repo 根目錄> && ruby -c Casks/cool42.rb && git diff
 ```
 
 push 之前可以先在本機試裝（會真的安裝、會要密碼、會取代正在跑的 guard）：
 
 ```bash
-brew tap okle42/tap ~/github-repos/homebrew-tap     # 用本機路徑當 tap
+brew tap okle42/tap <homebrew-tap repo 根目錄>     # 用本機路徑當 tap
 brew install --cask okle42/tap/cool42 && cool42-setup
 ```
 

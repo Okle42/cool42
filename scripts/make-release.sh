@@ -23,14 +23,12 @@ if [ -n "$(git status --porcelain -- Sources Package.swift Sounds install mcp sc
   echo "⚠️  工作目錄有未 commit 的改動（下面列出），release 只會用 ${REF}（${COMMIT:0:7}）的內容："
   git status --short -- Sources Package.swift Sounds install mcp scripts config.example.json | sed 's/^/    /'
 fi
-SRC="${TMPDIR%/}/cool42-release-src"
-rm -rf "$SRC"; mkdir -p "$SRC"
+SRC="$(mktemp -d "${TMPDIR%/}/cool42-release-src.XXXXXX")"
+WORK=""
+trap 'rm -rf "$SRC" ${WORK:+"$WORK"}' EXIT
 git archive "$COMMIT" | tar -x -C "$SRC"
-# install-from-release.sh 還沒 commit 進 $REF 時（第一次導入這套流程），暫時用工作目錄那份
-if [ ! -f "$SRC/scripts/install-from-release.sh" ]; then
-  echo "⚠️  $REF 裡沒有 scripts/install-from-release.sh，暫用工作目錄的版本（commit 之後就不會有這行）"
-  cp scripts/install-from-release.sh "$SRC/scripts/install-from-release.sh"
-fi
+# 只打包已 commit 的內容：$REF 裡沒有 release 安裝腳本就直接失敗，不拿工作目錄那份頂替
+[ -f "$SRC/scripts/install-from-release.sh" ] || { echo "✗ $REF 裡沒有 scripts/install-from-release.sh，先 commit 再打包"; exit 1; }
 cd "$SRC"
 
 VERSION="${1:-${VERSION:-}}"
@@ -38,6 +36,10 @@ if [ -z "$VERSION" ]; then
   VERSION="$(grep -m1 -E '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
 fi
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "✗ 版本號格式不對：'$VERSION'"; exit 1; }
+# RELEASE_REF 是 tag 時，tag 名稱必須是 v$VERSION（避免拿 v1.0.3 的程式碼打成 1.0.4 的包）
+if git -C "$ROOT" show-ref --verify --quiet "refs/tags/$REF" || git -C "$ROOT" show-ref --verify --quiet "refs/tags/${REF#refs/tags/}"; then
+  [ "${REF#refs/tags/}" = "v$VERSION" ] || { echo "✗ RELEASE_REF=$REF 是 tag，但版本號是 $VERSION（應為 v$VERSION）"; exit 1; }
+fi
 BUILD_NUMBER="$(git -C "$ROOT" rev-list --count "$COMMIT")"
 NAME="cool42-$VERSION"
 ZIP="$ROOT/dist/$NAME-arm64.zip"
@@ -46,7 +48,6 @@ BUNDLE_ID="com.cool42.panel"
 
 SCRATCH="${COOL42_RELEASE_SCRATCH:-${TMPDIR%/}/cool42-release-build}"
 WORK="$(mktemp -d "${TMPDIR%/}/cool42-release.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
 STAGE="$WORK/$NAME"
 
 if [ -n "${DEVELOPER_ID_APP:-}" ]; then
@@ -131,6 +132,8 @@ fi
 "${SIGN[@]}" "$APP"
 codesign --verify --strict --verbose=2 "$STAGE/bin/cool42"
 codesign --verify --deep --strict --verbose=2 "$APP"
+# 包內逐檔 sha256：install.sh 在 root 端核對，被改過就中止（ad-hoc 版沒有身分可驗，只能靠這份清單＋zip 本身的 .sha256）
+(cd "$STAGE" && find . -type f ! -name SHA256SUMS ! -path "./$APP_NAME/*" | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r f; do shasum -a 256 "$f"; done > SHA256SUMS)
 
 mkdir -p "$ROOT/dist"
 rm -f "$ZIP" "$ZIP.sha256"
