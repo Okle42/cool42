@@ -1,6 +1,6 @@
 # M4 Mac mini 的感測器，哪些數字能信、哪些在騙你
 
-*測試環境：Mac mini M4（Mac16,10）、macOS 26（25G83），2026 年 9 月。只有一台機器（n = 1）。文中每個數字都附原始檔出處；是推論的地方會直接標「推論」。*
+*測試環境：Mac mini M4（Mac16,10），2026 年 9 月；感測器對照與 A/B 在 macOS 26（25G83），94 小時運作 log 在 macOS 27.0（26A428，2026-09-20 01:18 升級後）。只有一台機器（n = 1）。文中每個數字都附原始檔出處；是推論的地方會直接標「推論」。*
 
 事情的起點很單純：我想知道 Mac mini 跑長時間 build 或轉檔的時候，CPU 到底有沒有被熱降頻。
 
@@ -29,7 +29,7 @@ IOReport 的四組 CPU 通道我全都試過：`CPU Core Performance States`、`
 兩個踩過的小坑：
 
 - `powermetrics -n 0` 不是「無限取樣」，取完第一筆就結束。要無限取樣就不要帶 `-n`。
-- 常駐一個 `powermetrics -i 5000` 子行程，每筆大約 0.18% CPU，另外啟動時一次性花掉約 0.8 秒 CPU（findings §1）。長期實測的數字在後面。
+- 常駐一個 `powermetrics -i 5000` 子行程，常駐成本約 0.18% CPU（早期量測；長期實測 0.22%），另外啟動時一次性花掉約 0.8 秒 CPU（findings §1）。長期實測的數字在後面。
 
 這一條我對 macmon 開了 [issue #78](https://github.com/vladkens/macmon/issues/78)，請手上有其他晶片的人幫忙驗證。我自己只在一台 M4 上確認過。
 
@@ -70,15 +70,15 @@ SMC（`AppleSMC` IOKit service、`IOConnectCallStructMethod` selector 2，讀取
 
 M4 mini 原廠的風扇策略是安靜優先。下面這組數字是**別人機器上的外部資料，不是我自己量的**（[theenterprisemac](https://theenterprisemac.com/post/768543525732237312/m4mini-thermal-throttle)、[MacRumors](https://forums.macrumors.com/threads/mac-mini-m4-thermals.2442671/)、[MacRumors](https://forums.macrumors.com/threads/is-100-105-cpu-celsius-on-the-new-m4-mini-thermal-throttling.2442865/)）：重載 10–15 分鐘後，SoC 停在 105–107°C、風扇約 2100 rpm，P-core 從 4464 掉到 3300–3800 MHz，也就是少了 15–25%。
 
-在我這台機器上，全核重載時 `powermetrics` 讀到的是 **3936 MHz、thermal pressure `Nominal`**。3936 是 M4 全核滿載時的功耗上限頻率（單核最高是 4464）。這是功耗上限，不是熱降頻，pressure 顯示 `Nominal` 就是證據。
+在我這台機器上，全核重載時 `powermetrics` 讀到的是 **3936 MHz、thermal pressure `Nominal`**（單核最高是 4464）。*推論：3936 像是 M4 全核滿載時的功耗上限頻率。* `Nominal` 只能說明量的那一刻沒有熱壓力，證明不了 3936 就是功耗上限；而且下面會看到，同樣是 `Nominal`，P-core 也跑過 3.04–3.96 GHz，重載時也量過 4187、4130 MHz（第一節），所以頻率高低本身不是判斷降頻的依據。
 
 這篇最想講的就是這件事：**溫度和降頻是兩個不同的訊號。** 我的 guard 第一次從原廠手上接管時，log 是 105°C / 1774 rpm，20 秒後變成 82°C / 4618 rpm（README「實測」段，那段原始 log 也不在了）。至於現在這份 94.4 小時的 log：
 
-- 每日最高溫依序是 93、94、94、78°C（最後一天只算到 23:42），log 裡最高是 95°C（出現 3 次），100°C 以上 0 次
-- ≥ 90°C 的寫入有 31 次
+- 每日最高溫依序是 93、95、95、78°C（log 值；最後一天只算到 23:42；每日結算整數截斷寫成 93、94、94、78），log 裡最高是 95°C（出現 3 次），100°C 以上 0 次
+- ≥ 90°C 的寫入有 31 筆，依時間分成 5 段高溫期間（間隔超過 5 分鐘算新的一段；其中 2 筆是 09-20 01:18:45 guard 剛啟動時從 macOS 自動接手的餘溫）
 - 每一天 thermal pressure 不是 `Nominal` 的秒數都是 **0 秒**（`/var/log/cool42.log` 每日結算、`/var/db/cool42/stats.json`）
 
-有一個我還沒完全解釋清楚的地方，先講出來，免得被別人挖出來：90–95°C 那幾行 log 裡，P-core 頻率（⚡ 欄位）的中位數是 3.64 GHz，比全核的 3.936 GHz 低，但這段時間 pressure 一直是 `Nominal`。我的推論是部分負載或功耗上限造成的，但這只是推論。換句話說，「Nominal」不等於「每一顆核心都在 3936」。
+有一個我還沒完全解釋清楚的地方，先講出來，免得被別人挖出來：90–95°C 那幾行 log 裡，P-core 硬體頻率（⚡ 欄位，powermetrics）29 筆有值，落在 3.04–3.96 GHz、中位數 3.64 GHz，比全核的 3.936 GHz 低，但這段時間 pressure 一直是 `Nominal`。我的推論是部分負載或功耗上限造成的，但這只是推論。換句話說，「Nominal」不等於「每一顆核心都在 3936」。
 
 ## 六、風扇曲線 A/B：少轉 25%，只換來多 3.8°C
 
@@ -92,26 +92,27 @@ M4 mini 原廠的風扇策略是安靜優先。下面這組數字是**別人機�
 | 控制溫度平均（範圍） | 83.0°C（75–88） | 86.8°C（77–93） | +3.8°C |
 | 風扇平均（範圍） | 4216 rpm（3952–4542） | 3150 rpm（2344–3805） | −1066 rpm（−25%） |
 | load average | 23.1–37.1 | 21.9–41.6 | |
-| P-core 硬體頻率 | 3936 MHz ×3，Nominal | 3936 ×5、3950 ×1，Nominal 6/6 | ≈0 |
-| CPU 功耗 | 21.5–22.1 W | 16.8–21.2 W | |
+| P-core 硬體頻率 | 段內未量 | 段內未量 | — |
 | 噪音（估算） | | | −6.3 dB |
 
-*出處：`samples.txt`（重新計算過）、`powermetrics-A.txt`、`powermetrics-B.txt`、同目錄 `README.md`*
+*出處：`samples.txt`（重新計算過）、同目錄 `README.md`*
+
+段外有兩批 powermetrics，**兩批都是 A 曲線生效時量的**：A 段開始前 3 筆（3936 MHz ×3、Nominal、21.5–22.1 W），以及 B 結束、`ab.sh` 把設定還原成 A 之後約 3 分鐘起的 6 筆（`powermetrics-B.txt`：3936 ×5、3950 ×1、Nominal 6/6、16.8–21.2 W）。檔名裡的「B」是當時的命名，內容不是 B 曲線的數據。
 
 以下幾點要先講清楚，因為這段最容易被引用：
 
-- **powermetrics 的取樣是在 A/B 時段的前後，不在時段內。** A 的 3 筆是 05:00:41–47，在 A 段 05:06:01 開始之前；B 的 6 筆是 05:19:04–05:20:44，B 段已經在 05:16:14 結束。所以嚴格的說法是「同一個負載下，測試前後的 powermetrics 都是 3936 MHz、Nominal」，不是「同一時刻實測頻率不變」。repo 裡 README 把 B 那 6 筆寫成「穩態」，說得太寬了。
+- **B 段 5 分鐘內沒有 powermetrics。** A 的 3 筆是 05:00:41–47，在 A 段 05:06:01 開始之前；「B」的 6 筆是 05:19:04–05:20:44，而 `ab.sh` 在 05:16:14 B 結束時就把設定還原成 A 了。B 段峰值 93°C 那一刻的 pressure 也沒有量。所以這組 A/B 能說的是「少轉 25%、多 3.8°C」，**不能說「B 不降頻」**；B 有沒有造成降頻，要看之後日常運作的統計（第五節：94 小時非 Nominal 0 秒）。要直接證明，得重做一次、讓 powermetrics 在兩段時段內同步記錄。
 - −6.3 dB 是用風扇定律 `50·log10(4216/3150)` 推算的，沒有拿分貝計量。
 - **沒有「同一個工作總共跑多久」的比較**，也沒有同一台機器、同樣負載下的原廠對照。所以我不會說快了幾 %。
 - 一台機器、一個房間、一次 10 分鐘的測試。
 
-即使有這些限制，這個結果已經足夠讓 B 成為預設：多 4°C，風扇少轉四分之一，pressure 也沒有離開過 `Nominal`。
+即使有這些限制，我還是讓 B 成為預設：多 3.8°C 換風扇少轉四分之一；之後 94 小時的日常運作裡，thermal pressure 非 Nominal 是 0 秒。
 
 ## 七、讓 AI agent 只在真的降頻時才等
 
 我很常讓 Claude Code 在這台機器上跑 `swift build`、`ffmpeg`、Python 批次，而且常常好幾個同時跑。Claude Code 有 `PreToolUse` hook，每次執行 Bash 前可以先跑一支程式，決定放行、等待或擋下。「機器已經很吃力了，先別再開一個重工作」這件事，放在這裡剛好。
 
-**第一版是看溫度：SoC ≥ 90°C 就等。** 換成 B 曲線之後，重載穩態落在 80 幾到 90 出頭，結果幾乎每次 Bash 前都在等。等於拿實際的工作進度，去換一個沒有意義的溫度數字。
+**第一版是看溫度：SoC ≥ 90°C 就等。** 換成 B 曲線之後，重載溫度落在 77–93°C（A/B 的 B 段，平均 86.8°C），90°C 以上時每次 Bash 前都在等（這是第一版當時的 log，原始檔已不在）。等於拿實際的工作進度，去換一個沒有意義的溫度數字。
 
 現在改成看 root daemon 從 `powermetrics` 讀到的 thermal pressure：
 
@@ -126,7 +127,7 @@ M4 mini 原廠的風扇策略是安靜優先。下面這組數字是**別人機�
 
 另外還有**預熱**：指令看起來是重工作（`swift build`、`xcodebuild`、`ffmpeg`、`python -m`、`make`…）時，hook 丟一個事件，daemon 在熱度上來**之前**先把風扇拉到 3000 rpm 兩分鐘。94.4 小時內觸發了 32 次（ffmpeg 25、`python3 -m` 3、`swift build` 2、`xcodebuild` 1、`make` 1）。其中 3 次在 30–45 秒後自己提早收掉，因為溫度一直在曲線起點以下，判斷不像重工作。
 
-同樣這四天：≥ 90°C 的時刻 31 次，**hook 等待 0 次、擋下 0 次、非 Nominal 0 秒**。*推論：如果還是第一版的 90°C 規則，這 31 個時刻 agent 都會被卡住。*
+同樣這四天：5 段高溫期間（31 筆 ≥ 90°C 的寫入），**hook 等待 0 次、擋下 0 次、非 Nominal 0 秒**。log 只記 hook 的等待與擋下、不記每次放行，所以我不知道這些期間實際有幾次 Bash 經過 hook。*推論：如果這些期間有重指令，第一版的 90°C 規則會讓它等。*
 
 這份資料能證明的是，沒必要的時候 gate **不會擋路**。但現在這份 log 裡沒有任何一次真實的「降頻 → 等待 → 恢復放行」。對風扇控制來說這是好事，只是我也因此沒辦法拿真實案例示範 gate 觸發。接下來打算用原廠曲線加壓力測試做一次受控重現。
 
@@ -152,7 +153,7 @@ M4 mini 原廠的風扇策略是安靜優先。下面這組數字是**別人機�
 
 ## 工具：cool42
 
-上面這些都是做 **cool42** 的過程中挖出來的。cool42 是 Apple Silicon 的風扇守門員，包含：跑風扇曲線的 root daemon；選單列面板，有每顆感測器一格的熱度格（73 個 SMC 感測器全部攤開），也有真實的 P-core 頻率與 pressure；一個 CLI；以及實作第七節 gate 的 Claude Code hook + MCP server。純 Swift 加上約 170 行 C（SMC 與 libproc），沒有外部依賴，40 個單元測試，MIT 授權。
+上面這些都是做 **cool42** 的過程中挖出來的。cool42 是 Apple Silicon 的風扇守門員，包含：跑風扇曲線的 root daemon；選單列面板，有每顆感測器一格的熱度格（73 個 CPU/GPU 溫度感測器全部攤開），也有 powermetrics 的 P-core 硬體頻率與 pressure；一個 CLI；以及實作第七節 gate 的 Claude Code hook + MCP server。純 Swift 加上約 170 行 C（SMC 與 libproc），沒有外部依賴，40 個單元測試，MIT 授權。
 
 它同時也是一次「讓 AI 把工具做出來」的實驗：大部分程式是和 Claude Code 一起寫的，約 4 天、42 個 commit，從 0.1 走到 1.0.3。1.0.1 的四個修正，是讓 agent 自己讀 2.5 天份的 guard log 找出來的。
 

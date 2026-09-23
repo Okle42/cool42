@@ -1,26 +1,26 @@
 # cool42 — Apple Silicon 溫度 / 風扇 / 頻率監控面板，外加一個讓 AI 不燒機的守門員
 
-[English](README.en.md)
+[English](README.en.md) · *In English: an Apple Silicon temperature / fan / clock monitor whose Claude Code hook waits only on macOS thermal pressure, not on temperature → [README.en.md](README.en.md)*
 
-**一句話：AI 寫程式時自己看溫度排隊 —— 沒降頻就全速放行，只在真的降頻才等。**
+**一句話：AI 寫程式時自己看熱壓力排隊 —— macOS 回報 thermal pressure 是 Nominal 就全速放行，只在它回報降頻（非 Nominal）時才等。**
 
 <p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 面板示意：閒置 → 重載 → 降頻 → Claude Code hook 等待 → 放行"></p>
 <p align="center"><sub>18 秒示意：閒置與重載是實機資料；「降頻」那一段是受控情境（非實機紀錄），終端機畫面照原始碼格式重現。</sub></p>
 
-![cool42：AI 寫程式時，自己看溫度排隊。近 4 天最高控制溫度 95°C、降頻 0 秒、hook 讓 AI 等待 0 次](docs/img/screens/hero.png)
+![cool42：AI 寫程式時，自己看降頻排隊。近 4 天最高控制溫度 95°C、thermal pressure 非 Nominal 0 秒、hook 讓 AI 等待 0 次](docs/img/screens/hero.png)
 
-> 選單列一眼看到 CPU / GPU 溫度、每顆核心各幾度（M4 共 73 個感測器的熱度格）、風扇轉速、P-core **實際**頻率、有沒有被靜靜降頻；自訂風扇曲線，過熱 / 回穩有提示音，門檻自己調。
+> 選單列一眼看到 CPU / GPU 溫度、每顆核心各幾度（M4 共 73 個 CPU/GPU 溫度感測器的熱度格）、風扇轉速、P-core **硬體**頻率（powermetrics）、macOS 有沒有回報熱壓力（降頻）；自訂風扇曲線，過熱 / 回穩有提示音，門檻自己調。
 > 然後是別的監控工具沒有的部分：**當 Claude Code 這類 AI agent 在你的 Mac 上跑重工作時，讓機器全力開工、風扇負責避免降頻；只有真的降頻了才讓工作等一下。**
-> 整套常駐 **0.3% CPU / 10 MB**（guard 0.1% + 頻率讀取 0.18%），面板閒置 0.2%、打開展開感測器 0.0–3%。
+> 常駐成本（2026-09-23 `ps` 長期平均，累計 CPU 時間 ÷ 執行時間）：guard + powermetrics 子行程合計**單核約 0.5%**（0.27% + 0.22%），guard RSS 約 12–14 MB；面板一直開著約 1%（57 MB），收起時的數字待重測。
 
 **兩種用法，裝一次都有：**
 
 | | 你得到 |
 |---|---|
 | **只當監控 + 風扇控制**（不用 Claude Code 也行） | 原廠不會告訴你的東西：P-core 現在真的跑幾 GHz、什麼時候開始降頻、哪一顆核心最熱、GPU 有沒有被壓檔位；風扇曲線「曲線 / 固定 / 自動」面板即改即生效，內建安靜 / 均衡 / 強力三組 |
-| **給 AI agent 當守門員** | Claude Code 開重指令前先問它（hook + MCP）、真的降頻才等一下、`swift build` / `blender` / `ffmpeg` 前先把風扇拉起來、每日統計告訴你曲線調得對不對 |
+| **給 AI agent 當守門員** | Claude Code 開重指令前先問它（hook + MCP）、macOS 回報降頻（thermal pressure 非 Nominal）才等一下、`swift build` / `blender` / `ffmpeg` 前先把風扇拉起來、每日統計告訴你曲線調得對不對 |
 
-**白話版**：Apple 的風扇策略是安靜優先，CPU 燒到 100°C 才慢慢加速，然後 CPU 靜靜地自己放慢 15–25%，你不會知道。cool42 先讓你**看到**這件事（面板第一行直接寫「全速運作 · 未降頻」或「降頻中」），再反過來做：風扇轉到「剛好不降頻」的最低轉速（M4 mini 實測 87°C / 3150 rpm），而 Claude Code 只在真的降頻時才等一下。它自己在機器最忙的時候也不會掛掉（這是踩過坑才學到的，見下面第 15 條）。
+**白話版**：Apple 的風扇策略是安靜優先 —— 這台 cool42 接管前一刻是 CPU 105°C、風扇 1774 rpm；外部報告說這樣重載 10–15 分鐘後 P-core 會靜靜放慢 15–25%，你不會知道。cool42 先讓你**看到**這件事（面板第一行直接寫「全速運作 · 未降頻」或「降頻中」，依據是 macOS 的 thermal pressure），再反過來做：用比舊曲線少轉 25% 的風扇（A/B 同負載平均 86.8°C / 3150 rpm）顧住溫度，而 Claude Code 只在 macOS 回報降頻時才等一下。它自己在機器最忙的時候也不會掛掉（這是踩過坑才學到的，見下面第 15 條）。
 
 ![Mac mini M4](https://img.shields.io/badge/tested-Mac%20mini%20M4-blue) ![macOS](https://img.shields.io/badge/macOS-14%2B-lightgrey) ![Swift](https://img.shields.io/badge/Swift-6-orange) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen) ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -34,7 +34,7 @@
 CPU 105°C   風扇 1774 rpm（macOS 自動）
 ```
 
-Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風扇還在 1400 rpm 左右慢慢轉**，然後 P-core 靜靜地從 4.4 GHz 掉到 3.3–3.8 GHz，沒有任何提示。現有的監控 / 風扇控制工具可以看溫度、拉高曲線，但有三個問題：
+Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 105°C，風扇只有 1774 rpm**。外部報告（別人的機器）說這樣重載 10–15 分鐘後 P-core 會從 4.46 GHz 掉到 3.3–3.8 GHz，沒有任何提示。現有的監控 / 風扇控制工具可以看溫度、拉高曲線，但有三個問題：
 
 1. **不知道有沒有降頻** —— 它們只管溫度，看不到硬體頻率；很多工具在 M4 上讀的還是 PMU 溫度，比核心低 15–20°C（見第 14 條）
 2. **純 GUI，沒有 CLI、沒有 API** —— AI agent 沒辦法問它「現在能不能開工」
@@ -49,8 +49,8 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風�
 | | cool42 | 一般監控 / 風扇工具 |
 |---|---|---|
 | 選單列顯示 | ✅ `🟡 82°`，點開有溫度 / 風扇 / 頻率三張 5 分鐘曲線圖 | ✅ |
-| **每顆核心的溫度** | ✅ 熱度格：P-core / E-core / GPU 三組，M4 共 73 個 SMC 感測器，滑過看度數 | 部分（多為平均或 PMU 值） |
-| **CPU 硬體頻率 / 熱降頻偵測** | ✅ P-core GHz、thermal pressure；降頻時面板 / statusline 標紅、log 記錄 | ❌ |
+| **每顆核心的溫度** | ✅ 熱度格：P-core / E-core / GPU 三組，M4 共 73 個 CPU/GPU 溫度感測器（SMC），滑過看度數 | 部分（多為平均或 PMU 值） |
+| **CPU 硬體頻率 / 熱降頻偵測** | ✅ 顯示 powermetrics 的 P-core 硬體 GHz；降頻判斷看 macOS 回報的 thermal pressure（非 Nominal 即降頻），面板 / statusline 標紅、log 記錄 | ❌ |
 | **GPU 使用率 / GPU 熱降頻** | ✅ IOReport 使用率與頻率、`GPU_CLTM` 熱限制偵測 | ❌ |
 | 自訂風扇曲線 | ✅ 曲線 / 固定 / 自動，面板可即時改，存檔即熱重載 | ✅ |
 | CPU + GPU 一起看 | ✅ 取兩者最高值決定風扇 | ✅ |
@@ -58,8 +58,8 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風�
 | 提示音 | ✅ 過熱 / 降頻、降溫回穩各一段，內建音效可換，觸發溫度面板可調 | 部分 |
 | **現在誰在算** | ✅ `cool42 top` / 面板一行：CPU 前幾名的命令與工作目錄 | ❌ |
 | 每日統計 | ✅ 降頻秒數、hot / critical 秒數、最高溫 —— 一個數字判斷曲線對不對 | ❌ |
-| 常駐負載 | **0.3% CPU / 10 MB**（實測） | 通常數十 MB |
-| 外部依賴 | **0**（純 Swift + 80 行 C，SwiftPM 直接 build） | 多為閉源 |
+| 常駐負載 | **單核約 0.5%**、guard 約 12–14 MB（長期實測，含 powermetrics 子行程） | 通常數十 MB |
+| 外部依賴 | **0**（純 Swift + 約 170 行 C，SwiftPM 直接 build） | 多為閉源 |
 | 新晶片（M5 / M6…） | 感測器動態掃描，改 config 前綴即可 | 等作者更新 |
 | 授權 | MIT | 多為閉源 |
 
@@ -67,7 +67,7 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風�
 
 | | 說明 |
 |---|---|
-| **把關 hook** | Claude Code PreToolUse hook：**真的降頻才等**，溫度高但沒降頻照跑；Trapping 或 ≥ critical 才擋 |
+| **把關 hook** | Claude Code PreToolUse hook：**thermal pressure 非 Nominal 才等**，溫度高但 pressure 是 Nominal 照跑；Trapping 或 ≥ critical 才擋 |
 | **MCP server** | 7 個 tool 讓 AI 主動查狀態、判斷可否開工、等降溫、看誰在吃 CPU、切風扇模式 |
 | **重指令預熱** | Claude 要跑 `swift build` / `blender` / `ffmpeg`… 前先把風扇拉起來 |
 | CLI / 腳本可查詢 | `cool42 check` 回 exit code 0/1/2，任何腳本都能接 |
@@ -78,19 +78,19 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風�
 
 以下都來自這台 Mac mini M4 的 guard log 與 A/B 實測（不是模擬）；產生器 [`extras/viz/build_charts.py`](extras/viz/build_charts.py) 讀 repo 內凍結的 log 快照，數字可重算。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/hook-timeline-dark.svg"><img src="docs/img/charts/hook-timeline-light.svg" alt="近 94 小時 31 個時刻 ≥90°C，hook 等待 0 次、擋下 0 次、降頻 0 秒"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/hook-timeline-dark.svg"><img src="docs/img/charts/hook-timeline-light.svg" alt="近 94 小時有 5 段高溫期間（31 筆 ≥90°C 的 SMC 寫入），hook 等待 0 次、擋下 0 次、thermal pressure 非 Nominal 0 秒"></picture>
 
-**近 94 小時（2,184 筆 SMC 寫入）有 31 個時刻 ≥ 90°C、最高 95°C，AI 一次都沒被卡：hook 等待 0、擋下 0、降頻 0 秒。**（「若沿用第一版 90°C 就等，這 31 次都會卡住」是推論。）
+**近 94 小時（2,184 筆 SMC 寫入）有 5 段高溫期間（間隔超過 5 分鐘算不同段；共 31 筆 ≥ 90°C 的寫入，最高 95°C），期間沒有任何一次 hook 等待或擋下，thermal pressure 非 Nominal 0 秒。** log 只記 hook 的等待與擋下、不記每次放行，所以不知道這些期間實際有幾次 Bash 呼叫經過 hook。（推論：若這些期間有重指令，第一版「90°C 就等」的門檻會讓它等。）
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/ab-rpm-dark.svg"><img src="docs/img/charts/ab-rpm-light.svg" alt="A/B 同一負載：現行預設平均 3,150 rpm，比舊曲線 4,216 rpm 少 25%"></picture>
 
 **同一負載 A/B 各 5 分鐘（扣前 60 秒）：現行預設平均 3,150 rpm，比舊曲線的 4,216 少 25%，溫度只多 3.8°C（83.0 → 86.8°C）。**（約 −6 dB 是用風扇定律推估，非實測。）
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/daily-max-dark.svg"><img src="docs/img/charts/daily-max-light.svg" alt="每日最高溫 93–94°C，4 天降頻 0 秒、hook 等待 0 次"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/daily-max-dark.svg"><img src="docs/img/charts/daily-max-light.svg" alt="每日最高 93–95°C（log 值；09-23 至 23:42 為 78°C），4 天 thermal pressure 非 Nominal 0 秒、hook 等待 0 次"></picture>
 
-**每日結算的最高溫 93–94°C（09-23 只到 23:42），4 天降頻合計 0 秒。** 降頻秒數 = thermal pressure 不是 Nominal 的累計秒數；結算用整數截斷，所以 log 裡看得到 95°C。
+**每日最高 93 / 95 / 95°C（log 值；09-23 只到 23:42，78°C），4 天降頻合計 0 秒。** 降頻秒數 = thermal pressure 不是 Nominal 的累計秒數（不是用時脈判斷）；每日結算把最高溫整數截斷，寫成 93 / 94 / 94。
 
-限制照實講：只有一台 Mac mini M4；近 4 天沒有一次真的降頻，所以這些圖證明的是「高溫時不擋路」，「真的降頻才等」那一段目前只有單元測試與上方 GIF 的受控示意。全部 9 張圖與表格檢視在 [`docs/viz/index.html`](docs/viz/index.html)（下載後用瀏覽器開）。
+限制照實講：只有一台 Mac mini M4；這份 94 小時 log 是在 macOS 27.0 上跑的（A/B 與感測器對照是 macOS 26）；近 4 天 macOS 沒有回報過一次降頻，所以這些圖證明的是「高溫時不擋路」，「降頻才等」那一段在實際使用中還沒觸發過，目前只有單元測試與上方 GIF 的受控示意。全部 9 張圖與表格檢視在 [`docs/viz/index.html`](docs/viz/index.html)（下載後用瀏覽器開）。
 
 ## 架構
 
@@ -98,7 +98,7 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 100°C，風�
 AppleSMC (IOKit)                        powermetrics (root)
    │                                        │
    ▼                                        │
-Sources/CSMC          80 行 C：open / read / write / 列舉 key
+Sources/CSMC          約 170 行 C：SMC open / read / write / 列舉 key、libproc
    │                                        │
    ▼                                        ▼
 Sources/Cool42Core    Swift library：型別解碼、感測器掃描、風扇曲線、設定檔、快照、頻率讀取、事件
@@ -140,7 +140,7 @@ guard 沒跑、拿不到 pressure 時退回溫度門檻：≥ 95°C 等、≥ 10
 
 **白名單指令不受限**：`cool42`、`kill`、`pkill`、`killall`、`ps`、`top`、`sleep`… 任何等級都放行，否則 Claude 連降溫的指令都跑不了。清單在 config `hookAllowCommands`。
 
-第一版是純溫度門檻（90°C 就等）。換成省風扇的曲線後重載穩態落在 87–93°C，每個 Bash 前都在等 —— 拿工作進度換一個沒有意義的溫度數字。改成看 pressure 之後，同樣 90°C 但 P-core 3.94 GHz、Nominal，直接放行。
+第一版是純溫度門檻（90°C 就等）。換成省風扇的曲線後，重載溫度落在 77–93°C（A/B 的 B 段，平均 86.8°C），90°C 以上每個 Bash 前都在等 —— 拿工作進度換一個沒有意義的溫度數字（「每個 Bash 都在等」是第一版當時的 log，原始檔已不在）。改成看 pressure 之後，同樣 90°C 但 pressure 是 Nominal，直接放行（當下 P-core 約 3.6 GHz，為什麼比全核 3.94 GHz 低，目前只是推論：部分負載或功耗上限）。
 
 ## 威脅模型
 
@@ -159,7 +159,7 @@ root daemon 該被怎麼看：
 
 ## 安裝
 
-先退出其他風扇控制程式（如 Macs Fan Control，含選單列常駐），兩者會互搶風扇。只支援 Apple Silicon、macOS 14 以上。guard 是 root LaunchDaemon，安裝時會跳一次系統密碼視窗 —— 它能做什麼、不能做什麼見上面的[威脅模型](#威脅模型)。
+**目前只在 Mac mini M4 實測；其他機型（尤其 MacBook）的風扇 key 未驗證，裝之前請先看下面的[其他晶片回報](#其他晶片回報)。** 先退出其他風扇控制程式（如 Macs Fan Control，含選單列常駐），兩者會互搶風扇。只支援 Apple Silicon、macOS 14 以上。guard 是 root LaunchDaemon，安裝時會跳一次系統密碼視窗 —— 它能做什麼、不能做什麼見上面的[威脅模型](#威脅模型)。
 
 **1. Homebrew（公證完成後開放）**
 
@@ -169,15 +169,20 @@ brew install okle42/tap/cool42 && cool42-setup
 
 目前 release 還是 ad-hoc 簽章、tap 尚未上線，這條路等 Developer ID 簽章與公證完成後開放。`cool42-setup` 裝 CLI、guard、Claude Code hook 與 MCP（會要系統密碼）；升級用 `brew upgrade cool42 && cool42-setup`，完整移除用 `brew uninstall --zap cool42`（只 `brew uninstall` 不會停 guard，避免升級途中風扇沒人管）。
 
-**2. 下載 release zip（不需要 swift、不需要 clone）**
+**2. 下載 release zip（不需要 swift、不需要 clone）—— 待 release 上線後開放**
+
+GitHub 上還沒有這個版本的 release；上線後用：
 
 ```bash
-V=1.0.3; curl -fsSL "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" -o /tmp/cool42.zip \
-  && rm -rf /tmp/cool42 && ditto -xk /tmp/cool42.zip /tmp/cool42 && /tmp/cool42/cool42-$V/install.sh
-cool42 doctor    # 15 項檢查全綠就對了
+V=1.0.3; T="$(mktemp -d)" && cd "$T" \
+  && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" \
+  && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip.sha256" \
+  && shasum -a 256 -c "cool42-$V-arm64.zip.sha256" \
+  && ditto -xk "cool42-$V-arm64.zip" "$T" && "$T/cool42-$V/install.sh"
+cool42 doctor    # 16 項檢查全綠就對了
 ```
 
-`install.sh --skip-claude` 不動 Claude Code 的 hook 與 MCP；移除：`/usr/local/share/cool42/uninstall.sh`（設定檔保留）。支援檔會裝到 `/usr/local/share/cool42`，解壓目錄裝完可以刪。發布流程見 [`docs/RELEASING.md`](docs/RELEASING.md)。
+release 目前是 **ad-hoc 簽章、未公證**：`install.sh` 會替它清掉 quarantine 屬性才能執行，等於你自己替這個包擔保 —— 先讀過 `install.sh` 再跑。暫存目錄用 `mktemp -d`（只有你能寫），不要改成固定的 `/tmp/...` 路徑。`install.sh --skip-claude` 不動 Claude Code 的 hook 與 MCP；移除：`/usr/local/share/cool42/uninstall.sh`（設定檔保留）。支援檔會裝到 `/usr/local/share/cool42`，解壓目錄裝完可以刪。發布流程見 [`docs/RELEASING.md`](docs/RELEASING.md)。
 
 **3. 原始碼安裝**
 
@@ -187,10 +192,10 @@ cool42 doctor    # 15 項檢查全綠就對了
 git clone https://github.com/Okle42/cool42.git
 cd cool42
 ./install.sh     # build → CLI → guard LaunchDaemon（跳系統密碼視窗）→ Claude Code hook + MCP → 選單列面板
-cool42 doctor    # 15 項檢查全綠就對了
+cool42 doctor    # 16 項檢查全綠就對了
 ```
 
-移除：`./uninstall.sh`（風扇交還 macOS，設定檔保留）。
+移除：`./uninstall.sh`（會明確 `cool42 fan auto` 把風扇交還 macOS，設定檔保留）。只想暫停 guard 的話，`launchctl bootout` 之後記得跑 `sudo cool42 fan auto` —— guard 收到 SIGTERM 會維持目前轉速（見下方「最壞情況」）。
 
 MCP server 需要 [`uv`](https://docs.astral.sh/uv/)（自動抓 `mcp` 套件到隔離環境，不碰系統 Python）；沒有 `uv` 或 `claude` CLI 時 install.sh 會略過這一步，其他功能不受影響。
 
@@ -233,30 +238,30 @@ tail -f /var/log/cool42.log
 
 ## 這樣長期跑對機器好嗎？風扇會不會操壞？
 
-**先講原廠設定的真相。** Apple 的風扇策略是「安靜優先」：CPU 100°C 才把風扇拉到 1400 rpm，晶片長期泡在 100–107°C。Apple 官方文件沒有任何一句提到目標溫度或壽命，throttle 是「預期功能」。原廠跑幾個月不會有任何可見問題 —— 但代價是你看不到的：M4 mini 重載 10–15 分鐘後 P-core 從 4464 MHz 掉到 3300–3800 MHz（−15～−25%），靜靜地慢，沒有提示。
+**先講原廠設定的真相（以下「原廠」數字都是外部資料或單點紀錄，不是同機同負載的對照）。** Apple 的風扇策略是「安靜優先」：這台 cool42 第一次接管前一刻，macOS 自動控制下是 CPU 105°C、風扇 1774 rpm（早期 guard log）。Apple 官方文件沒有任何一句提到目標溫度或壽命。外部報告（別人的 M4 mini）說重載 10–15 分鐘後 SoC 停在 105–107°C、風扇約 2100 rpm，P-core 從 4464 MHz 掉到 3300–3800 MHz（−15～−25%），靜靜地慢，沒有提示。
 
-**cool42 的預設曲線是 A/B 實測出來的「不降頻的最低風扇」。** 同一個負載（load 22–42）各跑 5 分鐘（原始資料在 [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/)）：
+**cool42 的預設曲線是 A/B 比出來的：同負載比舊曲線少轉 25%。** 同一個負載（load 22–42）各跑 5 分鐘（原始資料在 [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/)）：
 
-| | 舊曲線（激進） | **現在的預設** | 原廠 |
+| | 舊曲線（激進） | **現在的預設** | 原廠（外部資料、非同機同負載） |
 |---|---|---|---|
 | 曲線 | 55→1000 … 85→4200 90→4900 | 60→1000 75→1800 85→2600 92→3600 97→4900 | — |
-| 控制溫度 | 83°C | **87°C** | 105–107°C |
-| 風扇 | 4216 rpm | **3150 rpm**（−25%，約 −6 dB） | ~2100 rpm |
-| P-core | 3936 MHz，Nominal | **3936 MHz，Nominal** | 3300–3800 MHz，throttle |
+| 控制溫度（平均，範圍） | 83.0°C（75–88） | **86.8°C（77–93）** | 105–107°C |
+| 風扇（平均） | 4216 rpm | **3150 rpm**（−25%，風扇定律估約 −6 dB） | ~2100 rpm |
+| P-core / pressure | 段內未量 | **段內未量** | 3300–3800 MHz，throttle |
 
-多 4°C 換掉 25% 的風扇，效能一點都沒掉，距離 throttle 門檻還有 13°C 餘裕。舊曲線多出來的 1000 rpm 是在買你感覺不到的 4°C；面板裡「強力」預設就是舊曲線，要的話還在。
+powermetrics 只在 A 曲線生效時量過：A 段開始前 3 筆、B 結束並還原成 A 曲線約 3 分鐘後 6 筆，P-core 3936 MHz（1 筆 3950）、pressure 都是 Nominal。**B 段 5 分鐘內沒有 powermetrics**，所以這組 A/B 只能說「少轉 25%、多 3.8°C」，不能說「B 不降頻」；B 有沒有造成降頻，看的是之後日常運作的每日統計（見上面「數據」：94 小時 thermal pressure 非 Nominal 0 秒）。也還沒量過同一工作的總耗時。舊曲線多出來的 1000 rpm 換到的是 3.8°C；面板裡「強力」預設就是舊曲線，要的話還在。
 
-**壽命：**「每高 10°C 壽命減半」只對電遷移這類機制成立，且 Apple 的基準壽命本來就長，所以 105 → 87°C 是「統計上失效率降 3×」，不是「會壞 vs 不會壞」。另一個常被忽略的點：**熱循環比穩態高溫更傷**，原廠是 45 ↔ 105°C 擺盪，cool42 是 45 ↔ 87，幅度小 1/3。
+**壽命（推論）：**「每高 10°C 壽命減半」只對電遷移這類機制成立（[Electronics Cooling](https://www.electronics-cooling.com/2017/08/10c-increase-temperature-really-reduce-life-electronics-half/) 也說這條規則不普遍成立），而且 Apple 的基準壽命本來就長，所以溫度低一點頂多是統計上的失效率差異，不是「會壞 vs 不會壞」。另一個常被忽略的點：**熱循環比穩態高溫更傷**。這台 log 裡 cool42 的擺盪範圍是 45 ↔ 95°C；外部報告的原廠重載是 105–107°C，但我們沒有同機同負載的原廠擺盪數據，所以不給倍數。
 
 **風扇會不會操壞：**工業標準 L10 = 70,000 小時 @ 40°C，壽命 ∝ (額定 ÷ 實際轉速)^1.5；就算每天 8 小時滿速也是 24 年，風扇不是瓶頸，真正的代價只有噪音和灰塵。轉速上限是韌體回報的 `F0Mx`（M4 mini = 4900），Apple 自己在高環溫也會用到，不是超規格。真正傷風扇的是**頻繁啟停和劇烈變速**，這正是不對稱 EMA + 降速斜率限制 + deadband 在防的：降溫時每 5 秒最多降 300 rpm，從 4900 回到 1000 至少 65 秒。idle 時曲線最低點就是韌體最低轉速 1000，跟 Apple 自動一模一樣。
 
 **怎麼判斷曲線調得對不對：**看 `cool42 status` 的今日統計，關鍵一個數字：**降頻秒數應該是 0**。是 0 就代表風扇有做到它的事，溫度幾度不重要；不是 0 就把曲線高溫段拉高。
 
-**最壞情況：**guard 掛了，launchd `KeepAlive` 幾秒內重啟；正常退出一定先交還自動；連 SMC 手動模式都沒接管時，SoC 自己還有硬體熱保護（降頻、最後關機），不會燒壞。每年清一次灰塵就好。
+**最壞情況：**guard 掛了，launchd `KeepAlive` 幾秒內重啟。退出時：SIGINT（Ctrl-C）/ SIGHUP 會先交還自動；**SIGTERM（launchd 停止 / 重啟，含手動 `launchctl bootout`）會維持目前轉速**，等重啟後接管（交還自動反而會讓高負載下 30 秒衝到 100°C）—— 所以手動停用後風扇會停在 manual 模式的最後一個轉速，請跑 `sudo cool42 fan auto` 或 `uninstall.sh`（兩者都會明確交還）。就算沒有任何程式在控制，SoC 自己還有硬體熱保護（降頻、最後關機），不會燒壞。每年清一次灰塵就好。
 
-## 實測（Mac mini M4，macOS 26）
+## 實測（Mac mini M4；感測器對照與 A/B 在 macOS 26，94 小時運作 log 在 macOS 27.0）
 
-第一次接管那一刻的 log（舊曲線）：
+第一次接管那一刻的 log（舊曲線；早期 log，原始檔已輪替）：
 
 ```
 cool42 guard 啟動（Apple M4，1 顆風扇，每 5.0s，模式 curve，控制中）
@@ -266,7 +271,7 @@ cool42 guard 啟動（Apple M4，1 顆風扇，每 5.0s，模式 curve，控制�
 🟡  82°C 🌀4618rpm                      ← 20 秒後，降 23°C
 ```
 
-資源：`guard` 常駐 0.1% CPU / 3.5 MB，`powermetrics` 子行程 0.18% / 6 MB；面板閒置 0.2% / 33 MB（打開時 1–3%）；`cool42 hook` 每次 9 ms；`cool42 status` 單次 0.18 秒（含開 SMC）。
+資源（2026-09-23 `ps`，累計 CPU 時間 ÷ 已執行 3 天 22 小時）：`guard` 0.27% 單核、RSS 約 12–14 MB，`powermetrics` 子行程 0.22%；兩者合計約 0.49%。面板一直開著約 1.17%、RSS 57 MB（收起時待重測）。`cool42 hook` 每次 9 ms、`cool42 status` 單次 0.18 秒（含開 SMC）是較早的量測。
 
 ## 克服的問題
 
@@ -288,7 +293,7 @@ Claude Code 的 `!` 指令跑 `sudo` 會直接失敗（`a terminal is required t
 順帶一提 SMC 偶爾會回假值（實際看過 GPU 讀到 1°C），讀值一律只收 10–125°C，其餘沿用上一筆。
 
 **6. 不能把風扇操爆**
-轉速上限不是寫死的常數，是直接讀韌體回報的 `F0Mx`（M4 mini = 4900）。任何模式的目標都被夾在 `F0Mn`–`F0Mx`，程式上寫不出更高的值；SMC 韌體本身還會再夾一次。guard 收到 SIGTERM/SIGINT/SIGHUP 一律先把風扇交還自動（`F0Md=0`）再退出；整支程式只寫 `F?Md`、`F?Tg` 兩個 key。
+轉速上限不是寫死的常數，是直接讀韌體回報的 `F0Mx`（M4 mini = 4900）。任何模式的目標都被夾在 `F0Mn`–`F0Mx`，程式上寫不出更高的值；SMC 韌體本身還會再夾一次。guard 收到 SIGINT/SIGHUP 先把風扇交還自動（`F0Md=0`）再退出；SIGTERM（launchd 重啟）維持目前轉速等重啟接管（見第 16 條 (e)），手動停用請跑 `sudo cool42 fan auto` 或 `uninstall.sh`。整支程式只寫 `F?Md`、`F?Tg` 兩個 key。
 
 **7. hook 逾時**
 Claude Code hook 預設 60 秒逾時，而等待上限是 90 秒 —— hook 設定要明確給 `"timeout": 150`，程式內也把等待夾在 120 秒以下，`doctor` 會檢查兩邊對不對得上。
@@ -306,7 +311,7 @@ Claude Code hook 預設 60 秒逾時，而等待上限是 90 秒 —— hook 設
 `MenuBarExtra(.window)` 的內容 view 不會 disappear，`onAppear` 判斷不了選單有沒有打開；`NSStatusBarWindow` 又永遠 `isVisible`。要看的是 `MenuBarExtraWindow` 的 `isVisible`。閒置時只讀快照更新標題，歷史曲線由 guard 寫檔、面板打開才讀，從 1.5% / 80 MB 降到 0.2% / 33 MB。
 
 **12. CPU 硬體頻率在 M4 上只有 root 讀得到**
-想顯示「有沒有被降頻」。先試 IOReport 私有框架（macmon / asitop 用的，不需 root）：`CPU Core Performance States`、`CPU Complex Performance States`、`Voltage States`、`Core Performance Level` 全試過，和 `powermetrics` 同步對照後發現它們都是**軟體請求的 DVFS 檔位**，重載時永遠停在最高檔 `V19P0`（4464），而硬體實際在功率 / 熱限制後跑 3936 —— 降頻正是發生在這一層，IOReport 看不到。硬體計數器只有 `powermetrics` 讀得到且要 root。guard 本來就是 root，就讓它常駐一個 `powermetrics -i 5000` 子行程持續讀（初始化 0.8 秒 CPU 一次，之後每筆 0.18%）。注意 `-n 0` 不是無限，會在第一筆後退出，要不帶 `-n`。
+想顯示「有沒有被降頻」。先試 IOReport 私有框架（macmon / asitop 用的，不需 root）：`CPU Core Performance States`、`CPU Complex Performance States`、`Voltage States`、`Core Performance Level` 全試過，和 `powermetrics` 同步對照後發現它們都是**軟體請求的 DVFS 檔位**，重載時永遠停在最高檔 `V19P0`（4464），而硬體實際在功率 / 熱限制後跑 3936 —— 降頻正是發生在這一層，IOReport 看不到。硬體計數器只有 `powermetrics` 讀得到且要 root。guard 本來就是 root，就讓它常駐一個 `powermetrics -i 5000` 子行程持續讀（初始化 0.8 秒 CPU 一次，之後常駐早期量 0.18%、長期平均 0.22% 單核）。注意 `-n 0` 不是無限，會在第一筆後退出，要不帶 `-n`。
 
 **13. 就地覆寫 binary 會被 kernel 殺掉**
 `cp` 新版到 `/usr/local/bin/cool42` 之後，所有新啟動的 process 都以 `OS_REASON_CODESIGNING` 被殺 —— 舊 inode 的簽章快取還在。要 `cp` 到 `.new` 再 `mv` 換 inode。另外 `launchctl bootout` 後要等 launchd 真的清完再 `bootstrap`，否則回 `error 5`。
@@ -315,10 +320,10 @@ Claude Code hook 預設 60 秒逾時，而等待上限是 90 秒 —— hook 設
 驗證數值時用 IOHID（`IOHIDEventSystemClient`，不需 root 的另一條路）交叉比對，M4 上只讀到 `PMU tdie` 系列，最高 62°C，cool42 同時刻 78°C。查清楚後：**PMU = Power Management Unit，電源管理晶片**，是主機板上另一顆 IC（M 系列有兩顆，`PMU` / `PMU2`），負責把電源轉成 SoC 各區域的電壓。`PMU tdie` 是它自己的 die 溫度、`tdev` 是它量的周邊、`tcal` 是校正參考。它供電給 CPU，所以趨勢跟著 CPU 走，但物理上離核心熱點有一段距離，絕對值天生低 15–20°C。M1 世代 IOHID 還有 `pACC MTR Temp Sensor`（真正的核心感測器），M4 上沒了，只走 IOHID 的工具在 M4 就只能拿到 PMU 值 —— 趨勢對、數值不對。另一個常見差異是平均 vs 最高：macmon 顯示 SMC 各 key 的平均（重載約 60–68°C），cool42 用最高（同時刻 78–85°C），因為降頻看的是熱點。cool42 讀的 `Tp*` 是 M4 SoC 內每顆 P-core 旁的感測器，也是 Apple 自己的聚合 key `TCMz`（SoC 最高溫）的來源；實測 `TCMz` 與 cool42 的 `cpuMax` 完全相等。熱管理與降頻看的是這個，風扇要管的也是這個。
 
 **15. guard 在高負載時被餓死 —— 最需要它的時候它動不了**
-第一版 LaunchDaemon 用 `ProcessType Background` + `Nice 10`，想說「常駐程式要低調」。結果 load 35 時 guard 啟動後卡了三分鐘還沒跑完第一輪：`sample` 看到 1375 次 SMC 列舉呼叫全部在 `mach_msg2_trap` 排隊，同時另一個一般 process 掃同樣的 key 只要 0.2 秒。Background QoS 在系統忙時幾乎拿不到 CPU，而風扇守門員最需要工作的時刻正是系統最忙的時刻 —— 這個設定剛好反了。改成 `Standard` + `Nice -5`（實際用量 0.1%，搶不到別人），同樣負載下啟動同一秒就完成第一輪。另外兩層防禦：guard 把掃到的 key 清單寫進快照，CLI / 面板 / 重啟後的 guard 直接用，不再每次列舉 1375 個 key；主迴圈加 watchdog thread，6 個週期沒心跳就 `_exit` 讓 launchd 重啟（卡在 kernel 呼叫時連 SIGTERM 都收不到，只能靠這個）。
+第一版 LaunchDaemon 用 `ProcessType Background` + `Nice 10`，想說「常駐程式要低調」。結果 load 35 時 guard 啟動後卡了三分鐘還沒跑完第一輪：`sample` 看到 1375 次 SMC 列舉呼叫全部在 `mach_msg2_trap` 排隊，同時另一個一般 process 掃同樣的 key 只要 0.2 秒。Background QoS 在系統忙時幾乎拿不到 CPU，而風扇守門員最需要工作的時刻正是系統最忙的時刻 —— 這個設定剛好反了。改成 `Standard` + `Nice -5`（實際用量約 0.27% 單核，搶不到別人），同樣負載下啟動同一秒就完成第一輪。另外兩層防禦：guard 把掃到的 key 清單寫進快照，CLI / 面板 / 重啟後的 guard 直接用，不再每次列舉 1375 個 key；主迴圈加 watchdog thread，6 個週期沒心跳就 `_exit` 讓 launchd 重啟（卡在 kernel 呼叫時連 SIGTERM 都收不到，只能靠這個）。
 
 **16. 跑了 11 小時後從 log 學到的**
-2023 筆寫入、1280 筆事件回頭看：(a) 85–101°C 全區間 P-core 中位都 3.94 GHz、降頻 0 秒，曲線 B 成立；(b) 等級事件 1161 筆，全是 79↔81 來回 —— warm 門檻正好在重載中位 84 旁邊，加 3°C 降級遲滯；(c) 兩次 100°C+ 都是同一種情境：閒段把風扇降到 2400，下一段瞬間全開一輪 +21°C，升速限制反而拖三輪 —— ≥ hot 時升速不限、EMA 不平滑；(d) 44 次預熱有 6 次還是衝到 95+，因為 `python -m …` 不在關鍵字裡；(e) guard 今天重啟 17 次，每次退出交還自動、高負載下 30 秒就 100°C —— SIGTERM 改成保持轉速等 launchd 接管，Ctrl-C / uninstall 才交還。
+2023 筆寫入、1280 筆事件回頭看（這份 log 已不在，以下數字無法重算；現行 94 小時 log 裡 ≥ 90°C 寫入的 P-core 中位數是 3.64 GHz，不支持 (a) 的 3.94）：(a) 85–101°C 全區間 P-core 中位都 3.94 GHz、降頻 0 秒；(b) 等級事件 1161 筆，全是 79↔81 來回 —— warm 門檻正好在重載中位 84 旁邊，加 3°C 降級遲滯；(c) 兩次 100°C+ 都是同一種情境：閒段把風扇降到 2400，下一段瞬間全開一輪 +21°C，升速限制反而拖三輪 —— ≥ hot 時升速不限、EMA 不平滑；(d) 44 次預熱有 6 次還是衝到 95+，因為 `python -m …` 不在關鍵字裡；(e) guard 今天重啟 17 次，每次退出交還自動、高負載下 30 秒就 100°C —— SIGTERM 改成保持轉速等 launchd 接管，Ctrl-C / uninstall 才交還。
 
 **17. 「現在誰在算」與 GPU 使用率，不靠 powermetrics**
 `powermetrics --samplers tasks` 每個 process 的 CPU 很準但常駐要 +2.7% CPU，而且它的 per-process GPU 時間在 Apple Silicon 全是 0；`gpu_power` sampler 也要 +2.1%。改成：CPU 用 `libproc` 差分每個 process 的累計 CPU 時間（`proc_pidinfo PROC_PIDTASKINFO`，不需 root，每輪幾毫秒）—— 注意 `pti_total_user/system` 在 Apple Silicon 是 Mach tick（125/3 ns），Intel 剛好 1:1 所以文件都當它是 ns，不換算會少算 41 倍。GPU 用 IOReport `GPU Stats / GPU Performance States`：CPU 那邊 IOReport 是軟體檔位不可信，但 GPU 的「非 OFF 比例」就是使用率，狀態分布也和 powermetrics 對得上；頻率表在 pmgr `voltage-states9-sram`，單位 Hz（CPU 表是 kHz）。GPU 有沒有被熱降頻則看同群組的 `CLTM-induced GPU Performance States`（CLTM = closed-loop thermal management）：平常 `NO_CLTM` 100%，被壓檔位時會出現其他狀態；超過 5% 時間就算 GPU 熱降頻，結論、統計、hook 都把它和 CPU 的 pressure 同等看待。
@@ -350,7 +355,7 @@ cool42 doctor      # 哪一項不綠
 ## 專案結構
 
 ```
-Sources/CSMC/           80 行 C：AppleSMC open / read / write / 列舉 key
+Sources/CSMC/           約 170 行 C：AppleSMC open / read / write / 列舉 key、libproc（cproc.c）
 Sources/Cool42Core/     SMC 解碼、Config、Snapshot / History / Event、FreqReader（powermetrics）、Policy（把關判斷）
 Sources/cool42/         CLI：main（分派）、Hook、Guard、Doctor
 Sources/cool42-panel/   選單列面板（SwiftUI + Charts）
@@ -360,7 +365,7 @@ scripts/                install-root.sh（root 步驟）、install-hook.py、ins
 mcp/                    cool42_mcp.py：MCP server（PEP 723 單檔，uv run --script 即跑）
 Sounds/                 內建提示音 overheat.m4a / cooldown.m4a（合成音，打包進面板 app）
 extras/                 statusline 片段、perf_vs_temp.py（效率 vs 溫度量測）、make_sounds.py（合成提示音）
-docs/                   A/B 實測資料
+docs/                   A/B 實測資料、技術發現、長文、數據圖
 ```
 
 `swift test` 跑單元測試；`./install.sh` 一鍵安裝。

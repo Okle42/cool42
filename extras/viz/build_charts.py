@@ -46,6 +46,25 @@ THEMES = {
                  dim="#52514e"),
 }
 CSS_THEME = {k: f"var(--{k})" for k in THEMES["light"]}
+LANG = "zh"   # main() 產英文版（*-en-*.svg）時切成 "en"
+
+
+def L(zh, en):
+    return en if LANG == "en" else zh
+
+
+def hot_segments(writes, gap=300):
+    """≥90°C 的寫入依時間分段：間隔超過 gap 秒算新的一段（高溫「事件」數，不是寫入筆數）"""
+    hot = sorted((x for x in writes if x["temp"] >= 90), key=lambda x: x["t"])
+    segs = []
+    for x in hot:
+        if segs and (x["t"] - segs[-1][-1]["t"]).total_seconds() <= gap:
+            segs[-1].append(x)
+        else:
+            segs.append([x])
+    return segs
+
+
 FONT = "system-ui,-apple-system,'PingFang TC','Noto Sans TC','Segoe UI',sans-serif"
 
 
@@ -327,29 +346,31 @@ def chart_ab_series(D, th, inter, metric, show_title=True):
     stA, stB = D["abA"], D["abB"]
     if metric == "temp":
         y0, y1, unit, key = 70, 96, "°C", "temp"
-        title = "A/B：控制溫度，B 只多 3.8°C"
-        sub = f"同一個 Python 重負載（load 22–42），各 5 分鐘、每 10 秒一筆；丟前 60 秒後 A 均 {stA['temp']:.1f}°C、B 均 {stB['temp']:.1f}°C"
+        title = L("A/B：控制溫度，B 只多 3.8°C", "A/B: control temperature, B only 3.8 °C warmer")
+        sub = L(f"同一個 Python 重負載（load 22–42），各 5 分鐘、每 10 秒一筆；丟前 60 秒後 A 均 {stA['temp']:.1f}°C、B 均 {stB['temp']:.1f}°C",
+                f"Same Python load (load 22–42), 5 min each, one sample per 10 s; after dropping the first 60 s A {stA['temp']:.1f} °C, B {stB['temp']:.1f} °C")
         ticks = [70, 75, 80, 85, 90, 95]
         fmt = lambda v: f"{v:.0f}°"
     else:
         y0, y1, unit, key = 2000, 5000, " rpm", "rpm"
-        title = "A/B：風扇轉速，B 少轉 25%"
-        sub = f"丟前 60 秒後 A 均 {stA['rpm']:,.0f} rpm、B 均 {stB['rpm']:,.0f} rpm（−{stA['rpm'] - stB['rpm']:,.0f}，推估約 −6.3 dB）"
+        title = L("A/B：風扇轉速，B 少轉 25%", "A/B: fan speed, B spins 25% slower")
+        sub = L(f"丟前 60 秒後 A 均 {stA['rpm']:,.0f} rpm、B 均 {stB['rpm']:,.0f} rpm（−{stA['rpm'] - stB['rpm']:,.0f}，推估約 −6.3 dB）；Y 軸從 2,000 起，不從 0",
+                f"After dropping the first 60 s: A {stA['rpm']:,.0f} rpm, B {stB['rpm']:,.0f} rpm (−{stA['rpm'] - stB['rpm']:,.0f}, ≈ −6.3 dB by fan law); Y axis starts at 2,000, not 0")
         ticks = [2000, 3000, 4000, 5000]
         fmt = fmt_int
     p = Plot(th, 760, 380, 0, 300, y0, y1, interactive=inter, title=title, subtitle=sub,
-             xlabel="段內秒數（A 05:06:01 起、B 05:11:08 起）", ylabel=unit.strip(), show_title=show_title)
-    p.band(0, 60, "過渡 60 秒，不計入平均")
+             xlabel=L("段內秒數（A 05:06:01 起、B 05:11:08 起）", "seconds into run (A from 05:06:01, B from 05:11:08)"), ylabel=unit.strip(), show_title=show_title)
+    p.band(0, 60, L("過渡 60 秒，不計入平均", "first 60 s dropped"))
     p.ygrid(ticks, fmt)
     p.xaxis([0, 60, 120, 180, 240, 300], lambda v: f"{v}s")
-    for grp, rows, color, stt, name in (("A", A, "s1", stA, "A 強力"), ("B", B, "s2", stB, "B 均衡（現行預設）")):
+    for grp, rows, color, stt, name in (("A", A, "s1", stA, L("A 強力", "A strong")), ("B", B, "s2", stB, L("B 均衡（現行預設）", "B balanced (default)"))):
         p.line([(r["sec"], r[key]) for r in rows], color)
         mean = stt[key]
         p.parts.append(f'<line x1="{p.sx(60):.1f}" x2="{p.pr}" y1="{p.sy(mean):.1f}" y2="{p.sy(mean):.1f}" stroke="{th[color]}" stroke-width="1" opacity=".55"/>')
         p.dot(rows[-1]["sec"], rows[-1][key], color, 4)
-        lab = f"{grp} 均 {mean:.1f}°C" if metric == "temp" else f"{grp} 均 {mean:,.0f} rpm"
+        lab = (f"{grp} {L('均', 'mean')} {mean:.1f}°C" if metric == "temp" else f"{grp} {L('均', 'mean')} {mean:,.0f} rpm")
         p.text(p.pr + 8, p.sy(mean) + 4, lab, "ink", 12, weight=600)
-    p.legend([("line", "s1", "A 強力（舊預設）"), ("line", "s2", "B 均衡（現行預設）")])
+    p.legend([("line", "s1", L("A 強力（舊預設）", "A strong (old default)")), ("line", "s2", L("B 均衡（現行預設）", "B balanced (current default)"))])
     byA = {r["sec"] // 10: r for r in A}
     byB = {r["sec"] // 10: r for r in B}
     xs = sorted(set(list(byA) + list(byB)))
@@ -361,14 +382,14 @@ def chart_ab_series(D, th, inter, metric, show_title=True):
                 out.append([f"{r[key]}{unit}" if metric == "temp" else f"{r[key]:,} rpm", f"{g}（{r['time']}，load {r['load']}）"])
         return out
     # 用 10 秒格子當 X
-    p.crosshair_hits([k * 10 for k in xs], lambda x: rows(x // 10), lambda x: f"段內 {x}s")
+    p.crosshair_hits([k * 10 for k in xs], lambda x: rows(x // 10), lambda x: L(f"段內 {x}s", f"{x}s into run"))
     return p.render()
 
 
 def chart_ab_pcore(D, th, inter, show_title=True):
     pm = D["pm"]
-    title = "A/B：P-core 硬體時脈都停在 3936 MHz，9/9 Nominal"
-    sub = "powermetrics P-Cluster HW active frequency；3936 是 M4 全核功耗上限頻率，不是熱降頻"
+    title = "A/B 前後（A 曲線生效時）：8/9 筆 3936 MHz、1 筆 3950，9/9 Nominal"
+    sub = "powermetrics P-Cluster HW active frequency；B 段 5 分鐘內沒有取樣。推論：3936 像是 M4 全核功耗上限"
     p = Plot(th, 760, 380, -0.6, len(pm) - 0.4, 3200, 4600, interactive=inter, title=title, subtitle=sub,
              ylabel="MHz", show_title=show_title, mr=200)
     p.band(-0.6, len(pm) - 0.4, None, 3300, 3800)
@@ -378,14 +399,14 @@ def chart_ab_pcore(D, th, inter, show_title=True):
     p.xaxis([], str)
     for i, r in enumerate(pm):
         color = "s1" if r["group"] == "A" else "s2"
-        p.dot(i, r["pMHz"], color, 5, tip=(f"{r['group']} 段 {r['time']}",
+        p.dot(i, r["pMHz"], color, 5, tip=(("A 段前" if r["group"] == "A" else "B 後（已還原 A 曲線）") + f" {r['time']}",
               [[f"{r['pMHz']:,} MHz", "P-Cluster HW"], [f"{r['cpuW']:.1f} W", "CPU Power"], [r["pressure"], "thermal pressure"]]))
         p.text(p.sx(i), p.pb + 18, r["time"][:5] if i in (0, 3) else "", "muted", 11, "middle")
     nA = sum(1 for r in pm if r["group"] == "A")
     p.text((p.sx(0) + p.sx(nA - 1)) / 2, p.pb + 36, "A 段前（05:00:41–47，3 秒間隔）", "muted", 11, "middle")
-    p.text((p.sx(nA) + p.sx(len(pm) - 1)) / 2, p.pb + 36, "B 段後（05:19–05:20，20 秒間隔）", "muted", 11, "middle")
+    p.text((p.sx(nA) + p.sx(len(pm) - 1)) / 2, p.pb + 36, "B 後（已還原 A 曲線；05:19–05:20，20 秒間隔）", "muted", 11, "middle")
     p.text(p.sx(len(pm) - 1) + 12, p.sy(3943) - 10, "8 筆 3936、1 筆 3950", "ink", 12, weight=600)
-    p.legend([("dot", "s1", "A 強力"), ("dot", "s2", "B 均衡")])
+    p.legend([("dot", "s1", "A 段前（A 曲線）"), ("dot", "s2", "B 後（已還原 A 曲線）")])
     return p.render()
 
 
@@ -396,9 +417,12 @@ def chart_timeline(D, th, inter, show_title=True):
     hrs = lambda t: (t - t0).total_seconds() / 3600
     x1 = math.ceil(hrs(ev["last"]) / 24) * 24
     hot = [x for x in w if x["temp"] >= 90]
+    segs = hot_segments(w)
     s = D["summary"]
-    title = f"近 {s['hours']:.0f} 小時：{len(hot)} 個時刻 ≥90°C，AI 一次都沒被卡"
-    sub = f"每一點是 guard 寫 SMC 的時刻（共 {len(w):,} 筆，只在轉速改變時記錄，非等間隔）；hook 等待 0 次、擋下 0 次、降頻 0 秒"
+    title = L(f"近 {s['hours']:.0f} 小時：{len(segs)} 段高溫（{len(hot)} 筆 ≥90°C），hook 等待 0 次",
+              f"Last {s['hours']:.0f} h: {len(segs)} hot periods ({len(hot)} writes ≥ 90 °C), 0 hook waits")
+    sub = L(f"每一點是 guard 寫 SMC 的時刻（共 {len(w):,} 筆，只在轉速改變時記錄，非等間隔）；hook 等待 0、擋下 0、pressure 非 Nominal 0 秒",
+            f"Each dot is a fan-guard SMC write ({len(w):,} total, logged only when the target changes); 0 hook waits, 0 denials, 0 s non-Nominal pressure")
     p = Plot(th, 760, 380, 0, x1, 30, 105, interactive=inter, title=title, subtitle=sub, ylabel="°C",
              show_title=show_title, mr=176)
     p.ygrid([30, 40, 50, 60, 70, 80, 90, 100], lambda v: f"{v:.0f}°")
@@ -408,13 +432,14 @@ def chart_timeline(D, th, inter, show_title=True):
     for x in w:
         if x["temp"] < 90:
             p.dot(hrs(x["t"]), x["temp"], "dim", 2.2, ring=False, opacity=0.8)
-    p.hline(90, "第一版門檻 90°C", "ink2")
-    p.hline(100, "擋下 100°C", "crit")
+    p.hline(90, L("第一版門檻 90°C", "v1 threshold 90 °C"), "ink2")
+    p.hline(100, L("擋下 100°C", "deny 100 °C"), "crit")
     for x in hot:
         p.dot(hrs(x["t"]), x["temp"], "s2", 3.5, tip=(x["t"].strftime("%m-%d %H:%M:%S"),
-              [[f"{x['temp']}°C", "控制溫度"], [f"{x['rpm']:,} rpm", "當下轉速"],
-               [f"{x['ghz']:.2f} GHz" if x["ghz"] else "—", "IOReport P-core"], ["放行", "hook 結果（當日等待 0 次）"]]))
-    p.legend([("dot", "s2", f"≥90°C 的寫入（{len(hot)} 次）"), ("dot", "dim", f"<90°C（{len(w) - len(hot):,} 次）")])
+              [[f"{x['temp']}°C", L("控制溫度", "control temp")], [f"{x['rpm']:,} rpm", L("當下轉速", "fan rpm")],
+               [f"{x['ghz']:.2f} GHz" if x["ghz"] else "—", L("powermetrics P-core（硬體）", "powermetrics P-core (hardware)")]]))
+    p.legend([("dot", "s2", L(f"≥90°C 的寫入（{len(hot)} 筆，{len(segs)} 段）", f"writes ≥ 90 °C ({len(hot)}, {len(segs)} periods)")),
+              ("dot", "dim", L(f"<90°C（{len(w) - len(hot):,} 筆）", f"< 90 °C ({len(w) - len(hot):,})"))])
     return p.render()
 
 
@@ -424,7 +449,8 @@ def chart_hist(D, th, inter, show_title=True):
     lo, hi = 35, 100
     mx = max(bins.values())
     med = st.median(x["temp"] for x in w)
-    title = f"寫入時溫度多半在 60–75°C，中位 {med:.0f}°C"
+    n6080 = sum(1 for x in w if 60 <= x["temp"] < 80)
+    title = f"寫入時溫度六成多落在 60–80°C（{n6080 / len(w) * 100:.0f}%），中位 {med:.0f}°C"
     sub = f"{len(w):,} 筆 SMC 寫入的控制溫度，每 5°C 一格；是「寫入時刻」分布，不是時間佔比"
     p = Plot(th, 760, 380, lo, hi, 0, math.ceil(mx / 100) * 100, interactive=inter, title=title, subtitle=sub,
              ylabel="次數", show_title=show_title, mr=40)
@@ -468,21 +494,26 @@ def chart_scatter(D, th, inter, show_title=True):
 
 def chart_daily_max(D, th, inter, show_title=True):
     days = D["daily"]
-    title = "每日最高溫 93–94°C，降頻 0 秒、hook 等待 0 次"
-    sub = "guard 每日結算（09-23 取 stats.json，至 23:42）；結算用 Int 截斷、log 行四捨五入，所以 log 看得到 95°C"
+    full = [d["logmax"] for d in days if not d.get("partial")]
+    last = days[-1]
+    title = L(f"每日最高 {min(full)}–{max(full)}°C（log 值；{last['date'][5:]} 至 23:42 為 {last['logmax']}°C），降頻 0 秒",
+              f"Daily peak {min(full)}–{max(full)} °C (log values; {last['date'][5:]} to 23:42: {last['logmax']} °C), 0 s throttled")
+    sub = L("柱＝每日結算（Int 截斷，可能比 log 值低 1°C）；09-23 取 stats.json 快照，約 23:48–23:50 抓取，log 只到 23:42",
+            "Bars = daily summary (truncated to int, may be 1 °C below the log value); 09-23 from a stats.json snapshot taken ~23:48–23:50, log ends 23:42")
     p = Plot(th, 760, 380, -0.5, len(days) - 0.5, 0, 110, interactive=inter, title=title, subtitle=sub,
              ylabel="°C", show_title=show_title, mr=150, mb=64)
     p.ygrid([0, 20, 40, 60, 80, 100], lambda v: f"{v:.0f}°")
     p.xaxis([], str)
-    p.hline(90, "第一版門檻 90°C")
-    p.hline(100, "擋下 100°C", "crit")
+    p.hline(90, L("第一版門檻 90°C", "v1 threshold 90 °C"))
+    p.hline(100, L("擋下 100°C", "deny 100 °C"), "crit")
     for i, d in enumerate(days):
-        p.col(p.sx(i), d["max"], 24, "s1", tip=(d["date"] + ("（至 23:42）" if d.get("partial") else ""),
-              [[f"{d['max']:.0f}°C" if isinstance(d['max'], int) else f"{d['max']:.1f}°C", "結算最高"],
-               [f"{d['logmax']}°C", "log 行最高"], [f"{d['throttle']} s", "降頻"], [f"{d['waits']} / {d['denies']}", "hook 等待 / 擋下"]]),
+        p.col(p.sx(i), d["max"], 24, "s1", tip=(d["date"] + (L("（至 23:42）", " (to 23:42)") if d.get("partial") else ""),
+              [[f"{d['max']:.0f}°C" if isinstance(d['max'], int) else f"{d['max']:.1f}°C", L("結算最高", "daily summary")],
+               [f"{d['logmax']}°C", L("log 行最高", "log max")], [f"{d['throttle']} s", L("降頻（pressure 非 Nominal）", "throttled (non-Nominal)")],
+               [f"{d['waits']} / {d['denies']}", L("hook 等待 / 擋下", "hook waits / denials")]]),
               label=None)
-        p.text(p.sx(i), p.pb + 18, d["date"][5:].replace("-", "/") + ("（部分）" if d.get("partial") else "") + f" · {d['max']:.0f}°C", "ink", 12, "middle", 600)
-        p.text(p.sx(i), p.pb + 36, f"降頻 {d['throttle']}s · 等待 {d['waits']}", "muted", 11, "middle")
+        p.text(p.sx(i), p.pb + 18, d["date"][5:].replace("-", "/") + (L("（部分）", " (partial)") if d.get("partial") else "") + f" · log {d['logmax']}°C", "ink", 12, "middle", 600)
+        p.text(p.sx(i), p.pb + 36, L(f"降頻 {d['throttle']}s · 等待 {d['waits']}", f"throttled {d['throttle']}s · waits {d['waits']}"), "muted", 11, "middle")
     return p.render()
 
 
@@ -549,7 +580,7 @@ def chart_curves(D, th, inter, show_title=True):
 
 CHARTS = [
     # id, 函式, 標題（HTML 用）, 群組
-    ("hook-timeline", chart_timeline, "AI 從沒被卡：≥90°C 31 次、hook 等待 0", "主打"),
+    ("hook-timeline", chart_timeline, "高溫期間 hook 等待 0 次：5 段高溫、31 筆 ≥90°C", "主打"),
     ("ab-temp", lambda D, th, i, st_=True: chart_ab_series(D, th, i, "temp", st_), "A/B 溫度", "A/B 實測"),
     ("ab-rpm", lambda D, th, i, st_=True: chart_ab_series(D, th, i, "rpm", st_), "A/B 轉速", "A/B 實測"),
     ("ab-pcore", chart_ab_pcore, "A/B P-core 時脈", "A/B 實測"),
@@ -559,6 +590,9 @@ CHARTS = [
     ("rpm-vs-temp", chart_scatter, "目標轉速 vs 溫度", "近 4 天 log"),
     ("curve-vs-macos", chart_curves, "macOS 自動 vs cool42 曲線", "對照（待補）"),
 ]
+
+
+EN_CHARTS = ("hook-timeline", "ab-rpm", "daily-max")   # README.en.md 用的英文版
 
 
 # ---------------------------------------------------------------- 匯總
@@ -608,7 +642,8 @@ def summarize(D):
         log_first=ev["first"].strftime("%Y-%m-%d %H:%M:%S"), log_last=ev["last"].strftime("%Y-%m-%d %H:%M:%S"),
         hours=hours, writes=len(w), targets=len(tg), handbacks=len(ev["handbacks"]), takeovers=len(ev["takeovers"]),
         boosts=len(ev["boosts"]), boost_cmds=Counter(c for _, c in ev["boosts"]).most_common(), early=len(ev["early"]),
-        ge90=sum(1 for x in w if x["temp"] >= 90), ge100=sum(1 for x in w if x["temp"] >= 100),
+        ge90=sum(1 for x in w if x["temp"] >= 90), hot_segs=len(hot_segments(w)),
+        n6080=sum(1 for x in w if 60 <= x["temp"] < 80), n6075=sum(1 for x in w if 60 <= x["temp"] < 75), ge100=sum(1 for x in w if x["temp"] >= 100),
         max_log=max(x["temp"] for x in w), temp_med=st.median(x["temp"] for x in w), temp_mean=st.mean(x["temp"] for x in w),
         target_med=st.median(tg), target_mean=st.mean(tg), target_max=max(tg), target_ge3000=sum(1 for v in tg if v >= 3000),
         level_changes=len(ev["levels"]), ctrl_hours=ctrl / 3600, ctrl_pct=ctrl / 3600 / hours * 100,
@@ -623,14 +658,14 @@ def summarize(D):
 def tables(D):
     s = D["summary"]
     T = {}
-    T["hook-timeline"] = (["時間", "控制溫度", "當下轉速", "IOReport GHz"],
+    T["hook-timeline"] = (["時間", "控制溫度", "當下轉速", "powermetrics P-core GHz（硬體）"],
                           [[x["t"].strftime("%m-%d %H:%M:%S"), f"{x['temp']}°C", f"{x['rpm']:,}", f"{x['ghz']:.2f}" if x["ghz"] else "—"]
                            for x in D["ev"]["writes"] if x["temp"] >= 90])
     for m, k in (("ab-temp", "temp"), ("ab-rpm", "rpm")):
         T[m] = (["組", "時間", "段內秒", "load", "溫度 °C", "轉速 rpm"],
                 [[r["group"], r["time"], r["sec"], r["load"], r["temp"], f"{r['rpm']:,}"] for r in D["samples"]])
-    T["ab-pcore"] = (["組", "時間", "P-Cluster MHz", "E-Cluster MHz", "CPU W", "pressure"],
-                     [[r["group"], r["time"], f"{r['pMHz']:,}", f"{r['eMHz']:,}", f"{r['cpuW']:.1f}", r["pressure"]] for r in D["pm"]])
+    T["ab-pcore"] = (["時段（當時曲線皆為 A）", "時間", "P-Cluster MHz", "E-Cluster MHz", "CPU W", "pressure"],
+                     [["A 段前" if r["group"] == "A" else "B 後（已還原 A）", r["time"], f"{r['pMHz']:,}", f"{r['eMHz']:,}", f"{r['cpuW']:.1f}", r["pressure"]] for r in D["pm"]])
     T["daily-max"] = (["日期", "結算最高", "log 行最高", "降頻 s", "hook 等待", "擋下", "critical s"],
                       [[d["date"] + ("（部分）" if d.get("partial") else ""), d["max"], d["logmax"], d["throttle"], d["waits"], d["denies"], d.get("critical")] for d in D["daily"]])
     T["daily-control"] = (["日期", "接管", "交還自動", "預熱"], [[d["date"], d["takeovers"], d["handbacks"], d["boosts"]] for d in D["daily"]])
@@ -665,13 +700,13 @@ def conclusions(D):
     s = D["summary"]
     A, B = s["A"], s["B"]
     return {
-        "hook-timeline": f"{s['hours']:.1f} 小時內控制溫度 ≥90°C 的寫入 {s['ge90']} 次（最高 {s['max_log']}°C、≥100°C {s['ge100']} 次），hook 等待 {s['waits']} 次、擋下 {s['denies']} 次、降頻 {s['throttle']} 秒。推論：若用第一版「90°C 就等」，這 {s['ge90']} 個時刻都會卡住 AI。",
+        "hook-timeline": f"{s['hours']:.1f} 小時內有 {s['hot_segs']} 段高溫期間（間隔 >5 分鐘分段；控制溫度 ≥90°C 的寫入共 {s['ge90']} 筆，最高 {s['max_log']}°C、≥100°C {s['ge100']} 次），hook 等待 {s['waits']} 次、擋下 {s['denies']} 次、thermal pressure 非 Nominal {s['throttle']} 秒。log 不記每次放行，不知道這些期間實際有幾次 Bash 經過 hook。推論：若這些期間有重指令，第一版「90°C 就等」的門檻會讓它等。",
         "ab-temp": f"丟前 60 秒後 A 均 {A['temp']:.1f}°C（{A['tmin']}–{A['tmax']}）→ B 均 {B['temp']:.1f}°C（{B['tmin']}–{B['tmax']}），只多 {B['temp'] - A['temp']:.1f}°C。",
         "ab-rpm": f"A 均 {A['rpm']:,.0f} rpm → B 均 {B['rpm']:,.0f} rpm，少轉 {A['rpm'] - B['rpm']:,.0f}（−{(1 - B['rpm'] / A['rpm']) * 100:.0f}%），風扇定律推估約 −{50 * math.log10(A['rpm'] / B['rpm']):.1f} dB（推論值，非實測）。",
-        "ab-pcore": f"9 筆 powermetrics 中 8 筆 3936 MHz、1 筆 3950，pressure {s['pm_pressure'].get('Nominal', 0)}/9 Nominal；但取樣時間在 A/B 視窗前後（05:00、05:19–05:20），是鄰近時段證據，不是同一時刻。",
-        "daily-max": "每日結算最高 " + "、".join(f"{d['date'][5:]} {d['max']:.0f}°C" for d in D["daily"]) + f"；4 天降頻合計 {s['throttle']} 秒，hook 等待 {s['waits']} 次。",
+        "ab-pcore": f"9 筆 powermetrics 中 8 筆 3936 MHz、1 筆 3950，pressure {s['pm_pressure'].get('Nominal', 0)}/9 Nominal —— 但全部是在 A 曲線生效時量的：A 段前 3 筆（05:00:41–47）、B 結束並還原成 A 約 3 分鐘後 6 筆（05:19–05:20）。B 段 5 分鐘內沒有取樣，這張圖不能拿來說「B 不降頻」。3936 是否為全核功耗上限是推論；09-20～23 的 log 裡 ≥90°C 時的頻率中位是 3.64 GHz。",
+        "daily-max": "每日最高（log 值）" + "、".join(f"{d['date'][5:]} {d['logmax']}°C" for d in D["daily"]) + "；結算值（Int 截斷）" + "、".join(f"{d['max']:.0f}" for d in D["daily"]) + f"。09-23 至 23:42。4 天降頻（pressure 非 Nominal）合計 {s['throttle']} 秒，hook 等待 {s['waits']} 次。",
         "daily-control": "交還 macOS 自動 " + "、".join(f"{d['date'][5:]} {d['handbacks']}" for d in D["daily"]) + f" 次（共 {s['handbacks']}）；接管 {s['takeovers']} 次、預熱 {s['boosts']} 次（{s['early']} 次提早結束）。推論接管時間約 {s['ctrl_hours']:.1f}/{s['hours']:.1f} 小時（{s['ctrl_pct']:.0f}%，未扣睡眠）。",
-        "temp-hist": f"{s['writes']:,} 筆寫入的溫度中位 {s['temp_med']:.0f}°C、平均 {s['temp_mean']:.1f}°C；≥90°C 只有 {s['ge90']} 筆（{s['ge90'] / s['writes'] * 100:.1f}%）。這是寫入時刻分布，不是時間佔比。",
+        "temp-hist": f"60–79°C 佔 {s['n6080'] / s['writes'] * 100:.0f}%（60–74°C 佔 {s['n6075'] / s['writes'] * 100:.0f}%）。{s['writes']:,} 筆寫入的溫度中位 {s['temp_med']:.0f}°C、平均 {s['temp_mean']:.1f}°C；≥90°C 只有 {s['ge90']} 筆（{s['ge90'] / s['writes'] * 100:.1f}%）。這是寫入時刻分布，不是時間佔比。",
         "rpm-vs-temp": f"{s['targets']:,} 次目標轉速中位 {s['target_med']:,.0f} rpm、平均 {s['target_mean']:,.0f}、最高 {s['target_max']:,}（≥3000 共 {s['target_ge3000']} 次），從未到 4900。推論：曲線下方的點是升溫時 EMA 還在追、上方的點是降溫時每輪最多降 300 rpm 與預熱 3000 rpm。",
         "curve-vs-macos": f"macOS 自動在接管前一刻的轉速中位 {s['macos_rpm_med']:,.0f} rpm（n={s['takeovers']}），README 記載 105°C 時只有 1,774 rpm；cool42 曲線 B 在 85°C 就給 2,600。缺同負載穩態對照，待 perf_vs_temp.py 補。",
     }
@@ -777,7 +812,7 @@ SOURCES = {
     "ab-temp": "docs/ab-test-2026-09-16/samples.txt、timeline.txt",
     "ab-rpm": "docs/ab-test-2026-09-16/samples.txt、timeline.txt",
     "ab-pcore": "docs/ab-test-2026-09-16/powermetrics-A.txt、powermetrics-B.txt；原廠區間引自同目錄 README（外部資料）",
-    "daily-max": "cool42.log「今日統計結算」3 行＋extras/viz/data/stats-2026-09-23.json",
+    "daily-max": "cool42.log「今日統計結算」3 行＋extras/viz/data/stats-2026-09-23.json（約 23:48–23:50 的快照）",
     "daily-control": "cool42.log「交還自動」「目標」「預熱」行",
     "temp-hist": "cool42.log 寫入行",
     "rpm-vs-temp": "cool42.log 寫入行＋docs/ab-test-2026-09-16/config-B.json",
@@ -807,10 +842,10 @@ def build_html(D):
     A, B = s["A"], s["B"]
     tiles = f"""
 <div class="tiles">
-  <div class="tile hero"><div class="lab">≥90°C 的時刻 → hook 等待</div><div class="val">{s['ge90']} → {s['waits']}</div><div class="sub">近 {s['hours']:.1f} 小時；擋下 {s['denies']} 次、降頻 {s['throttle']} 秒（只看 thermal pressure，不看溫度）</div></div>
+  <div class="tile hero"><div class="lab">高溫期間 → hook 等待</div><div class="val">{s['hot_segs']} 段 → {s['waits']}</div><div class="sub">近 {s['hours']:.1f} 小時；{s['ge90']} 筆 ≥90°C 寫入；擋下 {s['denies']} 次、pressure 非 Nominal {s['throttle']} 秒</div></div>
   <div class="tile"><div class="lab">A/B 風扇轉速</div><div class="val">−{(1 - B['rpm'] / A['rpm']) * 100:.0f}%</div><div class="sub">{A['rpm']:,.0f} → {B['rpm']:,.0f} rpm</div></div>
   <div class="tile"><div class="lab">A/B 控制溫度</div><div class="val">+{B['temp'] - A['temp']:.1f}°C</div><div class="sub">{A['temp']:.1f} → {B['temp']:.1f}°C</div></div>
-  <div class="tile"><div class="lab">P-core 硬體時脈</div><div class="val">3936</div><div class="sub">MHz · 9/9 Nominal（鄰近時段）</div></div>
+  <div class="tile"><div class="lab">P-core 硬體時脈（A 曲線時）</div><div class="val">3936</div><div class="sub">MHz · 9/9 Nominal；B 段內未量</div></div>
   <div class="tile"><div class="lab">交還 macOS 自動</div><div class="val">{s['handbacks']} 次</div><div class="sub">推論接管約 {s['ctrl_pct']:.0f}% 時間</div></div>
 </div>"""
     btns = ['<button data-f="all" aria-pressed="true">全部</button>'] + \
@@ -820,10 +855,10 @@ def build_html(D):
     gaps = """
 <section class="gap"><h2>缺的數據（不補就不能宣稱）</h2><ul>
 <li><b>macOS 預設 vs cool42 同負載穩態</b>：A/B 只有兩條 cool42 曲線，沒有「原廠自動」組。原廠 105–107°C / ~2,100 rpm / P-core 3300–3800 MHz 是外部網路資料。<span class="todo">待補：perf_vs_temp.py</span>（需 sudo＋空機）。</li>
-<li><b>同一時段的時脈</b>：powermetrics 9 筆都在 A/B 5 分鐘視窗外（A 在 05:00:41–47、B 在 05:19–05:20）。</li>
+<li><b>B 段內的時脈與 pressure</b>：powermetrics 9 筆都在 A/B 5 分鐘視窗外，而且都在 A 曲線生效時（A 段前 05:00:41–47；B 結束、ab.sh 還原成 A 之後的 05:19–05:20）。要主張「B 不降頻」需重做 A/B 並在段內同步記錄。</li>
 <li><b>同一工作總耗時</b>：沒量過，不能宣稱「快 X%」。</li>
 <li><b>真的降頻 → hook 等待 → 恢復放行</b>：近 4 天 0 次，沒有實例可展示主打功能的「等」那一段；需受控重現。</li>
-<li><b>A/B 期間的降頻秒數</b>：當時 guard 尚未記錄 throttleSeconds，以 pressure 9/9 Nominal 代替。</li>
+<li><b>A/B 期間的降頻秒數</b>：當時 guard 尚未記錄 throttleSeconds；9/9 Nominal 是 A 曲線時的取樣，不能代替 B 段。</li>
 <li><b>等間隔溫度時間序列</b>：log 只在寫 SMC 時記錄；history.json 只留 5 分鐘。分布圖不能當時間佔比。</li>
 <li>n=1 台 Mac mini M4；09-20 之前的 log 已不在，README／CHANGELOG 的歷史數字只能照文件引用。</li>
 </ul></section>"""
@@ -833,7 +868,7 @@ def build_html(D):
 <style>{HTML_CSS}</style></head>
 <body><main>
 <header><div class="brand">okle42 · cool42</div><h1>cool42 數據比對</h1>
-<p>AI 寫程式時自己看溫度排隊，只在真的降頻才等。以下全部是本機真實數據：A/B 實測（2026-09-16）＋ guard log {esc(s['log_first'])} → {esc(s['log_last'])}。</p></header>
+<p>AI 寫程式時自己看熱壓力排隊，只在 macOS 回報降頻（thermal pressure 非 Nominal）才等。以下全部是本機真實數據：A/B 實測（2026-09-16）＋ guard log {esc(s['log_first'])} → {esc(s['log_last'])}。</p></header>
 {tiles}
 <nav class="bar" aria-label="切換圖">{''.join(btns)}<span class="sp"></span><button id="theme" type="button">切換亮暗</button></nav>
 {''.join(figs)}
@@ -862,6 +897,15 @@ def main():
         for mode in ("light", "dark"):
             with open(os.path.join(OUT_IMG, f"{cid}-{mode}.svg"), "w", encoding="utf-8") as f:
                 f.write(fn(D, THEMES[mode], False, True))
+    global LANG
+    LANG = "en"
+    for cid, fn, _, _ in CHARTS:
+        if cid not in EN_CHARTS:
+            continue
+        for mode in ("light", "dark"):
+            with open(os.path.join(OUT_IMG, f"{cid}-en-{mode}.svg"), "w", encoding="utf-8") as f:
+                f.write(fn(D, THEMES[mode], False, True))
+    LANG = "zh"
     page = build_html(D)
     with open(OUT_HTML, "w", encoding="utf-8") as f:
         f.write(page)

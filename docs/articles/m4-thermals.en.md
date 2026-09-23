@@ -1,6 +1,6 @@
 # What the M4 Mac mini's sensors actually tell you (and what they lie about)
 
-*One Mac mini M4 (Mac16,10), macOS 26 (build 25G83), September 2026. n = 1. Every number below links back to a raw file in the cool42 repo; where something is an inference rather than a measurement, it says so.*
+*One Mac mini M4 (Mac16,10), September 2026: sensor comparisons and the A/B run on macOS 26 (25G83), the 94-hour runtime log on macOS 27.0 (26A428, upgraded 2026-09-20 01:18). n = 1. Every number below links back to a raw file in the cool42 repo; where something is an inference rather than a measurement, it says so.*
 
 I wanted one thing from my Mac mini: to know, while a long build or render was running, whether the CPU was being thermally throttled. That turned out to be harder than it sounds. Most of the obvious ways to read "CPU frequency" and "CPU temperature" on Apple Silicon give numbers that are real, but answer a different question from the one you're asking.
 
@@ -29,7 +29,7 @@ My reading is that IOReport shows the DVFS state software *asked for*. The frequ
 Two small things that cost me time:
 
 - `powermetrics -n 0` doesn't mean "sample forever". It exits after the first sample. For an unlimited run, leave `-n` off.
-- A resident `powermetrics -i 5000` child costs about 0.18% CPU, plus about 0.8 s of CPU once at startup (findings §1). My longer-run figure is further down.
+- A resident `powermetrics -i 5000` child cost about 0.18% CPU in an early measurement (0.22% long-run), plus about 0.8 s of CPU once at startup (findings §1). My longer-run figure is further down.
 
 I filed this with macmon as [issue #78](https://github.com/vladkens/macmon/issues/78) so people on other chips can check whether it holds for them. I've only verified it on one M4.
 
@@ -68,15 +68,15 @@ A max-of-cores reading that jumps 30 °C in five seconds isn't a fault; a contro
 
 The stock fan policy on the M4 mini is silence-first. The figures below come from **other people's machines, not mine** ([theenterprisemac](https://theenterprisemac.com/post/768543525732237312/m4mini-thermal-throttle), [MacRumors](https://forums.macrumors.com/threads/mac-mini-m4-thermals.2442671/), [MacRumors](https://forums.macrumors.com/threads/is-100-105-cpu-celsius-on-the-new-m4-mini-thermal-throttling.2442865/)). They report that after 10–15 minutes of sustained load the SoC sits at 105–107 °C with the fan around 2100 rpm, and the P-cores drop from 4464 to 3300–3800 MHz, which is −15 to −25%.
 
-On my machine, under an all-core load, `powermetrics` reported **3936 MHz with thermal pressure `Nominal`**. I read 3936 as the all-core power-limited frequency. The single-core peak is 4464. That's a power limit, not thermal throttling, and the `Nominal` pressure level backs that up.
+On my machine, under an all-core load, `powermetrics` reported **3936 MHz with thermal pressure `Nominal`** (the single-core peak is 4464). *Inference:* 3936 looks like the all-core power limit. `Nominal` only says there was no thermal pressure at that moment; it doesn't prove 3936 is a power limit. And as shown below, the P-cores also ran anywhere from 3.04 to 3.96 GHz while `Nominal`, and I've seen 4187 and 4130 MHz under heavy load (section 1), so the clock by itself isn't how you tell throttling.
 
 That's the main point of this post. **Temperature and throttling are different signals.** The first time my guard took over from the stock policy, the log showed 105 °C at 1774 rpm, and 82 °C at 4618 rpm 20 seconds later (README "Measurements"; that raw log is also gone). The four days of current log (94.4 h) show:
 
-- a daily maximum of 93, 94, 94 and 78 °C (the last day runs to 23:42), with the highest logged value 95 °C (three lines) and nothing at or above 100 °C;
-- 31 logged moments at or above 90 °C;
+- a daily maximum of 93, 95, 95 and 78 °C (log values; the last day runs to 23:42; the daily summary truncates them to 93, 94, 94, 78), with the highest logged value 95 °C (three lines) and nothing at or above 100 °C;
+- 31 fan-guard writes at or above 90 °C, which group into 5 hot periods (a gap of more than 5 minutes starts a new one; two of the writes are the residual heat guard inherited from macOS auto at startup, 09-20 01:18:45);
 - **0 seconds** with thermal pressure other than `Nominal` on every day (`/var/log/cool42.log` daily summaries, `/var/db/cool42/stats.json`).
 
-One thing I can't fully explain yet, and I'd rather mention it than have someone find it. In the log lines at 90–95 °C, the median P-core clock (the ⚡ field) is 3.64 GHz, which is below the 3.936 GHz all-core figure. Pressure was `Nominal` throughout. My guess is partial load or the power limit, but it's a guess. "Nominal" doesn't mean "every core at 3936".
+One thing I can't fully explain yet, and I'd rather mention it than have someone find it. In the log lines at 90–95 °C, the P-core hardware clock (the ⚡ field, from `powermetrics`) has 29 values between 3.04 and 3.96 GHz, median 3.64 GHz, which is below the 3.936 GHz all-core figure. Pressure was `Nominal` throughout. My guess is partial load or the power limit, but it's a guess. "Nominal" doesn't mean "every core at 3936".
 
 ## 6. Fan curve A/B test: 25% less fan for 3.8 °C
 
@@ -90,26 +90,27 @@ Setup: the same Python geometry workload for both runs (two processes at 400–8
 | control temp, mean (range) | 83.0 °C (75–88) | 86.8 °C (77–93) | +3.8 °C |
 | fan, mean (range) | 4216 rpm (3952–4542) | 3150 rpm (2344–3805) | −1066 rpm (−25%) |
 | load average | 23.1–37.1 | 21.9–41.6 | |
-| P-core HW frequency | 3936 MHz ×3, Nominal | 3936 ×5, 3950 ×1, Nominal 6/6 | ≈0 |
-| CPU power | 21.5–22.1 W | 16.8–21.2 W | |
+| P-core HW frequency | not sampled in the window | not sampled in the window | — |
 | noise (estimate) | | | −6.3 dB |
 
-*Sources: `samples.txt` (recomputed), `powermetrics-A.txt`, `powermetrics-B.txt`, `README.md` in that directory.*
+*Sources: `samples.txt` (recomputed), `README.md` in that directory.*
+
+There are two batches of `powermetrics` outside the windows, and **both were taken with the old curve A active**: 3 samples before the A run (3936 MHz ×3, Nominal, 21.5–22.1 W), and 6 samples starting ~3 minutes after the B run ended and `ab.sh` restored the config to A (`powermetrics-B.txt`: 3936 ×5, 3950 ×1, Nominal 6/6, 16.8–21.2 W). The "B" in that filename is historical; the content isn't curve-B data.
 
 Caveats, since this is the part people will quote:
 
-- **The powermetrics samples bracket the window. They weren't taken inside it.** The A samples are from 05:00:41–47, just before A started at 05:06:01. The B samples are from 05:19:04–05:20:44, after the B run ended at 05:16:14. So the honest claim is: "powermetrics read 3936 MHz and `Nominal` immediately before and after, under the same load." It isn't "measured at the same instant". The repo's own README describes the B samples as "steady-state", which is looser than it should be.
+- **There is no `powermetrics` sample inside the 5-minute B window.** The A samples are from 05:00:41–47, before A started at 05:06:01. The "B" samples are from 05:19:04–05:20:44, but `ab.sh` restored the config to curve A at 05:16:14 when B ended. The pressure at B's 93 °C peak wasn't measured either. So this A/B supports "25% less fan for 3.8 °C" and **not** "B doesn't throttle"; whether B throttles is answered by the daily stats in normal use afterwards (section 5: 0 s non-Nominal in 94 h). Proving it directly needs a re-run with `powermetrics` recording inside both windows.
 - −6.3 dB is the fan law, `50·log10(4216/3150)`. I didn't measure it with a meter.
 - I have **no wall-clock comparison** (same job, stock vs cool42) and no same-machine stock baseline under the same load. So I'm not claiming anything is "X% faster".
 - n = 1 machine, in one room, for one 10-minute session.
 
-Even so, it was enough to make B the default. It costs 4 °C more for a quarter less fan, with no sign of pressure leaving `Nominal`.
+Even so, I made B the default: 3.8 °C more for a quarter less fan, and in the 94 hours of normal use since, 0 s of non-Nominal pressure.
 
 ## 7. Gating an AI agent on throttling, not temperature
 
 I spend a lot of time with Claude Code running `swift build`, `ffmpeg` and Python jobs on this machine, often several at once. Claude Code has a `PreToolUse` hook that runs a program before each Bash command, and that program can allow, delay or deny the command. That makes it a natural place for "don't start another heavy job if the machine is struggling".
 
-**The first version was a temperature gate: wait if the SoC is at 90 °C or above.** Once curve B was the default, sustained-load temperatures sat in the high 80s and low 90s, and the agent waited before nearly every Bash call. That traded real progress for a temperature number that didn't mean anything.
+**The first version was a temperature gate: wait if the SoC is at 90 °C or above.** Once curve B was the default, heavy-load temperatures sat at 77–93 °C (the A/B's B run, mean 86.8 °C), and above 90 °C the agent waited before every Bash call (from the first version's log, which is no longer on disk). That traded real progress for a temperature number that didn't mean anything.
 
 The current gate uses the thermal pressure level from `powermetrics`, read by the root daemon:
 
@@ -124,7 +125,7 @@ The fan's job is to keep throttling from happening, and the gate's job is to ste
 
 There's also a **pre-warm** step. If the command looks heavy (`swift build`, `xcodebuild`, `ffmpeg`, `python -m`, `make`…), the hook drops an event and the daemon runs the fan at 3000 rpm for two minutes *before* the heat arrives. In the 94.4 h log this fired 32 times (ffmpeg 25, `python3 -m` 3, `swift build` 2, `xcodebuild` 1, `make` 1). Three of those were cut short after 30–45 s, because the temperature never rose above the bottom of the curve and the job clearly wasn't heavy.
 
-Results over the same four days: 31 logged moments at or above 90 °C, and **0 hook waits, 0 denies, 0 s non-Nominal pressure**. *Inference:* under the first version's 90 °C rule, each of those 31 moments would have stalled the agent.
+Results over the same four days: 5 hot periods (31 writes at or above 90 °C), and **0 hook waits, 0 denies, 0 s non-Nominal pressure**. The log records hook waits and denials, not every allowed call, so I don't know how many Bash calls actually went through the hook during those periods. *Inference:* if heavy commands ran then, the first version's 90 °C rule would have made them wait.
 
 To be clear about what this shows: it shows the gate **doesn't get in the way** when it has no reason to. The current log doesn't contain a single real "throttled → waited → resumed" episode. That's a good outcome for a fan controller, but it means I can't show you the gate firing in the wild. A controlled reproduction (the stock curve plus a stress load) is on the to-do list.
 
@@ -150,7 +151,7 @@ Two lessons that might save someone a day:
 
 ## The tool
 
-All of the above came out of building **cool42**, a fan guard for Apple Silicon: a root daemon that runs the fan curve, a menu-bar panel with a per-sensor heat grid (all 73 SMC sensors, one cell each) plus real P-core clock and pressure, a CLI, and a Claude Code hook + MCP server that implement the gate in section 7. It's pure Swift plus about 170 lines of C for SMC and libproc, with no external dependencies, 40 unit tests, and an MIT license.
+All of the above came out of building **cool42**, a fan guard for Apple Silicon: a root daemon that runs the fan curve, a menu-bar panel with a per-sensor heat grid (all 73 CPU/GPU temperature sensors, one cell each) plus the P-core hardware clock from `powermetrics` and pressure, a CLI, and a Claude Code hook + MCP server that implement the gate in section 7. It's pure Swift plus about 170 lines of C for SMC and libproc, with no external dependencies, 40 unit tests, and an MIT license.
 
 It was also an experiment in building with an AI agent. Most of the code was written with Claude Code, over 42 commits in about four days (0.1 → 1.0.3). The four fixes in 1.0.1 came from having the agent read 2.5 days of its own guard log.
 
