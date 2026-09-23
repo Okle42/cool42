@@ -22,6 +22,8 @@ struct Scenario: Decodable {
     var history: [HistoryPoint]
     var sensors: [String: Double]
     var boostRemaining: Double?
+    /// 受控情境的圖內浮水印（例如「受控情境 · 非實機紀錄」）：有值就畫在面板右上角，單獨拿出去用也看得出是示意
+    var watermark: String?
 }
 
 func loadScenario(_ path: String) -> Scenario {
@@ -121,16 +123,33 @@ let monitor = Monitor()
 /// 視窗本身的底（正式 app 由 NSPanel 畫圓角與背景，這裡照著畫）
 struct Shot: View {
     let monitor: Monitor
+    var watermark: String? = nil
     var body: some View {
-        PanelView(monitor: monitor).content
+        VStack(spacing: 0) {
+            // 受控情境：浮水印獨立一列放在最上面（不蓋住面板內容），截圖單獨流出去也看得出是示意
+            if let watermark { HStack { Spacer(); SimTag(text: watermark) }.padding(.top, 10).padding(.horizontal, 12) }
+            PanelView(monitor: monitor).content
+        }
             .background(Neon.panelBG, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Neon.hairline, lineWidth: 1))
     }
 }
 
+/// 受控情境膠囊：高對比（琥珀底、深色字），面板幀、終端機幀、單張截圖都用同一款、放右上角
+struct SimTag: View {
+    let text: String
+    var size: CGFloat = 12
+    var body: some View {
+        Text(text).font(.system(size: size, weight: .bold)).foregroundStyle(Color(red: 0.12, green: 0.08, blue: 0.02))
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(Color(red: 1, green: 0.74, blue: 0.30), in: Capsule())
+            .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+    }
+}
+
 @MainActor func render(_ appearance: NSAppearance.Name, to path: String) {
     inject()
-    let host = NSHostingView(rootView: Shot(monitor: monitor))
+    let host = NSHostingView(rootView: Shot(monitor: monitor, watermark: a.watermark))
     host.appearance = NSAppearance(named: appearance)
     let size = host.fittingSize
     let win = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless, backing: .buffered, defer: false)
@@ -184,6 +203,8 @@ struct TermFrame: Decodable {
     var lines: [Line]
     var footnote: String?
     var caption: String?
+    /// 受控情境標示（右上角膠囊，和面板幀同款）
+    var tag: String?
 }
 
 struct TerminalView: View {
@@ -318,18 +339,20 @@ struct PanelCrop: View {
     guard let img = NSImage(contentsOfFile: panelPNG) else { fatalError("讀不到 \(panelPNG)") }
     let zh = lang != "en"
     let stats: [(String, String)] = zh
-        ? [("95°C", "4 天最高控制溫度"), ("0 秒", "降頻"), ("0 次", "hook 讓 AI 等待")]
-        : [("95°C", "peak control temp"), ("0 s", "throttled"), ("0×", "times the AI had to wait")]
+        ? [("95°C", "4 天最高控制溫度"), ("0 秒", "熱壓力非 Nominal"), ("0 次", "hook 讓 AI 等待")]
+        : [("95°C", "peak control temp"), ("0 s", "non-Nominal pressure"), ("0×", "times the AI had to wait")]
+    // 面板只取到風扇卡為止（352pt 寬時約 536pt 高），用圓角框收邊，不讓下一張卡被切一半
+    let cropH: CGFloat = 536
     let v = ZStack(alignment: .topLeading) {
         Stage.bg
         HStack(alignment: .center, spacing: 56) {
             VStack(alignment: .leading, spacing: 20) {
                 Text(zh ? "cool42 · Apple Silicon 風扇守門員" : "cool42 · a fan guard for Apple Silicon")
                     .font(.system(size: 17, weight: .semibold)).foregroundStyle(Color(red: 0.16, green: 0.87, blue: 0.96))
-                Text(zh ? "AI 寫程式時，\n自己看溫度排隊。" : "Your AI agent checks\nthe heat before it builds.")
-                    .font(.system(size: 52, weight: .bold)).foregroundStyle(.white).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-                Text(zh ? "Claude Code 跑重指令前先問 cool42：沒降頻就全速放行，真的降頻才等。判斷看 thermal pressure，不看溫度。"
-                        : "A Claude Code hook asks cool42 before every shell command. Not throttling means full speed — it only waits when the chip is actually throttling, judged by thermal pressure, not temperature.")
+                Text(zh ? "AI 寫程式時，\n自己看降頻排隊。" : "Your AI agent checks for\nthrottling before it builds.")
+                    .font(.system(size: zh ? 52 : 48, weight: .bold)).foregroundStyle(.white).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+                Text(zh ? "Claude Code 跑重指令前先問 cool42。\nmacOS 回報 Nominal 就全速放行，回報降頻才等。\n判斷看 thermal pressure，不看溫度。"
+                        : "A Claude Code hook asks cool42 before every shell command.\nNominal thermal pressure means full speed; it waits only\nwhen macOS reports throttling — pressure, not temperature.")
                     .font(.system(size: 19)).foregroundStyle(Color.white.opacity(0.72)).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                 HStack(alignment: .top, spacing: 32) {
                     ForEach(stats, id: \.0) { v, k in
@@ -340,15 +363,21 @@ struct PanelCrop: View {
                     }
                 }
                 .padding(.top, 8)
-                Text(zh ? "Mac mini M4 實機 log · 2026-09-20 → 09-23（94 小時）· 0 外部依賴 · MIT · by Okle42"
-                        : "Real guard logs from a Mac mini M4 · Sep 20–23, 2026 (94 h) · zero dependencies · MIT · by Okle42")
+                Text(zh ? "Mac mini M4 實機 log · 2026-09-20 → 09-23（94 小時，macOS 27）· MIT · by Okle42"
+                        : "Mac mini M4 guard logs · Sep 20–23, 2026 (94 h, macOS 27) · MIT · by Okle42")
                     .font(.system(size: 13)).foregroundStyle(Color.white.opacity(0.4))
             }
             .frame(width: 600, alignment: .leading)
-            Image(nsImage: img).resizable().frame(width: 352, height: 352 * img.size.height / img.size.width)
-                .frame(height: 640, alignment: .top).clipped()
-                .mask(LinearGradient(stops: [.init(color: .black, location: 0.85), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
-                .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
+            VStack(alignment: .leading, spacing: 10) {
+                Image(nsImage: img).resizable().frame(width: 352, height: 352 * img.size.height / img.size.width)
+                    .frame(height: cropH, alignment: .top)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
+                if !zh {
+                    Text("Panel UI is currently in Traditional Chinese").font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.45))
+                }
+            }
         }
         .padding(.horizontal, 88).frame(maxHeight: .infinity)
     }
@@ -366,6 +395,9 @@ struct PanelCrop: View {
                 TerminalView(frame: f, width: 824, height: 470)
             }
             .padding(.horizontal, 28).padding(.top, 18)
+            if let tag = f.tag {
+                HStack { Spacer(); SimTag(text: tag, size: 14) }.padding(.top, 70).padding(.trailing, 48)
+            }
         }
         exportPNG(v, size: Stage.size, to: (outDir as NSString).appendingPathComponent(f.name + ".png"))
     }

@@ -32,7 +32,7 @@
    "date": "2026-09-23",
    "hookDenies": 0,
    "hookWaits": 1,
-   "hotSeconds": 0,
+   "hotSeconds": 34,
    "maxTemp": 96.9375,
    "sensorFaults": 0,
    "throttleSeconds": 34,
@@ -657,5 +657,6 @@
   "Tp3T": 82.5,
   "Tp3W": 89.8,
   "Tp3X": 97.4
- }
+ },
+ "watermark": "受控情境 · 非實機紀錄 / Simulated"
 }

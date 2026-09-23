@@ -715,6 +715,7 @@ struct PanelView: View {
                 ForEach(items, id: \.key) { k, t in
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(tempColor(t))
+                        .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).strokeBorder(Color.primary.opacity(0.14), lineWidth: 0.5))   // 淺色底上黃 / 綠格才分得出邊
                         .frame(width: 14, height: 14)
                         .neonGlow(t >= monitor.config.hotTemp ? tempColor(t).opacity(0.7) : .clear, radius: 3)
                         .help(String(format: "%@  %.1f°C", k, t))
@@ -788,7 +789,13 @@ struct PanelView: View {
             HStack(spacing: 8) {
                 if s.throttling { chipLabel("降頻 \(s.thermalPressure ?? "")", Neon.red) }
                 else if !idle, let e = s.ecoreMHz { Text(String(format: "E %.1f", e / 1000)).font(.caption2).monospacedDigit().foregroundStyle(.secondary) }
-                if idle { bigValue("閒置", .secondary) }
+                if idle {
+                    // 閒置時不用大字（視覺層級不該比其他卡的數值重），改小字＋最近一次的非閒置值
+                    Text("閒置").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    if let last = monitor.history.last(where: { ($0.pMHz ?? 0) >= 100 })?.pMHz {
+                        Text(String(format: "上次 %.2f GHz", last / 1000)).font(.caption2).monospacedDigit().foregroundStyle(.tertiary)
+                    }
+                }
                 else { bigValue(String(format: "%.2f", p / 1000), s.throttling ? Neon.red : Neon.green, unit: "GHz") }
             }
         } chart: {
@@ -843,7 +850,7 @@ struct PanelView: View {
                 stat("hot", Format.hms(st.hotSeconds), color: st.hotSeconds > 0 ? Neon.amber : .secondary)
                 stat("critical", Format.hms(st.criticalSeconds), color: st.criticalSeconds > 0 ? Neon.red : .secondary)
                 stat("降頻", Format.hms(st.throttleSeconds), color: st.throttleSeconds > 0 ? Neon.red : .secondary)
-                stat("hook 等/擋", "\(st.hookWaits)/\(st.hookDenies)", color: .secondary)
+                stat("AI 等待/擋下", "\(st.hookWaits)/\(st.hookDenies)", color: .secondary)
                 stat("預熱", "\(st.boosts)", color: .secondary)
             }
             .neonCard(padding: 8)
@@ -925,7 +932,7 @@ struct PanelView: View {
             }
 
             Toggle(isOn: Binding(get: { monitor.draft.includeGPU }, set: { monitor.draft.includeGPU = $0 })) {
-                Text("GPU 溫度也納入").font(.caption2).foregroundStyle(.secondary)
+                Text("GPU 溫度也納入").font(.caption2).foregroundStyle(.secondary).padding(.leading, 4)
             }
             .toggleStyle(.checkbox).controlSize(.mini)
         }
@@ -1034,7 +1041,7 @@ struct PanelView: View {
                    range: ClosedRange<Double>, prefix: String) -> some View {
         let file = monitor.soundPath(hot: hot)
         return HStack(spacing: 4) {
-            Toggle(isOn: isOn) { Text(title).font(.caption2).foregroundStyle(isOn.wrappedValue ? color : .secondary) }
+            Toggle(isOn: isOn) { Text(title).font(.caption2).foregroundStyle(isOn.wrappedValue ? color : .secondary).padding(.leading, 4) }
                 .toggleStyle(.checkbox).controlSize(.mini)
             Button { monitor.play(hot: hot) } label: {
                 Image(systemName: "play.circle").font(.caption).foregroundStyle(.secondary)

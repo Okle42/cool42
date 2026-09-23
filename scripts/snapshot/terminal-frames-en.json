@@ -4,7 +4,7 @@
   "title": "claude — ~/project",
   "lines": [
    {
-    "text": "> 幫我跑一次 release build",
+    "text": "> run a release build for me",
     "style": "prompt"
    },
    {
@@ -16,15 +16,15 @@
     "style": "cmd"
    },
    {
-    "text": "  # PreToolUse hook：/usr/local/bin/cool42 hook",
+    "text": "  # PreToolUse hook: /usr/local/bin/cool42 hook",
     "style": "note"
    },
    {
-    "text": "  # thermal pressure 不是 Nominal → 降頻中，先等降溫",
+    "text": "  # thermal pressure is not Nominal → throttled, wait first",
     "style": "note"
    },
    {
-    "text": "  # 每 2 秒重讀快照，最多 90 秒；狀態（cool42 check 同格式）：",
+    "text": "  # re-reads the snapshot every 2 s, up to 90 s; status (cool42 check format):",
     "style": "note"
    },
    {
@@ -32,16 +32,16 @@
     "style": "hot"
    }
   ],
-  "footnote": "示意畫面：字串格式取自 cool42 原始碼（Hook.swift、Snapshot.short）；數值為受控情境。",
-  "caption": "Claude Code 要跑 build，hook 先問 cool42：降頻中 → 先等降溫",
-  "tag": "受控情境 · 非實機紀錄"
+  "footnote": "Staged frame: output strings follow cool42's source (Hook.swift, Snapshot.short) and are Chinese in the product; values are simulated.",
+  "caption": "Claude Code wants to build; the hook asks cool42 first: throttled → wait",
+  "tag": "Simulated · not a recorded event"
  },
  {
   "name": "term-2-wait",
   "title": "claude — ~/project",
   "lines": [
    {
-    "text": "> 幫我跑一次 release build",
+    "text": "> run a release build for me",
     "style": "prompt"
    },
    {
@@ -53,15 +53,15 @@
     "style": "cmd"
    },
    {
-    "text": "  # PreToolUse hook：/usr/local/bin/cool42 hook",
+    "text": "  # PreToolUse hook: /usr/local/bin/cool42 hook",
     "style": "note"
    },
    {
-    "text": "  # thermal pressure 不是 Nominal → 降頻中，先等降溫",
+    "text": "  # thermal pressure is not Nominal → throttled, wait first",
     "style": "note"
    },
    {
-    "text": "  # 每 2 秒重讀快照，最多 90 秒；狀態（cool42 check 同格式）：",
+    "text": "  # re-reads the snapshot every 2 s, up to 90 s; status (cool42 check format):",
     "style": "note"
    },
    {
@@ -77,16 +77,16 @@
     "style": "hot"
    }
   ],
-  "footnote": "示意畫面：字串格式取自 cool42 原始碼（Hook.swift、Snapshot.short）；數值為受控情境。",
-  "caption": "每 2 秒重看一次，風扇頂滿、溫度往下走",
-  "tag": "受控情境 · 非實機紀錄"
+  "footnote": "Staged frame: output strings follow cool42's source (Hook.swift, Snapshot.short) and are Chinese in the product; values are simulated.",
+  "caption": "Re-checks every 2 s; fan maxed, temperature coming down",
+  "tag": "Simulated · not a recorded event"
  },
  {
   "name": "term-3-pass",
   "title": "claude — ~/project",
   "lines": [
    {
-    "text": "> 幫我跑一次 release build",
+    "text": "> run a release build for me",
     "style": "prompt"
    },
    {
@@ -98,7 +98,7 @@
     "style": "cmd"
    },
    {
-    "text": "  # PreToolUse hook：/usr/local/bin/cool42 hook",
+    "text": "  # PreToolUse hook: /usr/local/bin/cool42 hook",
     "style": "note"
    },
    {
@@ -114,7 +114,7 @@
     "style": "warn"
    },
    {
-    "text": "  # pressure 回到 Nominal → 放行；hook 回傳 systemMessage：",
+    "text": "  # back to Nominal → allow; hook returns a systemMessage (in Chinese):",
     "style": "note"
    },
    {
@@ -130,8 +130,8 @@
     "style": "out"
    }
   ],
-  "footnote": "示意畫面：字串格式取自 cool42 原始碼（Hook.swift、Snapshot.short）；數值為受控情境。",
-  "caption": "pressure 回到 Nominal → 放行，build 照常開跑",
-  "tag": "受控情境 · 非實機紀錄"
+  "footnote": "Staged frame: output strings follow cool42's source (Hook.swift, Snapshot.short) and are Chinese in the product; values are simulated.",
+  "caption": "Pressure back to Nominal → allowed, the build starts",
+  "tag": "Simulated · not a recorded event"
  }
 ]

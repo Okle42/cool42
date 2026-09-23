@@ -59,7 +59,7 @@ hist = json.load(open(os.path.join(cap, "load", "history.json")))
 dump("load", s, hist, sens, f"實機取樣（Mac mini M4，ffmpeg libx264 4K 編碼約 4 分鐘，load/state-{i}.json）")
 
 # 降頻：受控情境
-THROTTLE = {"pressure": "Moderate", "pcoreMHz": 3520, "dT": 5.0, "rpm": 4900, "throttleSeconds": 34, "hookWaits": 1}
+THROTTLE = {"pressure": "Moderate", "pcoreMHz": 3520, "dT": 5.0, "rpm": 4900, "throttleSeconds": 34, "hotSeconds": 34, "hookWaits": 1}
 t = json.loads(json.dumps(s))
 t["thermalPressure"] = THROTTLE["pressure"]
 t["pcoreMHz"] = THROTTLE["pcoreMHz"]
@@ -67,7 +67,7 @@ for k in ("cpuMax", "cpuAvg", "controlTemp"): t[k] = s[k] + THROTTLE["dT"]
 t["level"] = "hot" if t["controlTemp"] >= 95 else s["level"]
 t["fans"][0]["rpm"] = t["fans"][0]["target"] = THROTTLE["rpm"]
 t["guardTargetRPM"] = THROTTLE["rpm"]
-t["stats"] = dict(t.get("stats") or {}, throttleSeconds=THROTTLE["throttleSeconds"], hookWaits=THROTTLE["hookWaits"],
+t["stats"] = dict(t.get("stats") or {}, throttleSeconds=THROTTLE["throttleSeconds"], hotSeconds=THROTTLE["hotSeconds"], hookWaits=THROTTLE["hookWaits"],
                   maxTemp=max((t.get("stats") or {}).get("maxTemp", 0), t["controlTemp"]))
 th = json.loads(json.dumps(hist))
 n = len(th)
@@ -78,4 +78,5 @@ for j, p in enumerate(th[-8:]):       # 最後 40 秒：溫度爬升、風扇頂
 tsens = {k: v + THROTTLE["dT"] if k[:2] in ("Tp", "Te") else v for k, v in sens.items()}
 dump("throttle", t, th, tsens,
      "受控情境（非實機紀錄）：以 load 的實機取樣為底，pressure 改 Moderate、P-core 3.52 GHz（落在外部報告的原廠 M4 mini 降頻區間 3.3–3.8 GHz）、"
-     "CPU 感測器 +5°C、風扇 4900。近 94 小時實機 log 降頻 0 秒，沒有真實降頻畫面可截。")
+     "CPU 感測器 +5°C、風扇 4900。近 94 小時實機 log 降頻 0 秒，沒有真實降頻畫面可截。",
+     watermark="受控情境 · 非實機紀錄 / Simulated")
