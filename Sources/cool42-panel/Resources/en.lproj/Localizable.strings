@@ -1,0 +1,126 @@
+/* cool42 面板英文字串。key 是繁中原文（開發語言 zh-Hant），值是英文。
+   用語照 Apple macOS 英文慣例：選單項目與按鈕 Title Case、標籤與說明 sentence case、省略號用單一字元「…」。
+   改了 PanelApp.swift 的 L("…") 就要跑 scripts/check-l10n.py（檢查漏字、多餘、格式符號對不上）。 */
+
+/* 選單列與右鍵選單 */
+"cool42：按一下顯示／隱藏面板，按右鍵打開選單" = "cool42 — Click to show or hide the panel. Right-click for more options.";
+"隱藏面板" = "Hide Panel";
+"顯示面板" = "Show Panel";
+"恢復自動調整高度" = "Resume Automatic Height";
+"重新啟動面板" = "Relaunch Panel";
+"結束cool42面板" = "Quit cool42 Panel";
+"cool42，讀取中" = "cool42, loading";
+"cool42，控制溫度%ld度，%@" = "cool42, control temperature %ld degrees, %@";
+"降頻中" = "Throttling";
+
+/* 溫度等級 */
+"正常" = "Normal";
+"偏溫" = "Warm";
+"過熱" = "Hot";
+"危險" = "Critical";
+
+/* thermal pressure（英文介面實際直接顯示 powermetrics 原字，這幾筆只為了查表完整） */
+"中度" = "Moderate";
+"重度" = "Heavy";
+"嚴重" = "Trapping";
+"休眠" = "Sleeping";
+
+/* 標題列與結論 */
+"讀取SMC中⋯" = "Reading SMC…";
+"預熱%ld秒" = "Boost %lds";
+"guard執行中" = "guard running";
+"guard未執行" = "guard not running";
+"隱藏面板（按一下選單列圖示可再打開）" = "Hide the panel. Click the menu bar icon to show it again.";
+"guard沒在執行，風扇由macOS控制" = "guard isn't running · macOS controls the fan";
+"溫度%.0f°C已達critical，hook會擋下工作" = "%.0f°C is critical · hook blocks jobs";
+"降頻中（%@）· hook會讓工作等" = "Throttling (%@) · hook holds jobs";
+"GPU熱降頻中（CLTM %.0f%%）· hook會讓工作等" = "GPU throttling (CLTM %.0f%%) · hook holds jobs";
+"沒有頻率資料，改用溫度判斷（%@）" = "No frequency data · using temperature (%@)";
+"閒置 · 未降頻" = "Idle · not throttled";
+"全速運作%.2f GHz · 未降頻" = "Full speed %.2f GHz · not throttled";
+
+/* 溫度卡 */
+"溫度" = "Temperature";
+"降頻" = "Throttled";
+"溫度走勢，最近5分鐘" = "Temperature trend, last 5 minutes";
+"CPU %.0f度，GPU %.0f度" = "CPU %.0f degrees, GPU %.0f degrees";
+
+/* 熱度格 */
+"熱度格" = "Heat Map";
+"%ld個感測器" = "%ld sensors";
+"風扇看最熱的那一格" = "Fan follows the hottest cell";
+"最熱%.0f°" = "Max %.0f°";
+"平均%.0f°" = "Avg %.0f°";
+"%@ %@，%.0f度" = "%@ %@, %.0f degrees";
+
+/* 風扇卡 */
+"風扇" = "Fan";
+"目標%.0f" = "Target %.0f";
+"macOS自動" = "macOS auto";
+"風扇轉速走勢，最近5分鐘" = "Fan speed trend, last 5 minutes";
+
+/* P-core 頻率卡 */
+"P-core頻率" = "P-core Frequency";
+"降頻（%@）" = "Throttled (%@)";
+"閒置" = "Idle";
+"上次%.2f GHz" = "Last %.2f GHz";
+"P-core頻率走勢，最近5分鐘" = "P-core frequency trend, last 5 minutes";
+"5分鐘前" = "5 min ago";
+"現在" = "Now";
+
+/* 今日統計 */
+"今日最高" = "Peak today";
+"AI等待／擋下" = "AI waits/blocks";
+"預熱" = "Boosts";
+
+/* 風扇控制 */
+"風扇控制" = "Fan Control";
+"未套用" = "Not applied";
+"模式" = "Mode";
+"曲線" = "Curve";
+"固定" = "Fixed";
+"自動" = "Automatic";
+"固定轉速" = "Fixed speed";
+"預設曲線" = "Preset curve";
+"安靜" = "Quiet";
+"均衡" = "Balanced";
+"強力" = "Performance";
+"自訂" = "Custom";
+"微調「%@」的點" = "Fine-tune “%@” points";
+"編輯自訂曲線的點" = "Edit custom curve points";
+"第%ld點溫度" = "Point %ld temperature";
+"第%ld點轉速" = "Point %ld fan speed";
+"%ld度" = "%ld degrees";
+"風扇交回macOS自己管。M4 mini原廠策略很保守：CPU到100°C才加速，重載10–15分鐘後會降頻。" = "macOS controls the fan. The stock M4 mini policy is conservative: the fan speeds up only when the CPU reaches 100°C, and the chip throttles after 10–15 minutes of heavy load.";
+"GPU溫度也納入" = "Include GPU temperature";
+"風扇曲線預覽" = "Fan curve preview";
+"固定轉速預覽" = "Fixed speed preview";
+"目前%.0f度，%.0f RPM" = "Now %.0f degrees, %.0f RPM";
+
+/* 提示音 */
+"提示音" = "Alert Sounds";
+"過熱／降頻" = "Overheat/throttle";
+"降溫回穩" = "Cooled down";
+"CPU／GPU一降頻就算過熱，不看溫度。門檻獨立於風扇與hook的hot線。" = "Any CPU or GPU throttling counts as overheating, whatever the temperature. These thresholds are separate from the fan and hook hot line.";
+"試聽「%@」提示音" = "Preview “%@” sound";
+"試聽：%@" = "Preview: %@";
+"系統音%@" = "System sound %@";
+"「%@」門檻" = "“%@” threshold";
+"%@%ld度" = "%@%ld degrees";
+
+/* 套用列 */
+"有未套用的變更" = "Unapplied changes";
+"捨棄" = "Discard";
+"捨棄未套用的變更" = "Discard unapplied changes";
+"套用" = "Apply";
+"已套用（%@）" = "Applied (%@)";
+"寫入失敗：%@" = "Couldn't save: %@";
+
+/* 頁尾 */
+"記錄檔" = "Log";
+"打開%@" = "Open %@";
+"設定檔" = "Config File";
+"在Finder中顯示設定檔" = "Show config file in Finder";
+"重新啟動" = "Relaunch";
+"結束" = "Quit";
+"結束面板程式（guard不受影響）" = "Quit the panel (guard keeps running)";

@@ -4,7 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="/Applications/cool42 Panel.app"
 BIN=".build/release/cool42-panel"
-[ -x "$BIN" ] || swift build -c release 2>&1 | tail -1
+# 每次都建（增量很快）：只看執行檔在不在的話，改過原始碼後會把舊執行檔和新的 *.lproj 包在一起
+swift build -c release --product cool42-panel 2>&1 | tail -1
+[ -x "$BIN" ] || { echo "✗ 建置失敗：找不到 $BIN" >&2; exit 1; }
 
 pkill -x cool42-panel 2>/dev/null || true
 rm -rf "$APP"
@@ -13,11 +15,15 @@ cp "$BIN" "$APP/Contents/MacOS/cool42-panel"
 # 內建提示音（config 沒指定音檔時用）
 mkdir -p "$APP/Contents/Resources/Sounds"
 cp Sounds/*.m4a "$APP/Contents/Resources/Sounds/"
+# 介面字串（zh-Hant 開發語言＋en），依系統語言切換；面板用 Bundle.main 讀 Contents/Resources/*.lproj
+cp -R Sources/cool42-panel/Resources/*.lproj "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>cool42 Panel</string>
+  <key>CFBundleDevelopmentRegion</key><string>zh-Hant</string>
+  <key>CFBundleLocalizations</key><array><string>zh-Hant</string><string>en</string></array>
   <key>CFBundleDisplayName</key><string>cool42 Panel</string>
   <key>CFBundleIdentifier</key><string>com.cool42.panel</string>
   <key>CFBundleExecutable</key><string>cool42-panel</string>
