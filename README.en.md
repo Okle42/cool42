@@ -5,11 +5,15 @@
 **In one line: your AI coding agent checks for throttling before heavy work — full speed while macOS reports thermal pressure `Nominal`, and it waits only when macOS reports throttling (pressure above Nominal).**
 
 <p align="center"><img src="docs/img/demo-en.gif" width="880" alt="cool42 panel demo: idle → heavy load → throttling → Claude Code hook waits → allowed"></p>
-<p align="center"><sub>18-second demo. Idle and heavy-load frames are real captures; the "throttling" segment is a staged scenario (not a recorded event), and the terminal frames reproduce the source code's output format. Captions and terminal comments are in English; the panel UI itself is currently in Traditional Chinese only.</sub></p>
+<p align="center"><sub>18-second demo. The idle and heavy-load hold frames are real captures; the ~1.4 s transition between them is linearly interpolated (labelled "Transition · interpolated" — those numbers are not real readings); the "throttling" segment is a staged scenario (not a recorded event), and the terminal frames reproduce the source code's output format. The panel is shown in its English UI; cool42's own CLI / hook status strings inside the terminal frames are still Chinese, as in the product.</sub></p>
 
 ![cool42: your AI agent waits on thermal pressure, not temperature. Peak control temperature 95°C over 4 days, 0 s of non-Nominal thermal pressure, the hook made the AI wait 0 times](docs/img/screens/hero-en.png)
 
-> A menu-bar panel that shows CPU / GPU temperature, every core's own sensor (73 CPU/GPU temperature sensors on an M4, as a heat grid), fan RPM, the P-cores' **hardware** clock (from `powermetrics`) and whether macOS reports thermal pressure (throttling). Custom fan curves, overheat / cooled-down chimes with adjustable thresholds.
+<sub>The panel in the GIF and hero above is rendered off-screen on a **solid background** (what you see with Reduce Transparency on). On macOS 26 and later the real panel uses Liquid Glass by default: cards are near-opaque and text outside the cards uses the system's vibrant colours. The two shots below are real screen captures (`scripts/snapshot/capture-glass.sh`, live data, controlled gradient behind the panel; Traditional Chinese UI):</sub>
+
+<p align="center"><img src="docs/img/screens/panel-glass-light.png" width="300" alt="Real capture: Liquid Glass panel, light appearance on a bright background"> <img src="docs/img/screens/panel-glass-dark.png" width="300" alt="Real capture: Liquid Glass panel, dark appearance on a dark background"></p>
+
+> A menu-bar panel that shows CPU / GPU temperature, every core's own sensor (73 CPU/GPU temperature sensors on an M4, as a heat grid), fan RPM, the P-cores' **hardware** clock (from `powermetrics`) and whether macOS reports thermal pressure (throttling). Custom fan curves, overheat / cooled-down chimes with adjustable thresholds. The panel UI follows the system language: Traditional Chinese on a Traditional Chinese system, English everywhere else.
 > Then the part no other monitor has: **when an AI agent like Claude Code runs heavy work on your Mac, let the machine go full speed, let the fan prevent throttling, and only make the work wait when throttling actually happens.**
 > Resident cost (long-run `ps` average on 2026-09-23, cumulative CPU time ÷ uptime): guard + its `powermetrics` child **≈ 0.5% of one core** (0.27% + 0.22%), guard RSS ≈ 12–14 MB; the panel left open ≈ 1% (57 MB), closed-panel figure to be re-measured.
 
@@ -17,10 +21,10 @@
 
 | | What you get |
 |---|---|
-| **Just a monitor + fan controller** (no Claude Code needed) | Things Apple doesn't tell you: what the P-cores are really clocked at right now, when throttling starts, which core is hottest, whether the GPU is being capped. Fan modes curve / fixed / auto, edited live from the panel, with quiet / balanced / strong presets |
+| **Just a monitor + fan controller** (no Claude Code needed) | Things Apple doesn't tell you: what the P-cores are really clocked at right now, when throttling starts, which core is hottest, whether the GPU is being capped. Fan modes Curve / Fixed / Automatic, edited live from the panel, with Quiet / Balanced / Performance presets |
 | **A gatekeeper for AI agents** | Claude Code asks before launching heavy commands (hook + MCP), waits only when macOS reports thermal pressure above Nominal, spins the fan up *before* `swift build` / `blender` / `ffmpeg`, and daily stats tell you whether your curve is right |
 
-**In plain words**: Apple's fan policy is silence-first — right before cool42 first took over, this machine was at 105 °C with the fan at 1774 rpm under macOS auto control; external reports say that after 10–15 minutes of load like that the P-cores quietly slow down 15–25% and you never know. cool42 first makes that **visible** (the panel's first line says "full speed · not throttled" or "throttling", based on macOS thermal pressure), then flips the policy: run the fan 25% slower than the old curve (A/B, same load: 86.8 °C mean / 3150 rpm), and have Claude Code wait only when macOS reports throttling. It also survives the moments the machine is busiest — learned the hard way, see problem 15 below.
+**In plain words**: Apple's fan policy is silence-first — right before cool42 first took over, this machine was at 105 °C with the fan at 1774 rpm under macOS auto control; external reports say that after 10–15 minutes of load like that the P-cores quietly slow down 15–25% and you never know. cool42 first makes that **visible** (the panel's first line says "Full speed · not throttled" or "Throttling", based on macOS thermal pressure), then flips the policy: run the fan 25% slower than the old curve (A/B, same load: 86.8 °C mean / 3150 rpm), and have Claude Code wait only when macOS reports throttling. It also survives the moments the machine is busiest — learned the hard way, see problem 15 below.
 
 ![Mac mini M4](https://img.shields.io/badge/tested-Mac%20mini%20M4-blue) ![macOS](https://img.shields.io/badge/macOS-14%2B-lightgrey) ![Swift](https://img.shields.io/badge/Swift-6-orange) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen) ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -52,7 +56,7 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 | **Per-core temperature** | ✅ heat grid: P-core / E-core / GPU groups, 73 CPU/GPU temperature sensors (SMC) on M4, hover for value | partial (usually averages or PMU) |
 | **Hardware clock / thermal throttling detection** | ✅ shows the P-core hardware GHz from `powermetrics`; throttling is detected from macOS thermal pressure (anything above Nominal), panel / statusline turn red, logged | ❌ |
 | **GPU utilisation / GPU throttling** | ✅ IOReport utilisation and clock, `GPU_CLTM` detection | ❌ |
-| Custom fan curve | ✅ curve / fixed / auto, live edit from the panel, hot-reload on save | ✅ |
+| Custom fan curve | ✅ Curve / Fixed / Automatic, live edit from the panel, hot-reload on save | ✅ |
 | CPU + GPU together | ✅ max of both drives the fan | ✅ |
 | No fan hunting | ✅ fast up, slow down, max −300 rpm per 5 s | partial |
 | Chimes | ✅ overheat / throttled and cooled-down, bundled sounds replaceable, thresholds adjustable in the panel | partial |
@@ -76,7 +80,7 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 
 ## Data
 
-Everything below comes from this Mac mini M4's guard log and the A/B run — nothing simulated. The generator [`extras/viz/build_charts.py`](extras/viz/build_charts.py) reads a frozen log snapshot in the repo, so the numbers can be recomputed. (English versions of the charts are below; the Chinese README uses the Chinese set.)
+Everything below comes from this Mac mini M4's guard log and the A/B run — nothing simulated. The generator [`extras/viz/build_charts.py`](extras/viz/build_charts.py) reads a frozen log snapshot in the repo, so the numbers can be recomputed.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/hook-timeline-en-dark.svg"><img src="docs/img/charts/hook-timeline-en-light.svg" alt="Over 94 hours, 5 hot periods (31 SMC writes at or above 90°C); the hook waited 0 times, denied 0 times, 0 s of non-Nominal pressure"></picture>
 
@@ -90,7 +94,7 @@ Everything below comes from this Mac mini M4's guard log and the A/B run — not
 
 **Daily peaks of 93 / 95 / 95 °C (log values; 09-23 only up to 23:42, 78 °C), 0 s throttled in total over 4 days.** "Seconds throttled" = cumulative seconds with thermal pressure other than Nominal (not a clock-based measure); the daily summary truncates the peak to an integer and reports 93 / 94 / 94.
 
-Limits, stated plainly: one Mac mini M4 only; this 94-hour log ran on macOS 27.0 (the A/B and sensor comparisons were on macOS 26); in these 4 days macOS never reported throttling, so the charts prove "doesn't get in the way when hot" — the wait path has not yet fired in real use and is covered only by unit tests and the staged segment of the demo above. All 9 charts with table views: [`docs/viz/index.html`](docs/viz/index.html) (download and open in a browser).
+Limits, stated plainly: one Mac mini M4 only; this 94-hour log ran on macOS 27.0 (the A/B and sensor comparisons were on macOS 26); in these 4 days macOS never reported throttling, so the charts prove "doesn't get in the way when hot" — the wait path has not yet fired in real use and is covered only by unit tests and the staged segment of the demo above. All 9 charts with table views: [`docs/viz/index.html`](docs/viz/index.html) (download and open in a browser; it has a 中文 / English switch, and `?lang=en` opens it in English).
 
 ## Architecture
 
@@ -212,7 +216,7 @@ sudo cool42 fan 3000     # manual RPM; sudo cool42 fan auto hands it back
 tail -f /var/log/cool42.log
 ```
 
-**Panel**: a floating window — click the menu-bar item to show / hide, drag it anywhere, it survives switching apps, follows you across Spaces, remembers its position and sizes itself to its content (drag the height once and it stays; right-click to go back to auto); ✕ top-right collapses it, right-click the menu-bar item for a menu. Dark neon style. First line is the verdict (full speed / throttling / dangerous), then "who's computing" (top two processes with cwd), then temperature / fan / P-core clock cards with 5-minute curves, daily stats, curve preview (current temperature and fan marked), mode picker curve / fixed / auto, quiet / balanced / strong presets or per-point editing. Under the temperature card, "Sensors" expands into the heat grid: P-core / E-core / GPU groups, one cell per SMC sensor (73 on M4), colour by temperature, hover for key and value; collapsed it reads nothing. The "Chimes" card has two independent toggles (overheat / throttled, cooled-down) with ▶ preview and an adjustable trigger temperature each (≥ X° counts as hot, < Y° counts as cool). Two sounds are bundled; override with `"sounds": {"overheat": "~/x.mp3", "cooldown": "~/y.mp3"}` in config. Any change to fan or chimes shows an Apply / Revert bar at the bottom; "Restart" bottom-right relaunches the panel.
+**Panel**: a floating window — click the menu-bar item to show / hide, drag it anywhere, it survives switching apps, follows you across Spaces, remembers its position and sizes itself to its content (drag the height once and it stays; right-click to go back to auto); ✕ top-right collapses it, right-click the menu-bar item for a menu. Dark neon style. First line is the verdict (full speed / throttling / dangerous), then "who's computing" (top two processes with cwd), then temperature / fan / P-core clock cards with 5-minute curves, daily stats, curve preview (current temperature and fan marked), mode picker Curve / Fixed / Automatic, Quiet / Balanced / Performance presets or per-point editing. Under the temperature card, "Heat Map" expands into the heat grid: P-core / E-core / GPU groups, one cell per SMC sensor (73 on M4), colour by temperature, hover for key and value; collapsed it reads nothing. The "Alert Sounds" card has two independent toggles (overheat / throttled, cooled-down) with ▶ preview and an adjustable trigger temperature each (≥ X° counts as hot, < Y° counts as cool). Two sounds are bundled; override with `"sounds": {"overheat": "~/x.mp3", "cooldown": "~/y.mp3"}` in config. Any change to fan or chimes shows a Discard / Apply bar at the bottom; "Relaunch" bottom-right relaunches the panel.
 
 **Config** `/etc/cool42/config.json` (see `config.example.json`): curve, thresholds, smoothing, ramp limits, GPU inclusion, allow-list, pre-warm keywords, sensor prefixes, chimes. Hot-reloaded; a parse failure keeps the previous config.
 
@@ -247,7 +251,7 @@ tail -f /var/log/cool42.log
 | fan (mean) | 4216 rpm | **3150 rpm** (−25%, ≈ −6 dB by the fan law) | ~2100 rpm |
 | P-core / pressure | not sampled in the window | **not sampled in the window** | 3300–3800 MHz, throttled |
 
-`powermetrics` was only sampled while the old curve was active: 3 samples before the A run and 6 samples starting ~3 minutes after the B run ended and the config was restored to A — 3936 MHz (one at 3950) and pressure Nominal. **There is no `powermetrics` sample inside the 5-minute B window**, so this A/B supports "25% less fan for 3.8 °C", not "B doesn't throttle"; whether B throttles is tracked by the daily stats in normal use since then (see Data above: 0 s of non-Nominal pressure over 94 hours). Total job time has not been measured either. The old curve's extra 1000 rpm buys 3.8 °C; it is still there as the "strong" preset.
+`powermetrics` was only sampled while the old curve was active: 3 samples before the A run and 6 samples starting ~3 minutes after the B run ended and the config was restored to A — 3936 MHz (one at 3950) and pressure Nominal. **There is no `powermetrics` sample inside the 5-minute B window**, so this A/B supports "25% less fan for 3.8 °C", not "B doesn't throttle"; whether B throttles is tracked by the daily stats in normal use since then (see Data above: 0 s of non-Nominal pressure over 94 hours). Total job time has not been measured either. The old curve's extra 1000 rpm buys 3.8 °C; it is still there as the "Performance" preset.
 
 **Lifetime (inference)**: "every 10 °C halves the life" holds for electromigration-type mechanisms ([Electronics Cooling](https://www.electronics-cooling.com/2017/08/10c-increase-temperature-really-reduce-life-electronics-half/) notes it is not a general rule), and Apple's baseline life is long, so a cooler chip is at most a statistical failure-rate difference, not "breaks vs doesn't". Also often missed: **thermal cycling hurts more than steady heat**. In this machine's log cool42 swings 45 ↔ 95 °C; external reports put stock heavy load at 105–107 °C, but we have no same-machine stock swing data, so no ratio is given.
 
@@ -332,7 +336,7 @@ docs/                   A/B test data, findings, articles, charts
 
 - [`docs/findings-m4-sensors.md`](docs/findings-m4-sensors.md) — **technical findings (zh / en)**: IOReport clocks vs IOHID temperatures vs SMC vs powermetrics on M4, second-by-second comparison, which ones are real; stock fan policy numbers; what an agent should use to self-throttle
 - [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/) — raw A/B curve data, powermetrics output, external references
-- [`docs/viz/index.html`](docs/viz/index.html) — interactive view of all 9 data charts (light / dark, table view), generated by [`extras/viz/build_charts.py`](extras/viz/build_charts.py)
+- [`docs/viz/index.html`](docs/viz/index.html) — interactive view of all 9 data charts (light / dark, table view, Chinese / English), generated by [`extras/viz/build_charts.py`](extras/viz/build_charts.py)
 - [`docs/RELEASING.md`](docs/RELEASING.md) — release zip, signing / notarization, Homebrew tap (Chinese)
 - [`CHANGELOG.md`](CHANGELOG.md)
 

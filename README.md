@@ -5,11 +5,15 @@
 **一句話：AI 寫程式時自己看熱壓力排隊 —— macOS 回報 thermal pressure 是 Nominal 就全速放行，只在它回報降頻（非 Nominal）時才等。**
 
 <p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 面板示意：閒置 → 重載 → 降頻 → Claude Code hook 等待 → 放行"></p>
-<p align="center"><sub>18 秒示意：閒置與重載是實機資料；「降頻」那一段是受控情境（非實機紀錄），終端機畫面照原始碼格式重現。</sub></p>
+<p align="center"><sub>18 秒示意：閒置與重載兩個定格是實機資料；中間約 1.4 秒的過場是兩者之間線性內插的示意（幀上標「過場 · 內插示意」，那些數字不是實機讀數）；「降頻」那一段是受控情境（非實機紀錄），終端機畫面照原始碼格式重現。</sub></p>
 
 ![cool42：AI 寫程式時，自己看降頻排隊。近 4 天最高控制溫度 95°C、thermal pressure 非 Nominal 0 秒、hook 讓 AI 等待 0 次](docs/img/screens/hero.png)
 
-> 選單列一眼看到 CPU / GPU 溫度、每顆核心各幾度（M4 共 73 個 CPU/GPU 溫度感測器的熱度格）、風扇轉速、P-core **硬體**頻率（powermetrics）、macOS 有沒有回報熱壓力（降頻）；自訂風扇曲線，過熱 / 回穩有提示音，門檻自己調。
+<sub>上面 GIF 與 hero 裡的面板是離屏渲染的**實色底**（等同開了「減少透明度」）；macOS 26 以上實機預設是 Liquid Glass 玻璃底，卡片是近實色、卡片外的字用系統 vibrant 色。下面兩張是實機截圖（`scripts/snapshot/capture-glass.sh`，即時資料；面板後面墊的是受控的漸層背景）：</sub>
+
+<p align="center"><img src="docs/img/screens/panel-glass-light.png" width="300" alt="實機截圖：淺色外觀、亮色背景上的 Liquid Glass 面板"> <img src="docs/img/screens/panel-glass-dark.png" width="300" alt="實機截圖：深色外觀、暗色背景上的 Liquid Glass 面板"></p>
+
+> 選單列一眼看到 CPU / GPU 溫度、每顆核心各幾度（M4 共 73 個 CPU/GPU 溫度感測器的熱度格）、風扇轉速、P-core **硬體**頻率（powermetrics）、macOS 有沒有回報熱壓力（降頻）；自訂風扇曲線，過熱 / 回穩有提示音，門檻自己調。面板介面跟著系統語言：系統是繁體中文就顯示繁中，其他語言顯示英文。
 > 然後是別的監控工具沒有的部分：**當 Claude Code 這類 AI agent 在你的 Mac 上跑重工作時，讓機器全力開工、風扇負責避免降頻；只有真的降頻了才讓工作等一下。**
 > 常駐成本（2026-09-23 `ps` 長期平均，累計 CPU 時間 ÷ 執行時間）：guard + powermetrics 子行程合計**單核約 0.5%**（0.27% + 0.22%），guard RSS 約 12–14 MB；面板一直開著約 1%（57 MB），收起時的數字待重測。
 
@@ -90,7 +94,7 @@ Mac mini M4 的預設風扇策略極度保守 —— **CPU 已經 105°C，風�
 
 **每日最高 93 / 95 / 95°C（log 值；09-23 只到 23:42，78°C），4 天降頻合計 0 秒。** 降頻秒數 = thermal pressure 不是 Nominal 的累計秒數（不是用時脈判斷）；每日結算把最高溫整數截斷，寫成 93 / 94 / 94。
 
-限制照實講：只有一台 Mac mini M4；這份 94 小時 log 是在 macOS 27.0 上跑的（A/B 與感測器對照是 macOS 26）；近 4 天 macOS 沒有回報過一次降頻，所以這些圖證明的是「高溫時不擋路」，「降頻才等」那一段在實際使用中還沒觸發過，目前只有單元測試與上方 GIF 的受控示意。全部 9 張圖與表格檢視在 [`docs/viz/index.html`](docs/viz/index.html)（下載後用瀏覽器開）。
+限制照實講：只有一台 Mac mini M4；這份 94 小時 log 是在 macOS 27.0 上跑的（A/B 與感測器對照是 macOS 26）；近 4 天 macOS 沒有回報過一次降頻，所以這些圖證明的是「高溫時不擋路」，「降頻才等」那一段在實際使用中還沒觸發過，目前只有單元測試與上方 GIF 的受控示意。全部 9 張圖與表格檢視在 [`docs/viz/index.html`](docs/viz/index.html)（下載後用瀏覽器開；頁面可切換中文 / English）。
 
 ## 架構
 
@@ -214,7 +218,7 @@ sudo cool42 fan 3000     # 手動設轉速；sudo cool42 fan auto 交還
 tail -f /var/log/cool42.log
 ```
 
-**面板**：浮動視窗，點選單列圖示開 / 關、可拖到任何地方、切到別的 app 不會消失、跨 Space、位置記住、高度跟內容走（自己拖過就固定，右鍵可恢復自動）；右上角 ✕ 收起，右鍵圖示有選單。漸層微光風格（深色底、霓虹發光線、線下漸層）。頂端一句結論（全速運作 / 降頻中 / 溫度危險），下面一行「現在誰在算」（前兩名 process 的命令與工作目錄），溫度 / 風扇 / P-core 頻率三張卡各帶目前值與 5 分鐘曲線，今日統計列，曲線預覽圖（標出目前溫度與風扇位置），模式「曲線 / 固定 / 自動」，內建「安靜 / 均衡 / 強力」三組曲線，也可逐點自訂，按「套用」即生效。溫度卡下方「各感測器」展開是熱度格：P-core / E-core / GPU 三組，一格一個 SMC 感測器（M4 共 73 個），顏色隨溫度變，滑過看 key 與度數，收合就不讀。底下「提示音」卡：過熱 / 降頻響一聲、降溫回穩響一聲，兩個開關獨立、▶ 試聽，每列有觸發溫度可調（≥ 幾度算熱、< 幾度算涼），按「套用」生效；內建兩段音效，想換在 config 設 `"sounds": {"overheat": "~/x.mp3", "cooldown": "~/y.mp3"}`。風扇或提示音有改動，底部出現「還原 / 套用」；最右下「重啟」可重開面板。
+**面板**：浮動視窗，點選單列圖示開 / 關、可拖到任何地方、切到別的 app 不會消失、跨 Space、位置記住、高度跟內容走（自己拖過就固定，右鍵可恢復自動）；右上角 ✕ 收起，右鍵圖示有選單。漸層微光風格（深色底、霓虹發光線、線下漸層）。頂端一句結論（全速運作 / 降頻中 / 溫度危險），下面一行「現在誰在算」（前兩名 process 的命令與工作目錄），溫度 / 風扇 / P-core 頻率三張卡各帶目前值與 5 分鐘曲線，今日統計列，曲線預覽圖（標出目前溫度與風扇位置），模式「曲線 / 固定 / 自動」，內建「安靜 / 均衡 / 強力」三組曲線，也可逐點自訂，按「套用」即生效。溫度卡下方「熱度格」展開：P-core / E-core / GPU 三組，一格一個 SMC 感測器（M4 共 73 個），顏色隨溫度變，滑過看 key 與度數，收合就不讀。底下「提示音」卡：過熱 / 降頻響一聲、降溫回穩響一聲，兩個開關獨立、▶ 試聽，每列有觸發溫度可調（≥ 幾度算熱、< 幾度算涼），按「套用」生效；內建兩段音效，想換在 config 設 `"sounds": {"overheat": "~/x.mp3", "cooldown": "~/y.mp3"}`。風扇或提示音有改動，底部出現「捨棄 / 套用」；右下「重新啟動」可重開面板。
 
 **設定檔** `/etc/cool42/config.json`（範例見 `config.example.json`）：曲線、門檻、平滑係數、降速斜率、GPU 是否納入、白名單、預熱關鍵字、感測器前綴都在這。改了不用重啟，解析失敗會保留上一份。
 
@@ -374,7 +378,7 @@ docs/                   A/B 實測資料、技術發現、長文、數據圖
 
 - [`docs/findings-m4-sensors.md`](docs/findings-m4-sensors.md) — **技術發現整理（中英）**：M4 上 IOReport 頻率 / IOHID 溫度 / SMC / powermetrics 四條路徑同秒對照，哪些是真的；原廠風扇策略數據；agent 自我節流的判斷依據
 - [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/) — 曲線 A/B 實測原始資料、powermetrics 輸出、外部參考資料
-- [`docs/viz/index.html`](docs/viz/index.html) — 9 張數據圖的互動比對頁（亮 / 暗、表格檢視），圖由 [`extras/viz/build_charts.py`](extras/viz/build_charts.py) 產生
+- [`docs/viz/index.html`](docs/viz/index.html) — 9 張數據圖的互動比對頁（亮 / 暗、表格檢視、中英切換），圖由 [`extras/viz/build_charts.py`](extras/viz/build_charts.py) 產生
 - [`docs/RELEASING.md`](docs/RELEASING.md) — release zip、簽章 / 公證、Homebrew tap 的發布流程
 - [`CHANGELOG.md`](CHANGELOG.md)
 

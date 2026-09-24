@@ -7,6 +7,10 @@ import Cool42Core
 //   cool42-snapshot SCENARIO.json OUT_PREFIX                   → OUT_PREFIX-light.png、OUT_PREFIX-dark.png（@2x）
 //   cool42-snapshot A.json OUT_PREFIX --mix B.json --t 0.4     → A→B 之間的過場（數值線性內插、歷史曲線視窗往 B 滑）
 //   選項：--only dark|light   只輸出一種外觀
+//         --lang en          介面語言（預設跟系統）：用 -AppleLanguages 重新執行自己；*.lproj 要在執行檔旁邊（render-panel.sh 會複製）
+//         --variant a,b,…    在情境上疊狀態，拿來檢查各種字串長度（都是示意、不是實機值）：
+//                            fixed / auto（風扇模式）、custom（曲線微調過）、dirty（有未套用的變更）、
+//                            applied / failed（套用後訊息）、guard-off、critical、gpu-throttle、nofreq、boost
 //
 // 情境檔（scripts/snapshot/scenarios/*.json）：
 //   snapshot   Snapshot 的 JSON（和 /var/run/cool42/state.json 同格式）
@@ -32,7 +36,19 @@ func loadScenario(_ path: String) -> Scenario {
     do { return try dec.decode(Scenario.self, from: d) } catch { fatalError("\(path) 格式錯誤：\(error)") }
 }
 
+// --lang：語言要在程式一啟動、第一次查字串表之前就定下來，所以帶 -AppleLanguages 重新執行自己
+if let i = CommandLine.arguments.firstIndex(of: "--lang"), i + 1 < CommandLine.arguments.count,
+   !CommandLine.arguments.contains("-AppleLanguages"), let exe = Bundle.main.executableURL {
+    let p = Process()
+    p.executableURL = exe
+    p.arguments = Array(CommandLine.arguments.dropFirst()) + ["-AppleLanguages", "(\(CommandLine.arguments[i + 1]))"]
+    do { try p.run() } catch { fatalError("重新執行失敗：\(error)") }
+    p.waitUntilExit()
+    exit(p.terminationStatus)
+}
+
 let args = CommandLine.arguments
+if args.count >= 3, args[1] == "--live" { MainActor.assumeIsolated { runLive(outDir: args[2]) } }
 if args.count >= 4, args[1] == "--terminal" { MainActor.assumeIsolated { renderTerminal(framesPath: args[2], outDir: args[3]) }; exit(0) }
 if args.count >= 5, args[1] == "--hero" { MainActor.assumeIsolated { renderHero(panelPNG: args[2], lang: args[3], out: args[4]) }; exit(0) }
 guard args.count >= 3 else {
@@ -46,6 +62,16 @@ let outPrefix = args[2]
 let b = opt("--mix").map(loadScenario)
 let t = min(max(Double(opt("--t") ?? "1") ?? 1, 0), 1)
 let only = opt("--only")
+let variants = Set((opt("--variant") ?? "").split(separator: ",").map(String.init))
+
+// 要求的語言真的選到了才畫（lproj 沒複製到執行檔旁邊時會默默退回繁中，截出來的「英文版」其實是中文）
+if let want = opt("--lang") {
+    let got = L10n.language
+    guard got.hasPrefix(want) else {
+        FileHandle.standardError.write("要 \(want) 卻選到 \(got)（\(L10n.container.bundlePath) 有 \(L10n.container.localizations)）\n".data(using: .utf8)!)
+        exit(3)
+    }
+}
 
 func lerp(_ x: Double, _ y: Double) -> Double { x + (y - x) * t }
 func lerpOpt(_ x: Double?, _ y: Double?) -> Double? {
@@ -94,6 +120,12 @@ func snapshotNow() -> Snapshot {
     }
     let boost = t >= 0.5 ? (b?.boostRemaining ?? a.boostRemaining) : a.boostRemaining
     s.boostUntil = boost.map { Date().addingTimeInterval($0 + 0.5) }
+    // --variant：示意狀態（檢查字串長度用）
+    if variants.contains("guard-off") { s.guardRunning = false }
+    if variants.contains("critical") { s.level = .critical; s.controlTemp = max(s.controlTemp, 102) }
+    if variants.contains("gpu-throttle") { s.thermalPressure = "Nominal"; s.gpuThrottlePercent = 22 }
+    if variants.contains("nofreq") { s.pcoreMHz = nil; s.thermalPressure = nil }
+    if variants.contains("boost") { s.boostUntil = Date().addingTimeInterval(42.5) }
     return s
 }
 
@@ -111,9 +143,18 @@ let monitor = Monitor()
 @MainActor func inject() {
     var cfg = Config()
     cfg.sounds = nil
+    if variants.contains("fixed") { cfg.mode = "fixed" }
+    if variants.contains("auto") { cfg.mode = "auto" }
+    if variants.contains("custom") { cfg.curve[2].rpm += 150 }
     monitor.config = cfg
     monitor.draft = cfg
+    if variants.contains("dirty") { monitor.draft.fixedRPM += 500; monitor.draft.curve[1].rpm += 100; monitor.draftCooldownBelow -= 2 }
     monitor.saveMessage = nil
+    monitor.saveFailed = false
+    if variants.contains("applied") { monitor.saveMessage = L("已套用（%@）", "config.json") }
+    if variants.contains("failed") {
+        monitor.saveMessage = L("寫入失敗：%@", CocoaError(.fileWriteNoPermission).localizedDescription); monitor.saveFailed = true
+    }
     monitor.showSensors = true          // didSet 會讀一次即時 SMC，下一行蓋掉
     monitor.sensorTemps = sensorsNow()
     monitor.snapshot = snapshotNow()
@@ -341,8 +382,10 @@ struct PanelCrop: View {
     let stats: [(String, String)] = zh
         ? [("95°C", "4 天最高控制溫度"), ("0 秒", "熱壓力非 Nominal"), ("0 次", "hook 讓 AI 等待")]
         : [("95°C", "peak control temp"), ("0 s", "non-Nominal pressure"), ("0×", "times the AI had to wait")]
-    // 面板只取到風扇卡為止（352pt 寬時約 536pt 高），用圓角框收邊，不讓下一張卡被切一半
-    let cropH: CGFloat = 536
+    // 面板只取到風扇卡為止：風扇卡下緣在 535.5pt（352pt 寬時；中英文相同），裁在 536，
+    // 下面再補 16pt 面板底色（和左右留白一樣寬），框的下緣就是收好的面板底邊，不會切到下一張卡
+    let cropH: CGFloat = 536, tail: CGFloat = 16
+    let panelBG = Color(red: 15 / 255, green: 18 / 255, blue: 28 / 255)   // 面板深色底（取樣自 panel-*-dark.png）
     let v = ZStack(alignment: .topLeading) {
         Stage.bg
         HStack(alignment: .center, spacing: 56) {
@@ -369,14 +412,16 @@ struct PanelCrop: View {
             }
             .frame(width: 600, alignment: .leading)
             VStack(alignment: .leading, spacing: 10) {
-                Image(nsImage: img).resizable().frame(width: 352, height: 352 * img.size.height / img.size.width)
-                    .frame(height: cropH, alignment: .top)
+                VStack(spacing: 0) {
+                    Image(nsImage: img).resizable().frame(width: 352, height: 352 * img.size.height / img.size.width)
+                        .frame(height: cropH, alignment: .top).clipped()
+                    panelBG.frame(width: 352, height: tail)
+                }
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
                     .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
-                if !zh {
-                    Text("Panel UI is currently in Traditional Chinese").font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.45))
-                }
+                Text(zh ? "面板上半部 · 實機取樣（ffmpeg 4K 編碼）" : "Top of the panel · real capture (ffmpeg 4K encode)")
+                    .font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.45))
             }
         }
         .padding(.horizontal, 88).frame(maxHeight: .infinity)
@@ -401,4 +446,87 @@ struct PanelCrop: View {
         }
         exportPNG(v, size: Stage.size, to: (outDir as NSString).appendingPathComponent(f.name + ".png"))
     }
+}
+
+// MARK: - 實機玻璃截圖（--live）
+
+/// 離屏 cacheDisplay 畫不出 behind-window 的 Liquid Glass，所以這裡跑「真的」面板：
+/// PanelApp.swift 的 AppDelegate 原封不動啟動（NSPanel ＋ applyBackground 的 NSGlassEffectView、即時 guard 資料），
+/// 面板後面墊一個受控的背景視窗（模擬亮 / 暗 / 花俏桌布，不動使用者的桌布設定），
+/// 依序切 外觀 × 背景，用 /usr/sbin/screencapture -R 截合成後的螢幕區域（含面板四角與陰影）。
+/// 需要終端機已有「螢幕錄製」權限（scripts/snapshot/capture-glass.sh 會先 CGPreflightScreenCaptureAccess，沒有就不跑，不會跳視窗）。
+/// 「增加對比」是系統全域設定，這裡不去切；改用 NSAppearance 的 accessibilityHighContrast* 外觀檢查面板自己的配色
+/// （玻璃本身對「增加對比」的反應要真的打開系統設定才看得到）。
+@MainActor func runLive(outDir: String) -> Never {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    DispatchQueue.main.asyncAfter(deadline: .now() + 120) { FileHandle.standardError.write("逾時\n".data(using: .utf8)!); exit(1) }
+    let backdrops: [(String, [NSColor])] = [
+        ("bright", [NSColor(srgbRed: 0.99, green: 0.98, blue: 0.93, alpha: 1), NSColor(srgbRed: 0.78, green: 0.89, blue: 1.00, alpha: 1)]),
+        ("dark", [NSColor(srgbRed: 0.03, green: 0.03, blue: 0.05, alpha: 1), NSColor(srgbRed: 0.14, green: 0.11, blue: 0.24, alpha: 1)]),
+        ("vivid", [NSColor(srgbRed: 1.00, green: 0.55, blue: 0.10, alpha: 1), NSColor(srgbRed: 0.85, green: 0.15, blue: 0.55, alpha: 1),
+                   NSColor(srgbRed: 0.10, green: 0.65, blue: 0.70, alpha: 1), NSColor(srgbRed: 0.95, green: 0.90, blue: 0.20, alpha: 1)]),
+    ]
+    var looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
+    if CommandLine.arguments.contains("--hc") { looks += [("light-hc", .accessibilityHighContrastAqua), ("dark-hc", .accessibilityHighContrastDarkAqua)] }
+    var jobs: [(String, NSAppearance.Name, String, [NSColor])] = []
+    for (ln, look) in looks { for (bn, cols) in backdrops { jobs.append((ln, look, bn, cols)) } }
+
+    var backdrop: NSWindow? = nil
+    func step(_ i: Int) {
+        guard let panel = NSApp.windows.first(where: { $0 is NSPanel && $0.title == "cool42" }) else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { step(i) }; return
+        }
+        guard i < jobs.count else { exit(0) }
+        let (ln, look, bn, cols) = jobs[i]
+        let screen = panel.screen ?? NSScreen.main!
+        let vf = screen.visibleFrame
+        // 面板放左上角（不擋使用者右上角的真面板），高度由 autoHeight 跟內容
+        // 高度收在可視範圍內（四角與陰影都要截得到），內容捲回最上面（標題列、狀態句是直接壓在玻璃上的字）
+        var f = panel.frame
+        f.size.height = min(f.height, vf.height - 100)
+        f.origin = NSPoint(x: vf.minX + 60, y: vf.maxY - 40 - f.size.height)
+        panel.setFrame(f, display: true)
+        func scrollTop(_ v: NSView) {
+            if let sv = v as? NSScrollView, let doc = sv.documentView {
+                doc.scroll(NSPoint(x: 0, y: doc.isFlipped ? 0 : max(0, doc.bounds.height - sv.contentView.bounds.height)))
+            }
+            v.subviews.forEach(scrollTop)
+        }
+        if let cv = panel.contentView { scrollTop(cv) }
+        let area = f.insetBy(dx: -28, dy: -28)
+        if backdrop == nil {
+            let w = NSWindow(contentRect: area, styleMask: .borderless, backing: .buffered, defer: false)
+            w.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue - 1)
+            w.ignoresMouseEvents = true
+            w.contentView = NSView()
+            w.contentView?.wantsLayer = true
+            backdrop = w
+        }
+        backdrop!.setFrame(area, display: true)
+        let g = CAGradientLayer()
+        g.colors = cols.map(\.cgColor)
+        g.startPoint = CGPoint(x: 0, y: 1); g.endPoint = CGPoint(x: 1, y: 0)
+        g.frame = CGRect(origin: .zero, size: area.size)
+        backdrop!.contentView!.layer = g
+        backdrop!.orderFront(nil)
+        panel.orderFront(nil)
+        NSApp.appearance = NSAppearance(named: look)
+        // 等玻璃重新取樣、Charts 重畫
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            let sh = screen.frame.maxY   // screencapture 用左上原點
+            let r = "\(Int(area.minX)),\(Int(sh - area.maxY)),\(Int(area.width)),\(Int(area.height))"
+            let out = (outDir as NSString).appendingPathComponent("glass-\(ln)-\(bn).png")
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            p.arguments = ["-x", "-R" + r, out]
+            try? p.run(); p.waitUntilExit()
+            print("\(out)  rect \(r)  panel \(Int(panel.frame.width))×\(Int(panel.frame.height))")
+            step(i + 1)
+        }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { step(0) }
+    app.run()
+    exit(0)
 }

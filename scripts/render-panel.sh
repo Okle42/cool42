@@ -2,13 +2,22 @@
 # 面板離屏截圖（開發用，不進正式產品）：把 PanelApp.swift 的 PanelView 餵情境資料，渲染成 @2x PNG（亮 / 暗各一）。
 # 不開視窗、不需要螢幕錄製或輔助使用權限：NSHostingView 放進不顯示的 borderless NSWindow，再用 cacheDisplay 輸出。
 #
+# ⚠ 這些截圖的視窗底是實色 Neon.panelBG（＝使用者開了「減少透明度」時的外觀），不是 macOS 26+ 預設的 Liquid Glass：
+#   cacheDisplay 畫不出 behind-window 的玻璃合成。實機玻璃外觀用 scripts/snapshot/capture-glass.sh 截
+#   （跑真的 NSPanel，面板後面墊受控背景，用 screencapture 截；需要終端機已有螢幕錄製權限）。
+#
 #   scripts/render-panel.sh                 → docs/img/screens/panel-{idle,load,throttle}-{light,dark}.png
 #   scripts/render-panel.sh OUT_DIR [情境…]  → 指定輸出目錄與情境（情境檔在 scripts/snapshot/scenarios/*.json）
+#   scripts/render-panel.sh --lang en [OUT_DIR [情境…]] → 英文介面，檔名 panel-{情境}-en-{light,dark}.png
+#     （也可用環境變數 COOL42_SNAPSHOT_LANG=en；不給就跟系統語言）
+#   COOL42_SNAPSHOT_ARGS="--variant fixed,dirty"   → 疊示意狀態檢查字串長度（見 scripts/snapshot/main.swift 開頭）
 #
 # 做法：executableTarget 無法被 import，所以在暫存目錄建一個 SwiftPM package，
 # symlink Sources/CSMC、Sources/Cool42Core，複製 PanelApp.swift 並拿掉 @main，再加上 scripts/snapshot/main.swift。
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+UI_LANG="${COOL42_SNAPSHOT_LANG:-}"
+if [ "${1:-}" = "--lang" ]; then UI_LANG="${2:?--lang 要給語言代碼，例如 en}"; shift 2; fi
 OUT="${1:-$REPO/docs/img/screens}"; shift || true
 WORK="${COOL42_SNAPSHOT_WORK:-${TMPDIR:-/tmp}/cool42-snapshot}"
 VERSION="$(sed -n 's/.*CFBundleShortVersionString<\/key><string>\([^<]*\)<.*/\1/p' "$REPO/scripts/make-app.sh" | head -1)"
@@ -27,6 +36,7 @@ cat > "$WORK/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleIdentifier</key><string>com.cool42.snapshot</string>
+  <key>CFBundleDevelopmentRegion</key><string>zh-Hant</string>
   <key>CFBundleShortVersionString</key><string>${VERSION:-dev}</string>
 </dict></plist>
 PLIST
@@ -47,7 +57,11 @@ PKG
 swift build --package-path "$WORK" -c release --product cool42-snapshot 2>&1 | grep -E "error|warning: unre|Compiling|Build" | grep -v "^\[" || true
 BIN="$WORK/.build/release/cool42-snapshot"
 [ -x "$BIN" ] || { echo "建置失敗" >&2; exit 1; }
+# 介面字串：沒有 app bundle 時 Bundle.main 就是執行檔所在目錄，把 *.lproj 放旁邊（舊版 PanelApp.swift 沒用到也無妨）
+BIN_DIR="$(cd "$(dirname "$BIN")" && pwd -P)"
+rm -rf "$BIN_DIR"/*.lproj
+cp -R "$REPO/Sources/cool42-panel/Resources/"*.lproj "$BIN_DIR/"
 if [ $# -eq 0 ]; then set -- idle load throttle; fi
 for sc in "$@"; do
-  "$BIN" "$REPO/scripts/snapshot/scenarios/$sc.json" "$OUT/panel-$sc" ${COOL42_SNAPSHOT_ARGS:-}
+  "$BIN" "$REPO/scripts/snapshot/scenarios/$sc.json" "$OUT/panel-$sc${UI_LANG:+-$UI_LANG}" ${UI_LANG:+--lang "$UI_LANG"} ${COOL42_SNAPSHOT_ARGS:-}
 done
