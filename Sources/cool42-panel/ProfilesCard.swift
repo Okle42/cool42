@@ -83,52 +83,16 @@ extension Monitor {
 }
 
 extension PanelView {
-    /// 預設收合：標題列就是結論（目前哪個情境生效），展開才看上限與規則
-    func profilesCard(_ s: Snapshot) -> some View {
-        let fmin = s.fans.first?.min ?? 1000
-        let fmax = s.fans.first?.max ?? 4900
-        return DisclosureGroup(isExpanded: Binding(get: { monitor.showProfiles }, set: { monitor.showProfiles = $0 })) {
-            VStack(alignment: .leading, spacing: 8) {
-                activeProfileLine(s)
-                capSection(fmin: fmin, fmax: fmax)
-                Divider().padding(.vertical, 2)
-                rulesSection(fmin: fmin, fmax: fmax)
-            }
-            .padding(.top, 8)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "switch.2").font(.caption).foregroundStyle(.secondary)
-                Text(L("情境與噪音上限")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Spacer(minLength: 4)
-                if monitor.profileDirty {
-                    Text(L("未套用")).font(.caption2.weight(.medium)).foregroundStyle(Neon.amber)
-                } else {
-                    Text(verbatim: profileHeadline(s)).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-                }
-            }
-        }
-        .neonCard(padding: 8)
-    }
-
-    /// 收合時標題列右側的一句話
-    func profileHeadline(_ s: Snapshot) -> String {
-        guard s.guardRunning else { return L("guard沒在跑") }
-        if monitor.config.mode == "auto" { return L("macOS控制中，暫不作用") }
-        if let name = s.profile { return L("「%@」生效中", name) }
-        if let m = s.maxRPM { return L("上限%ld rpm", Int(m)) }
-        return monitor.config.profiles.isEmpty ? L("沒有規則") : L("基本設定")
-    }
-
     /// 目前生效的情境（guard 寫在快照裡）；上限因降頻／高溫暫停時另起一行。
     /// 交還原廠（mode auto）時 guard 不控風扇，情境與上限都不作用；固定模式不套曲線
     @ViewBuilder
     func activeProfileLine(_ s: Snapshot) -> some View {
         if !s.guardRunning {
             Label(L("guard沒在跑，情境不會切換"), systemImage: "exclamationmark.triangle.fill")
-                .font(.caption2).foregroundStyle(Neon.amber)
+                .font(.callout).foregroundStyle(Neon.amber)
         } else if monitor.config.mode == "auto" {
             Label {
-                Text(L("風扇由macOS原廠控制中，情境與上限暫不作用")).font(.caption).fixedSize(horizontal: false, vertical: true)
+                Text(L("風扇由macOS原廠控制中，情境與上限暫不作用")).font(.body).fixedSize(horizontal: false, vertical: true)
             } icon: { Image(systemName: "pause.circle").foregroundStyle(.secondary) }
         } else {
             VStack(alignment: .leading, spacing: 3) {
@@ -136,23 +100,23 @@ extension PanelView {
                     let rule = monitor.config.profiles.first { $0.name == name }
                     Label {
                         Text(verbatim: L("「%@」生效中", name) + (rule.map { " · " + Monitor.summary($0) } ?? ""))
-                            .font(.caption).fixedSize(horizontal: false, vertical: true)
+                            .font(.body).fixedSize(horizontal: false, vertical: true)
                     } icon: { Image(systemName: "checkmark.circle.fill").foregroundStyle(Neon.green) }
                     if monitor.config.mode == "fixed", rule?.curve != nil {
-                        Text(L("固定模式不套曲線，只有上限會作用")).font(.caption2).foregroundStyle(.secondary).padding(.leading, 22)
+                        Text(L("固定模式不套曲線，只有上限會作用")).font(.callout).foregroundStyle(.secondary).padding(.leading, 22)
                     }
                 } else {
                     Label {
-                        Text(monitor.config.profiles.isEmpty ? L("沒有情境規則，用基本設定") : L("沒有符合的情境，用基本設定")).font(.caption)
+                        Text(monitor.config.profiles.isEmpty ? L("沒有情境規則，用基本設定") : L("沒有符合的情境，用基本設定")).font(.body)
                     } icon: { Image(systemName: "circle.dashed").foregroundStyle(.secondary) }
                 }
                 if s.maxRPMSuspended == true {
                     Label {
-                        Text(L("溫度高或降頻中：暫時不限轉速")).font(.caption2)
+                        Text(L("溫度高或降頻中：暫時不限轉速")).font(.callout)
                     } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Neon.amber) }
                 } else if let m = s.maxRPM, s.profile == nil || monitor.config.profiles.first(where: { $0.name == s.profile })?.maxRPM == nil {
                     // 情境本身寫了上限時摘要已經講了，不重複
-                    Text(L("目前最高%ld rpm", Int(m))).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).padding(.leading, 22)
+                    Text(L("目前最高%ld rpm", Int(m))).font(.callout.monospacedDigit()).foregroundStyle(.secondary).padding(.leading, 22)
                 }
             }
             .accessibilityElement(children: .combine)
@@ -164,20 +128,20 @@ extension PanelView {
         let on = monitor.draft.maxRPM != nil
         return VStack(alignment: .leading, spacing: 4) {
             Toggle(isOn: Binding(get: { on }, set: { monitor.draft.maxRPM = $0 ? min(max(3000, fmin), fmax) : nil })) {
-                Text(L("基本上限（沒有情境符合時）")).font(.caption)
+                Text(L("基本上限（沒有情境符合時）")).font(.body)
             }
-            .toggleStyle(.checkbox).controlSize(.small)
+            .toggleStyle(.checkbox)
             if let cap = monitor.draft.maxRPM {
                 HStack {
                     Slider(value: Binding(get: { cap }, set: { monitor.draft.maxRPM = ($0 / 100).rounded() * 100 }), in: fmin...fmax)
-                        .controlSize(.small)
+                        
                         .accessibilityLabel(L("最高轉速"))
                         .accessibilityValue(Text(verbatim: "\(Int(cap)) RPM"))
-                    Text(verbatim: "\(Int(cap)) rpm").font(.caption.monospacedDigit()).frame(width: 64, alignment: .trailing)
+                    Text(verbatim: "\(Int(cap)) rpm").font(.body.monospacedDigit()).frame(width: 76, alignment: .trailing)
                 }
             }
             Text(L("上限越低越安靜，也越可能降頻。本機M4 Mac mini實測（2026-09）：原廠讓風扇停在約2,950 rpm時，P-core慢了7.4%。溫度到hot、critical或降頻時，cool42會暫時忽略上限，降溫後才恢復。"))
-                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -185,8 +149,8 @@ extension PanelView {
     func rulesSection(fmin: Double, fmax: Double) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(L("情境規則")).font(.caption.weight(.medium))
-                Text(L("由上往下，第一條符合的生效")).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                Text(L("情境規則")).font(.body.weight(.semibold))
+                Text(L("由上往下，第一條符合的生效")).font(.callout).foregroundStyle(.secondary).lineLimit(1)
                 Spacer(minLength: 4)
                 Menu {
                     Button { monitor.addProfile(.time) } label: { Label(L("時段"), systemImage: "clock") }
@@ -195,12 +159,12 @@ extension PanelView {
                 } label: {
                     Label(L("新增"), systemImage: "plus")
                 }
-                .menuStyle(.button).controlSize(.small).fixedSize()
+                .menuStyle(.button).fixedSize()
                 .disabled(monitor.draft.profiles.count >= Profile.maxCount)
                 .help(L("新增一條情境規則（最多%ld條）", Profile.maxCount))
             }
             if monitor.draft.profiles.isEmpty {
-                Text(L("例如：23:00–07:00換安靜曲線、Xcode在跑時換強力曲線。")).font(.caption2).foregroundStyle(.secondary)
+                Text(L("例如：23:00–07:00換安靜曲線、Xcode在跑時換強力曲線。")).font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             ForEach(Array(monitor.draft.profiles.enumerated()), id: \.offset) { i, p in
@@ -221,18 +185,18 @@ extension PanelView {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Button { monitor.editingProfile = expanded ? nil : i } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.caption2).foregroundStyle(.secondary).frame(width: 10)
-                        Image(systemName: ruleSymbol(p)).font(.caption).foregroundStyle(active ? Neon.green : .secondary).frame(width: 16)
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.callout).foregroundStyle(.secondary).frame(width: 10)
+                        Image(systemName: ruleSymbol(p)).font(.body).foregroundStyle(active ? Neon.green : .secondary).frame(width: 16)
                         VStack(alignment: .leading, spacing: 1) {
                             HStack(spacing: 4) {
-                                Text(verbatim: p.name.isEmpty ? L("未命名") : p.name).font(.caption.weight(.semibold)).lineLimit(1)
-                                if active { Text(L("生效中")).font(.caption2.weight(.medium)).foregroundStyle(Neon.green) }
+                                Text(verbatim: p.name.isEmpty ? L("未命名") : p.name).font(.body.weight(.semibold)).lineLimit(1)
+                                if active { Text(L("生效中")).font(.callout.weight(.medium)).foregroundStyle(Neon.green) }
                             }
-                            Text(verbatim: Monitor.summary(p)).font(.caption2).foregroundStyle(.secondary)
+                            Text(verbatim: Monitor.summary(p)).font(.callout).foregroundStyle(.secondary)
                                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                             if let problem {
                                 Label { Text(verbatim: problem) } icon: { Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Neon.amber) }
-                                    .font(.caption2)
+                                    .font(.callout)
                             }
                         }
                         Spacer(minLength: 0)
@@ -251,63 +215,63 @@ extension PanelView {
     func ruleEditor(_ i: Int, _ p: Profile, fmin: Double, fmax: Double) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(L("名稱")).font(.caption).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                Text(L("名稱")).font(.body).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
                 TextField(L("名稱"), text: monitor.ruleBinding(i, \.name, fallback: ""))
-                    .textFieldStyle(.roundedBorder).controlSize(.small).font(.caption).labelsHidden()
+                    .textFieldStyle(.roundedBorder).font(.body).labelsHidden()
             }
             if p.hasTime {
                 HStack(spacing: 6) {
-                    Text(L("時段")).font(.caption).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                    Text(L("時段")).font(.body).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
                     DatePicker(L("開始時間"), selection: timeBinding(i, from: true), displayedComponents: .hourAndMinute)
-                        .labelsHidden().datePickerStyle(.stepperField).controlSize(.small)
+                        .labelsHidden().datePickerStyle(.stepperField)
                     Text(verbatim: "–").foregroundStyle(.secondary)
                     DatePicker(L("結束時間"), selection: timeBinding(i, from: false), displayedComponents: .hourAndMinute)
-                        .labelsHidden().datePickerStyle(.stepperField).controlSize(.small)
+                        .labelsHidden().datePickerStyle(.stepperField)
                     Spacer(minLength: 0)
                 }
                 if let f = p.when.from.flatMap(TimeOfDay.minutes), let t = p.when.to.flatMap(TimeOfDay.minutes), f > t {
-                    Text(L("跨午夜：到隔天%@", Monitor.timeText(p.when.to))).font(.caption2).foregroundStyle(.secondary).padding(.leading, 50)
+                    Text(L("跨午夜：到隔天%@", Monitor.timeText(p.when.to))).font(.callout).foregroundStyle(.secondary).padding(.leading, 62)
                 }
             }
             if p.hasApps || p.when.apps != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(L("App")).font(.caption).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                    Text(L("App")).font(.body).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
                     AppsField(apps: monitor.ruleBinding(i, \.when.apps, fallback: nil))
                 }
-                Text(L("任一個在跑就符合，只看你自己帳號的程式。填程序名稱（例如Visual Studio Code是Code），用逗號分開，不分大小寫；不確定就從右邊選單挑。")).font(.caption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 50)
+                Text(L("任一個在跑就符合，只看你自己帳號的程式。填程序名稱（例如Visual Studio Code是Code），用逗號分開，不分大小寫；不確定就從右邊選單挑。")).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 62)
             }
             if p.hasFocus {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(L("條件")).font(.caption).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
-                    Text(L("專注模式開啟時")).font(.caption)
+                    Text(L("條件")).font(.body).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
+                    Text(L("專注模式開啟時")).font(.body)
                     Spacer(minLength: 0)
                 }
-                focusAccessNote.padding(.leading, 50)
+                focusAccessNote.padding(.leading, 62)
             }
             HStack(spacing: 6) {
-                Text(L("曲線")).font(.caption).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                Text(L("曲線")).font(.body).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
                 Picker(L("曲線"), selection: monitor.ruleBinding(i, \.curve, fallback: nil)) {
                     Text(L("不換")).tag(String?.none)
                     ForEach(Config.presetIDs, id: \.self) { id in Text(verbatim: Monitor.presetName(id)).tag(Optional(id)) }
                 }
-                .labelsHidden().pickerStyle(.segmented).controlSize(.small)
+                .labelsHidden().pickerStyle(.segmented)
             }
             HStack(spacing: 6) {
                 Toggle(isOn: Binding(get: { p.maxRPM != nil },
                                      set: { monitor.ruleBinding(i, \.maxRPM, fallback: nil).wrappedValue = $0 ? min(max(2400, fmin), fmax) : nil })) {
-                    Text(L("上限")).font(.caption).foregroundStyle(.secondary)
+                    Text(L("上限")).font(.body).foregroundStyle(.secondary)
                 }
-                .toggleStyle(.checkbox).controlSize(.small).frame(width: 60, alignment: .leading)
+                .toggleStyle(.checkbox).frame(width: 60, alignment: .leading)
                 if let m = p.maxRPM {
                     Slider(value: Binding(get: { m }, set: { monitor.ruleBinding(i, \.maxRPM, fallback: nil).wrappedValue = ($0 / 100).rounded() * 100 }),
                            in: fmin...fmax)
-                        .controlSize(.small)
+                        
                         .accessibilityLabel(L("「%@」的最高轉速", p.name))
                         .accessibilityValue(Text(verbatim: "\(Int(m)) RPM"))
-                    Text(verbatim: "\(Int(m)) rpm").font(.caption.monospacedDigit()).frame(width: 64, alignment: .trailing)
+                    Text(verbatim: "\(Int(m)) rpm").font(.body.monospacedDigit()).frame(width: 76, alignment: .trailing)
                 } else {
-                    Text(L("沿用平常的上限")).font(.caption2).foregroundStyle(.secondary)
+                    Text(L("沿用平常的上限")).font(.callout).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 }
             }
@@ -320,7 +284,7 @@ extension PanelView {
                 Button { monitor.removeProfile(i) } label: { Label(L("刪除規則"), systemImage: "trash") }
                     .help(L("刪除這條規則（按「套用」才會寫入）"))
             }
-            .controlSize(.small)
+            
         }
     }
 
@@ -343,25 +307,25 @@ extension PanelView {
         switch monitor.focusAuth {
         case .allowed:
             if let f = monitor.focusNow {
-                Text(f ? L("專注模式：開啟中") : L("專注模式：關閉")).font(.caption2).foregroundStyle(.secondary)
+                Text(f ? L("專注模式：開啟中") : L("專注模式：關閉")).font(.callout).foregroundStyle(.secondary)
             } else if monitor.profileDirty {
-                Text(L("按「套用」後開始讀取專注模式。")).font(.caption2).foregroundStyle(.secondary)
+                Text(L("按「套用」後開始讀取專注模式。")).font(.callout).foregroundStyle(.secondary)
             }
         case .notDetermined:
             VStack(alignment: .leading, spacing: 4) {
                 Text(L("這條規則要知道專注模式有沒有開。cool42只會讀「開或關」，不會知道是哪一種。"))
-                    .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Button(L("繼續⋯")) { monitor.requestFocusAccess() }.controlSize(.small)
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button(L("繼續⋯")) { monitor.requestFocusAccess() }
                     .help(L("macOS會問你要不要讓cool42讀取專注模式"))
             }
         case .denied, .restricted:
             VStack(alignment: .leading, spacing: 4) {
-                Text(L("讀不到專注模式，這條規則不會生效。")).font(.caption2).foregroundStyle(.secondary)
+                Text(L("讀不到專注模式，這條規則不會生效。")).font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(L("打開隱私權設定")) { FocusWatcher.openSettings() }.controlSize(.small)
+                Button(L("打開隱私權設定")) { FocusWatcher.openSettings() }
             }
         case .unavailable:
-            Text(L("從cool42 Panel.app執行時才讀得到專注模式；讀不到時這條規則不會生效。")).font(.caption2).foregroundStyle(.secondary)
+            Text(L("從cool42 Panel.app執行時才讀得到專注模式；讀不到時這條規則不會生效。")).font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -376,7 +340,7 @@ struct AppsField: View {
     var body: some View {
         HStack(spacing: 4) {
             TextField(L("例如Xcode, Blender, ffmpeg"), text: $text)
-                .textFieldStyle(.roundedBorder).controlSize(.small).font(.caption).labelsHidden()
+                .textFieldStyle(.roundedBorder).font(.body).labelsHidden()
                 .onAppear { if !loaded { text = (apps ?? []).joined(separator: ", "); loaded = true } }
                 .onChange(of: text) { _, t in
                     apps = t.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -389,7 +353,7 @@ struct AppsField: View {
                     Button(a.exec == a.name ? a.name : L("%@（%@）", a.name, a.exec)) { add(a.exec) }
                 }
             } label: { Image(systemName: "list.bullet") }
-                .menuStyle(.button).menuIndicator(.hidden).controlSize(.small).fixedSize()
+                .menuStyle(.button).menuIndicator(.hidden).fixedSize()
                 .help(L("從執行中的App挑選"))
                 .accessibilityLabel(L("從執行中的App挑選"))
         }

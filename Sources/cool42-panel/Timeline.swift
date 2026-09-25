@@ -311,7 +311,9 @@ extension PanelView {
         let throttles = monitor.todayThrottles
         let boosts = monitor.todayBoosts
         return DisclosureGroup(isExpanded: Binding(get: { monitor.showToday }, set: { monitor.showToday = $0 })) {
-            VStack(alignment: .leading, spacing: 5) {
+            // 事件最多 20 件、有的兩行：全列出來面板會長到 1,200pt 以上（1080p 放不下）。
+            // 放得下就照列，超過 todayListCap 才在這一塊裡捲（紅燈時上限再低一點，整個面板才不用捲）
+            let list = VStack(alignment: .leading, spacing: 5) {
                 if ev.isEmpty {
                     Text(L("今天還沒有降頻、過熱或預熱。")).font(.caption2).foregroundStyle(.secondary)
                 } else {
@@ -331,18 +333,27 @@ extension PanelView {
                     }
                 }
             }
+            ViewThatFits(in: .vertical) {
+                list
+                ScrollView(.vertical) { list }.frame(height: todayListCap)
+            }
+            .frame(maxHeight: todayListCap, alignment: .top)
             .padding(.top, 8)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "list.bullet.rectangle").font(.caption).foregroundStyle(.secondary)
                 Text(L("今天")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer(minLength: 4)
+                // 小字不上霓虹色（玻璃上對比不夠）：有降頻時前面多一隻紅色烏龜，字仍是系統色
+                if throttles > 0 { Image(systemName: "tortoise.fill").font(.caption2).foregroundStyle(Neon.red).accessibilityHidden(true) }
                 Text(verbatim: todaySummary(throttles: throttles, boosts: boosts, total: max(ev.count, monitor.totalToday)))
-                    .font(.caption2.monospacedDigit()).foregroundStyle(throttles > 0 ? Neon.red : Color.secondary).lineLimit(1)
+                    .font(.caption2.monospacedDigit()).foregroundStyle(throttles > 0 ? Color.primary : Color.secondary).lineLimit(1)
             }
         }
-        .neonCard(padding: 8)
     }
+
+    /// 「今天」事件清單最多多高（pt）：熱度格和「今天」一次只展開一個（Monitor），紅燈提示在時再少一點
+    var todayListCap: CGFloat { badHealth.isEmpty ? 200 : 120 }
 
     func todaySummary(throttles: Int, boosts: Int, total: Int) -> String {
         if total == 0 { return L("沒有事件") }

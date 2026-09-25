@@ -120,72 +120,50 @@ extension PanelView {
     /// 紅燈，照處理順序排（風扇卡手動 > Macs Fan Control > guard > 設定檔 > 感測器）
     var badHealth: [HealthItem] { monitor.health.filter { $0.severity == .bad }.sorted { $0.priority < $1.priority } }
 
-    /// 標題列下方的紅燈提示：只有紅燈才出現；按「查看」展開健康檢查卡並捲到那裡（卡片在面板最下面）
+    /// 標題列下方的紅燈提示：只有紅燈才出現；按「查看」打開設定視窗的「關於與檢查」分頁
     @ViewBuilder
-    func healthBanner(scrollTo: @escaping () -> Void) -> some View {
+    var healthBanner: some View {
         if let first = badHealth.first {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "xmark.octagon.fill").foregroundStyle(Neon.red)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(badHealth.count > 1 ? L("健康檢查有%ld項要處理", badHealth.count) : L("健康檢查有1項要處理"))
-                        .font(.caption.weight(.semibold)).foregroundStyle(Neon.red)
-                    Text(verbatim: L("%@：%@", first.name, first.detail)).font(.caption2).foregroundStyle(.primary)
+                        .font(.caption.weight(.semibold)).foregroundStyle(.primary)
+                    Text(verbatim: L("%@：%@", first.name, first.detail)).font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 4)
-                Button(L("查看")) { monitor.showHealth = true; scrollTo() }.controlSize(.small)
-                    .help(L("展開面板下方的健康檢查"))
+                Button(L("查看⋯")) { monitor.refreshHealth(force: true); monitor.onShowSettings?(.about) }.controlSize(.small)
+                    .help(L("打開設定視窗的健康檢查"))
             }
-            .neonCard(padding: 8)
+            .padding(8)
+            // 警示是內容，不是玻璃：淡紅底＋紅色圖示，文字仍用系統色
+            .background(Neon.red.opacity(0.14), in: RoundedRectangle(cornerRadius: Neon.plotRadius, style: .continuous))
             .accessibilityElement(children: .contain)
         }
     }
 
-    static let healthAnchor = "health"
-
-    /// 健康檢查卡：收合時標題列就是結論（全部正常／幾項要處理）
-    var healthCard: some View {
+    /// 健康檢查清單（設定視窗「關於與檢查」分頁）
+    var healthList: some View {
         let items = monitor.health
-        let worst = items.map(\.severity).max() ?? .ok
-        let bad = items.filter { $0.severity == .bad }.count, warn = items.filter { $0.severity == .warn }.count
-        return DisclosureGroup(isExpanded: Binding(get: { monitor.showHealth }, set: { monitor.showHealth = $0 })) {
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(items) { it in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Image(systemName: it.symbol).font(.caption2).foregroundStyle(it.color).frame(width: 14)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(verbatim: it.name).font(.caption2.weight(.semibold)).foregroundStyle(.primary)
-                            Text(verbatim: it.detail).font(.caption2).foregroundStyle(.secondary)
-                                .lineLimit(3).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                        }
-                        Spacer(minLength: 0)
+        return VStack(alignment: .leading, spacing: 8) {
+            ForEach(items) { it in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: it.symbol).foregroundStyle(it.color).frame(width: 16)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: it.name).font(.body.weight(.medium))
+                        Text(verbatim: it.detail).font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                     }
-                    .accessibilityElement(children: .combine)
+                    Spacer(minLength: 0)
                 }
-                HStack(spacing: 8) {
-                    Button { monitor.refreshHealth(force: true) } label: { Label(L("重新檢查"), systemImage: "arrow.clockwise") }
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString("cool42 doctor", forType: .string)
-                    } label: { Label(L("拷貝完整檢查指令"), systemImage: "doc.on.doc") }
-                        .help(L("拷貝「cool42 doctor」，貼到終端機執行"))
-                    Spacer()
-                }
-                .controlSize(.small)
-                .padding(.top, 2)
-            }
-            .padding(.top, 8)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "stethoscope").font(.caption).foregroundStyle(.secondary)
-                Text(L("健康檢查")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Spacer(minLength: 4)
-                Image(systemName: HealthItem(name: "", detail: "", severity: worst).symbol).font(.caption2)
-                    .foregroundStyle(HealthItem(name: "", detail: "", severity: worst).color)
-                Text(verbatim: bad > 0 ? L("%ld項要處理", bad) : warn > 0 ? L("正常 · %ld項提醒", warn) : L("全部正常"))
-                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                .accessibilityElement(children: .combine)
             }
         }
-        .neonCard(padding: 8)
+    }
+
+    var healthSummary: String {
+        let bad = monitor.health.filter { $0.severity == .bad }.count, warn = monitor.health.filter { $0.severity == .warn }.count
+        return bad > 0 ? L("%ld項要處理", bad) : warn > 0 ? L("正常 · %ld項提醒", warn) : L("全部正常")
     }
 }

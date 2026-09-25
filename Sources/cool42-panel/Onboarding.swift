@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 // 首次啟動導覽：三頁、只自動出現一次（UserDefaults onboarding.shown），可略過；
-// 之後從面板「偏好」卡或選單列右鍵選單「cool42是做什麼的？」再打開。
+// 之後從設定視窗「關於與檢查」或選單列右鍵選單「cool42是做什麼的？」再打開。
 // 不在這裡要任何權限（HIG Onboarding：權限等第一次用到功能時才要）
 
 enum Onboarding {
@@ -46,7 +46,7 @@ struct OnboardingPage {
                 ]),
             ]),
             OnboardingPage(symbol: "arrow.uturn.backward.circle", title: L("隨時可以交還原廠"), points: [
-                L("guard在執行時，面板的「緊急交還原廠」幾秒內就把風扇交回macOS，不需要密碼；之後按「恢復」就回到原本的模式。"),
+                L("guard在執行時，面板上的「自動」、選單列右鍵的「交還原廠控制⋯」或設定視窗的「緊急交還原廠」，幾秒內就把風扇交回macOS，不需要密碼；之後按「恢復」就回到原本的模式。"),
                 L("在終端機執行sudo cool42 fan auto，也會立刻交還。"),
                 L("完整移除：在cool42資料夾執行./uninstall.sh。會移除guard、指令列工具、面板、hook與專注模式旗標，設定檔保留。"),
             ]),

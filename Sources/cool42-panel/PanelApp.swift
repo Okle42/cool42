@@ -42,9 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private var panel: NSPanel!
     private var host: NSHostingView<PanelView>?
-    /// 視窗高度跟著內容走（展開感測器就長高、收起就縮回），直到使用者自己拖過高度為止
-    private var autoHeight = UserDefaults.standard.object(forKey: "panel.autoHeight") as? Bool ?? true
-    private var programmaticResize = false
+    lazy var settings = SettingsWindowController(monitor: monitor)
 
     static func main() {
         let app = NSApplication.shared
@@ -55,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // 不顯示 Dock 圖示
+        NSApp.mainMenu = buildMainMenu()      // 選單列看不到（accessory app），但 ⌘, ⌘Q ⌘W 與文字欄位的拷貝／貼上靠它
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let b = statusItem.button {
             // 溫度每 3 秒變一次：等寬數字，選單列上的圖示才不會跟著左右抖
@@ -69,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         monitor.onTick = { [weak self] in self?.updateStatusItem() }
         monitor.onHide = { [weak self] in self?.hidePanel() }
         monitor.onShowOnboarding = { [weak self] in self?.showOnboarding() }
+        monitor.onShowSettings = { [weak self] tab in self?.settings.show(tab: tab) }
         // 通知：只設 delegate、讀授權狀態（不會跳授權視窗；第一次真的要發通知時才請求）
         Notifier.shared.onAuthChange = { [weak self] a in self?.monitor.notifyAuth = a }
         Notifier.shared.onOpen = { [weak self] in self?.showPanel() }
@@ -80,8 +80,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !Onboarding.shown { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.showOnboarding() } }
     }
 
+    /// 從 Finder 再打開一次（app 已在跑）：打開設定視窗——純選單列 app 的圖示被使用者藏起來時，這是唯一找得回來的路
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings.show(tab: nil)
+        return false
+    }
+
     private let onboarding = OnboardingWindow()
     @objc func showOnboarding() { onboarding.show() }
+    @objc func showSettings() { settings.show(tab: nil) }
+
+    /// 看不到的主選單：App（設定⋯ ⌘,、結束 ⌘Q）、編輯（文字欄位的還原／拷貝／貼上）、視窗（關閉 ⌘W）
+    private func buildMainMenu() -> NSMenu {
+        let main = NSMenu()
+        func sub(_ title: String, _ items: [NSMenuItem]) {
+            let host = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let m = NSMenu(title: title)
+            items.forEach(m.addItem)
+            host.submenu = m
+            main.addItem(host)
+        }
+        func item(_ t: String, _ a: Selector?, _ k: String, _ mods: NSEvent.ModifierFlags = .command, target: AnyObject? = nil) -> NSMenuItem {
+            let i = NSMenuItem(title: t, action: a, keyEquivalent: k)
+            i.keyEquivalentModifierMask = mods
+            i.target = target
+            return i
+        }
+        sub("cool42", [
+            item(L("設定⋯"), #selector(showSettings), ",", target: self),
+            .separator(),
+            item(L("結束cool42面板"), #selector(quit), "q", target: self),
+        ])
+        sub(L("編輯"), [
+            item(L("還原"), Selector(("undo:")), "z"),
+            item(L("重做"), Selector(("redo:")), "z", [.command, .shift]),
+            .separator(),
+            item(L("剪下"), #selector(NSText.cut(_:)), "x"),
+            item(L("拷貝"), #selector(NSText.copy(_:)), "c"),
+            item(L("貼上"), #selector(NSText.paste(_:)), "v"),
+            item(L("全選"), #selector(NSText.selectAll(_:)), "a"),
+        ])
+        sub(L("視窗"), [item(L("關閉"), #selector(NSWindow.performClose(_:)), "w")])
+        return main
+    }
 
     /// 選單列：template SF Symbol（系統依選單列深淺上色，狀態靠「換形狀」不靠顏色）＋等寬溫度字。
     /// 原本是彩色 emoji 圓點，HIG 要求選單列圖示用 SF Symbol 或 template image。
@@ -101,128 +142,150 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func buildPanel() {
         // 外觀跟系統走（淺 / 深色都有對應色值），不鎖死 darkAqua
         let host = NSHostingView(rootView: PanelView(monitor: monitor))
+        // 視窗大小由 fitHeight 管（量內容高度再設 frame）；不讓 hosting view 用自己的 intrinsic／min／max size 撐住內容區——
+        // 撐住時 contentView 會比視窗高（實測 970 vs 894），標題列被裁在視窗上緣外
+        host.sizingOptions = []
         self.host = host
-        let p = NSPanel(
+        // 無邊框：不要 .titled／.utilityWindow 那層視窗外框與標題列背景（原本玻璃上多蓋一層霧），圓角與陰影自己來
+        let p = GlassPanel(
             contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: 760),
-            styleMask: [.titled, .fullSizeContentView, .resizable, .utilityWindow, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false)
-        p.title = "cool42"
-        p.titlebarAppearsTransparent = true
-        p.titleVisibility = .hidden
-        p.standardWindowButton(.closeButton)?.isHidden = true
-        p.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        p.standardWindowButton(.zoomButton)?.isHidden = true
-        p.isMovableByWindowBackground = true      // 抓卡片任何空白處都能拖
+        p.title = "cool42"                         // 看不到，但 VoiceOver 與截圖工具靠它認
+        p.isMovableByWindowBackground = true      // 抓任何空白處都能拖
         p.isOpaque = false
+        p.backgroundColor = .clear
         p.hasShadow = true
         p.isFloatingPanel = true
-        p.becomesKeyOnlyIfNeeded = true           // Stepper / Slider 點了才拿 key，平常不搶焦點
-        p.hidesOnDeactivate = false               // 切到別的 app 也留著
+        p.becomesKeyOnlyIfNeeded = true           // Slider / segmented 點了才拿 key，平常不搶焦點
+        p.hidesOnDeactivate = false               // 切到別的 app 也留著（刻意偏離 HIG：常駐監控，可隨時關）
         p.level = .floating
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         p.isReleasedWhenClosed = false
         p.delegate = self
-        // 寬鎖死，高度可拖（內容超過就捲）
-        let maxH = (NSScreen.main?.visibleFrame.height ?? 900) - 20
-        p.contentMinSize = NSSize(width: Self.panelWidth, height: 360)
-        p.contentMaxSize = NSSize(width: Self.panelWidth, height: maxH)
+        p.setAccessibilityLabel(L("cool42面板"))
         panel = p
         applyBackground()
-        // 使用者切「減少透明度」「增加對比」時即時換底
-        NotificationCenter.default.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-                                               object: nil, queue: .main) { [weak self] _ in self?.applyBackground() }
+        // 使用者切「減少透明度」「增加對比」時即時換底。這個通知發在 NSWorkspace 自己的 notificationCenter，
+        // 掛在 NotificationCenter.default 永遠收不到（原本就是這樣：切了設定要重開面板才換）
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+                                                          object: nil, queue: .main) { [weak self] _ in self?.applyBackground() }
         p.setFrameAutosaveName("cool42.panel")
         if !p.setFrameUsingName("cool42.panel") {
             // 第一次：貼螢幕右上角（選單列圖示這時還沒定位，不能拿它的座標）
-            let h = min(760, maxH)
             let vf = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-            let x = vf.maxX - Self.panelWidth - 12
-            let y = vf.maxY - h - 8
-            p.setFrame(NSRect(x: x, y: y, width: Self.panelWidth, height: h), display: false)
+            let h = min(760, vf.height - 16)
+            p.setFrame(NSRect(x: vf.maxX - Self.panelWidth - 12, y: vf.maxY - h - 8, width: Self.panelWidth, height: h), display: false)
         }
         monitor.panelWindow = p
         fitHeight(to: monitor.contentHeight)   // 內容高度可能在 panel 指派前就量好了
     }
 
     /// 視窗底材質（功能層）：
-    ///   macOS 26+  NSGlassEffectView（Liquid Glass，regular）—— 系統在「減少透明度」會自己變霧、「增加對比」會自己加邊
+    ///   macOS 26+  NSGlassEffectView，深色外觀加深色 tint（和 Dock、桌面 widget 同一種「深、通透」），見 GlassStyle
     ///   macOS 14–25 NSVisualEffectView .popover（跟選單列 popover 同一種材質，浮動面板要 state = .active）
-    ///   「減少透明度」開著：兩種都不用，改實色 Neon.panelBG（不透明版）—— 面板字很密，實色底最好讀
-    /// 卡片是內容層，仍用 Neon.cardBG 實色，不上玻璃（不做玻璃疊玻璃）
+    ///   「減少透明度」開著：不用玻璃，改實色 Neon.panelBG —— 面板字很密，實色底最好讀
+    /// 面板裡不再有實心卡片（玻璃上疊灰板＝霧灰色的主因），分組靠留白與分隔線
     private func applyBackground() {
         guard let p = panel, let host else { return }
         host.removeFromSuperview()
         host.translatesAutoresizingMaskIntoConstraints = true
         host.autoresizingMask = [.width, .height]
-        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
-            p.backgroundColor = Neon.panelSolidColor
-            p.contentView = host
-        } else if #available(macOS 26.0, *) {
-            p.backgroundColor = .clear
-            let glass = NSGlassEffectView()
-            glass.style = .regular
-            glass.cornerRadius = Neon.windowRadius
-            p.contentView = glass
+        let r = Neon.windowRadius
+        let root: NSView
+        let forced = GlassStyle.fallback
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency || forced == "solid" {
+            let solid = SolidPanelBackground()
+            solid.radius = r
+            root = solid
+            host.frame = solid.bounds
+            solid.addSubview(host)
+        } else if #available(macOS 26.0, *), forced != "legacy" {
+            let glass = TintedGlassView()
+            glass.cornerRadius = r
+            glass.applyStyle()
+            root = glass
             host.frame = glass.bounds
             glass.contentView = host   // 內容一定放 contentView，不要把 glass 當兄弟 view 墊在後面
         } else {
-            p.backgroundColor = .clear
             let fx = NSVisualEffectView()
             fx.material = .popover
             fx.blendingMode = .behindWindow
             fx.state = .active
-            fx.wantsLayer = true
-            fx.layer?.cornerRadius = Neon.windowRadius
-            fx.layer?.cornerCurve = .continuous
-            fx.layer?.masksToBounds = true
-            host.translatesAutoresizingMaskIntoConstraints = false
+            fx.maskImage = .roundedMask(radius: r)   // behind-window 模糊只能靠 maskImage 裁圓角（layer.cornerRadius 裁不到）
+            // .popover 會跟著底下變：深色壓在白網頁上洗成中灰（≈ 110/255）、淺色壓在深色桌布上暗成 ≈ 144，霓虹數字只剩 1.7–3:1
+            // → 墊一層色（深色黑 0.55、淺色白 0.60），見 LegacyDimView
+            let dim = LegacyDimView(frame: fx.bounds)
+            dim.radius = r
+            dim.autoresizingMask = [.width, .height]
+            fx.addSubview(dim)
+            host.frame = fx.bounds
             fx.addSubview(host)
-            NSLayoutConstraint.activate([
-                host.leadingAnchor.constraint(equalTo: fx.leadingAnchor), host.trailingAnchor.constraint(equalTo: fx.trailingAnchor),
-                host.topAnchor.constraint(equalTo: fx.topAnchor), host.bottomAnchor.constraint(equalTo: fx.bottomAnchor),
-            ])
-            p.contentView = fx
+            root = fx
         }
-        p.invalidateShadow()
+        // 視窗的 contentView 是一個普通容器：材質 view 與窗緣是它的兩個子 view（不在 NSGlassEffectView 裡塞別的子 view）。
+        // 直接把玻璃設成 contentView 時，視窗高度變了它會留著舊的上緣位移（實測 contentView 970、視窗 894，標題列被裁掉）
+        let container = NSView(frame: NSRect(origin: .zero, size: p.frame.size))
+        root.frame = container.bounds
+        root.autoresizingMask = [.width, .height]
+        container.addSubview(root)
+        let edge = PanelEdgeView(radius: r, glass: root is GlassMaterial)
+        edge.frame = container.bounds
+        edge.autoresizingMask = [.width, .height]
+        container.addSubview(edge)
+        p.contentView = container
+        // 用約束把內容區釘在視窗框上：自動換算的 autoresizing 約束會留著一個 −76 的上緣位移（視窗從 967 縮到 891 之後），
+        // 內容區就比視窗高、標題列被裁在上緣外
+        if let frameView = container.superview {
+            container.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                container.leadingAnchor.constraint(equalTo: frameView.leadingAnchor),
+                container.trailingAnchor.constraint(equalTo: frameView.trailingAnchor),
+                container.topAnchor.constraint(equalTo: frameView.topAnchor),
+                container.bottomAnchor.constraint(equalTo: frameView.bottomAnchor),
+            ])
+        }
+        material = root
+        syncHostFrame()
     }
+    private weak var material: NSView?
 
-    /// 內容高度變了：autoHeight 時把視窗調成剛好（上緣不動、不超過螢幕）
+    /// 內容高度變了：把視窗調成剛好（上緣不動、不超過螢幕；真的放不下才捲動）
     private func fitHeight(to contentH: CGFloat) {
-        guard autoHeight, let p = panel, contentH > 0 else { return }
-        let maxH = ((p.screen ?? NSScreen.main)?.visibleFrame.height ?? 900) - 20
-        let h = min(max(contentH, 360), maxH)
+        guard let p = panel, contentH > 0 else { return }
+        let vf = (p.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let h = min(contentH, vf.height - 16)
         guard abs(p.frame.height - h) > 1 else { return }
         var f = p.frame
         f.origin.y += f.height - h   // 保持頂邊
         f.size.height = h
-        programmaticResize = true
+        if f.minY < vf.minY + 8 { f.origin.y = vf.minY + 8 }   // 長高時碰到 Dock 就整個往上推
         // 「減少動態效果」開著就直接跳到新高度，不做縮放動畫
         p.setFrame(f, display: true, animate: p.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        programmaticResize = false
+        syncHostFrame()
     }
 
-    /// 使用者自己拖了高度 → 之後不再自動跟內容；右鍵選單可以恢復
-    func windowDidResize(_ notification: Notification) {
-        // setFrameAutosaveName 在 buildPanel 裡就會發這個通知，那時 panel 還沒指派
-        guard let p = panel, !programmaticResize, p.isVisible else { return }
-        if autoHeight { autoHeight = false; UserDefaults.standard.set(false, forKey: "panel.autoHeight") }
+    /// 內容區與 hosting view 一律貼齊視窗（保險：無邊框視窗換過 contentView 後，偶爾會留著舊高度）
+    private func syncHostFrame() {
+        guard let p = panel, let host, let container = p.contentView else { return }
+        container.layoutSubtreeIfNeeded()
+        let b = container.bounds
+        for v in container.subviews where v.frame != b { v.frame = b }
+        if let m = material, host.frame != m.bounds { host.frame = m.bounds }
+        p.invalidateShadow()
     }
 
-    @objc private func resumeAutoHeight() {
-        autoHeight = true
-        UserDefaults.standard.set(true, forKey: "panel.autoHeight")
-        fitHeight(to: monitor.contentHeight)
-    }
+    func windowDidResize(_ notification: Notification) { syncHostFrame() }
 
     @objc private func statusClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu = NSMenu()
             // 選單項目不放圖示（macOS 27 預設隱藏選單圖示）、不顯示快捷鍵；用不到的項目隱藏而不是變暗
             menu.addItem(withTitle: panel.isVisible ? L("隱藏面板") : L("顯示面板"), action: #selector(togglePanel), keyEquivalent: "")
-            if !autoHeight { menu.addItem(withTitle: L("恢復自動調整高度"), action: #selector(resumeAutoHeight), keyEquivalent: "") }
+            menu.addItem(withTitle: L("設定⋯"), action: #selector(showSettings), keyEquivalent: "")
             let temp = menu.addItem(withTitle: L("在選單列顯示溫度"), action: #selector(toggleMenuBarTemp), keyEquivalent: "")
             temp.state = monitor.showTempInMenuBar ? .on : .off
-            // 緊急交還：面板裡在風扇控制卡最下面（常在捲動範圍外），右鍵選單也放一份；guard 沒跑時改設定檔沒人讀，不放
+            // 緊急交還：guard 沒跑時改設定檔沒人讀，不放
             if monitor.snapshot?.guardRunning ?? false {
                 menu.addItem(.separator())
                 if monitor.config.mode == "auto", let prev = monitor.emergencyPrevMode {
@@ -263,6 +326,199 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func quit() { NSApp.terminate(nil) }
 }
 
+// MARK: - 面板視窗與玻璃
+
+/// 無邊框 panel 預設不能變 key：Esc、segmented 的鍵盤操作要它能拿 key（becomesKeyOnlyIfNeeded 仍讓它平常不搶焦點）
+final class GlassPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+/// 玻璃樣式（2026-09-25 與 Dock／桌面 widget 並排實測四輪後選定，對照圖 docs/img/screens/glass-compare.png）：
+///   深淺兩種外觀都用 .clear ＋ tint（深色黑 0.70、淺色白 0.62）：
+///   - .regular 會依背景自己調亮度：深色星空上被抬成霧灰（≈ 38/255，Dock ≈ 12），底下換成白網頁整片洗成淺灰（≈ 150），
+///     淺色外觀壓在深色桌布上又變成中灰（≈ 90），霓虹數字對比都掉到 1.1–2:1，而 NSGlassEffectView 不會替內容換深淺色。
+///   - .clear 不自適應，所以一定要配一層暗化／提亮（HIG：clear 要加深色層），tint 就是那一層；
+///     實測深色：星空底 ≈ 10、白網頁底 ≈ 50；淺色：星空底 ≈ 193、白網頁底 ≈ 250。
+///   regular 的白 tint 不會提亮（實測 0.45 → 0.80 反而更暗），所以淺色也用 clear。
+///   淺色 tint 第二輪（同日）從 0.80 降到 0.62：0.80 壓在白網頁上是 255（純白、完全看不到底下），跟使用者要的通透相反；
+///     0.55／0.65／0.72 各截四種背景量過，0.62 配上壓暗一階的淺色霓虹色，星空底上大數字仍 ≥ 3:1（見 Neon 的淺色值）。
+///     代價：淺色壓在深色桌布上時次要字（系統 secondaryLabel）約 3.5:1 —— 系統次要字在純白上也只有約 4:1，這是系統色本身的上限
+/// 開發比對用：-glass.style regular|clear、-glass.tint 0…1（深色）、-glass.lightTint 0…1（淺色）、
+///   -glass.fallback solid|legacy（強制走「減少透明度」實色底／macOS 14–25 的 NSVisualEffectView，截圖檢查用）
+enum GlassStyle {
+    static func num(_ key: String) -> Double? {
+        if let v = UserDefaults.standard.object(forKey: key) as? Double { return v }
+        return UserDefaults.standard.string(forKey: key).flatMap(Double.init)
+    }
+    static var clear: Bool { UserDefaults.standard.string(forKey: "glass.style") != "regular" }
+    static var darkTint: Double { num("glass.tint") ?? 0.70 }
+    static var lightTint: Double { num("glass.lightTint") ?? 0.62 }
+    static var fallback: String? { UserDefaults.standard.string(forKey: "glass.fallback") }
+}
+
+/// 「增加對比」：系統設定，或外觀本身是高對比。
+/// 截圖要看這條分支不能靠 NSAppearance(named: .accessibilityHighContrast*)——實測它會退回一般 aqua／darkAqua，
+/// 所以另有開發用旗標 forceHC（-glass.forceHC YES，或截圖工具在程式裡設），不必去切使用者的系統設定
+enum A11y {
+    static var forceHC = UserDefaults.standard.bool(forKey: "glass.forceHC")
+    static func increaseContrast(_ ap: NSAppearance? = nil) -> Bool {
+        if forceHC || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast { return true }
+        let a = ap ?? NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
+        let m = a.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua])
+        return m == .accessibilityHighContrastAqua || m == .accessibilityHighContrastDarkAqua
+    }
+    static func isDark(_ ap: NSAppearance) -> Bool {
+        let m = ap.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua])
+        return m == .darkAqua || m == .accessibilityHighContrastDarkAqua
+    }
+}
+
+/// 標記「這是玻璃」（PanelEdgeView 依此決定邊緣光；舊系統編譯時不能直接寫 NSGlassEffectView 型別判斷）
+protocol GlassMaterial {}
+@available(macOS 26.0, *)
+final class TintedGlassView: NSGlassEffectView, GlassMaterial {
+    func applyStyle() {
+        let ap = effectiveAppearance
+        let dark = A11y.isDark(ap)
+        style = GlassStyle.clear ? .clear : .regular
+        var a = dark ? GlassStyle.darkTint : GlassStyle.lightTint
+        // 「增加對比」：底色再壓實一點（系統玻璃自己也會變霧），字與背景的差距優先於通透
+        if A11y.increaseContrast(ap) { a = max(a, dark ? 0.85 : 0.90) }
+        tintColor = a <= 0 ? nil : dark ? NSColor(srgbRed: 0, green: 0, blue: 0.02, alpha: a) : NSColor(white: 1, alpha: a)
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyStyle()
+    }
+}
+
+/// 「減少透明度」時的實色底：圓角自己裁，顏色在 updateLayer 依外觀重算（CGColor 不會自己跟著深淺色變）
+final class SolidPanelBackground: NSView {
+    var radius: CGFloat = 16
+    override var wantsUpdateLayer: Bool { true }
+    override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true }
+    required init?(coder: NSCoder) { fatalError() }
+    override func updateLayer() {
+        layer?.cornerRadius = radius
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = Neon.panelSolidColor.cgColor }
+    }
+}
+
+/// 舊系統（macOS 14–25）材質上的色層（跟 clear 玻璃配 tint 同一個道理）：
+///   深色黑 0.55（.popover 壓在白網頁上會洗成 ≈ 110/255）、淺色白 0.60（壓在深色桌布上會暗成 ≈ 144，霓虹數字只剩 1.8:1）
+final class LegacyDimView: NSView {
+    var radius: CGFloat = 16
+    override var wantsUpdateLayer: Bool { true }
+    override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true }
+    required init?(coder: NSCoder) { fatalError() }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func updateLayer() {
+        layer?.cornerRadius = radius
+        layer?.cornerCurve = .continuous
+        layer?.backgroundColor = A11y.isDark(effectiveAppearance) ? NSColor(white: 0, alpha: 0.55).cgColor : NSColor(white: 1, alpha: 0.60).cgColor
+    }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
+}
+
+/// 窗緣光。和 Dock、桌面 widget 同一種「有方向的光」（2026-09-25 在同一張整螢幕截圖上逐像素量）：
+///   Dock 只有上下緣亮（≈ 83/255），往內 28 → 21 → 18 → 16 漸淡到底色 12；左右兩側幾乎沒有亮邊。widget 也一樣（上緣 60、側邊 0）。
+///   原本一圈均勻 1pt 白 0.26 的描邊四邊都 ≈ 88、往內一格直接掉到 13，看起來像 HUD 外框。
+/// 所以玻璃分支：1pt 邊用垂直漸層（上下 0.26、側邊中段 0，靠近圓角處才亮起來）＋上下緣內側 6pt 柔光；
+/// 實色／舊系統材質：系統分隔線色一圈；「增加對比」：均勻加粗的 label 色邊（這時要清楚，不要光影）
+final class PanelEdgeView: NSView {
+    let radius: CGFloat
+    let glass: Bool
+    private let rim = CAGradientLayer()
+    private let rimMask = CALayer()
+    private let topGlow = CAGradientLayer()
+    private let bottomGlow = CAGradientLayer()
+    /// 側邊從亮轉淡的距離（pt）：比圓角大一點，圓角整段都是亮的
+    static let fade: CGFloat = 36
+    static let glowDepth: CGFloat = 6
+
+    init(radius: CGFloat, glass: Bool) {
+        self.radius = radius; self.glass = glass
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var wantsUpdateLayer: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }   // 不擋滑鼠
+
+    override func layout() {
+        super.layout()
+        needsDisplay = true
+    }
+
+    override func updateLayer() {
+        guard let l = layer else { return }
+        let ap = effectiveAppearance
+        let hc = A11y.increaseContrast(ap)
+        let dark = A11y.isDark(ap)
+        l.cornerRadius = radius
+        l.cornerCurve = .continuous
+        l.masksToBounds = true
+        let b = l.bounds
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        let directional = glass && !hc
+        if !directional {
+            // 均勻邊：高對比加粗，實色／舊系統材質用分隔線色
+            [rim, topGlow, bottomGlow].forEach { $0.removeFromSuperlayer() }
+            l.borderWidth = hc ? 1.5 : 1
+            let c: NSColor = hc ? NSColor.labelColor.withAlphaComponent(0.55) : NSColor.separatorColor
+            ap.performAsCurrentDrawingAppearance { l.borderColor = c.cgColor }
+            return
+        }
+        l.borderWidth = 0
+        for sub in [rim, topGlow, bottomGlow] where sub.superlayer !== l { l.addSublayer(sub) }
+        // 1pt 邊：垂直漸層上色，mask 是同圓角（continuous）的 1pt border，只露出邊
+        // 側邊：玻璃自己就有一條 ≈ 31/255 的邊，再加只會比 Dock（側邊 ≈ 0）更像外框，所以深色側邊不補
+        let (edge, side): (CGFloat, CGFloat) = dark ? (0.26, 0) : (0.60, 0.14)
+        let f = min(0.45, Self.fade / max(b.height, 1))
+        rim.frame = b
+        rim.colors = [edge, side, side, edge].map { NSColor(white: 1, alpha: $0).cgColor }
+        rim.locations = [0, NSNumber(value: Double(f)), NSNumber(value: Double(1 - f)), 1]
+        rim.startPoint = CGPoint(x: 0.5, y: 0); rim.endPoint = CGPoint(x: 0.5, y: 1)
+        rimMask.frame = b
+        rimMask.cornerRadius = radius
+        rimMask.cornerCurve = .continuous
+        rimMask.borderWidth = 1
+        rimMask.borderColor = NSColor.black.cgColor
+        rim.mask = rimMask
+        // 內側柔光：只在深色（淺色玻璃本身就亮，再加白只會糊）
+        let g: CGFloat = dark ? 0.075 : 0
+        let d = Self.glowDepth
+        for (layer, atTop) in [(topGlow, true), (bottomGlow, false)] {
+            layer.isHidden = g == 0
+            layer.frame = CGRect(x: 0, y: atTop ? b.height - d - 1 : 1, width: b.width, height: d)
+            layer.colors = [NSColor(white: 1, alpha: g).cgColor, NSColor(white: 1, alpha: 0).cgColor]
+            // 從貼邊那一側往內淡掉（layer 座標 y 向上：上緣光從 y = 1 往 0 淡）
+            layer.startPoint = CGPoint(x: 0.5, y: atTop ? 1 : 0)
+            layer.endPoint = CGPoint(x: 0.5, y: atTop ? 0 : 1)
+        }
+    }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
+}
+
+extension NSImage {
+    /// NSVisualEffectView.maskImage 用的圓角遮罩（capInsets 讓它隨視窗大小拉伸）
+    static func roundedMask(radius r: CGFloat) -> NSImage {
+        let d = r * 2 + 1
+        let img = NSImage(size: NSSize(width: d, height: d), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
+            return true
+        }
+        img.capInsets = NSEdgeInsets(top: r, left: r, bottom: r, right: r)
+        img.resizingMode = .stretch
+        return img
+    }
+}
+
 // MARK: - 資料
 
 @Observable
@@ -270,7 +526,10 @@ final class Monitor {
     var snapshot: Snapshot?
     var history: [HistoryPoint] = []
     var config = Config.load(path: nil)
-    var draft = Config.load(path: nil)   // 面板上編輯中的設定
+    var draft = Config.load(path: nil)   // 設定視窗裡編輯中的設定
+    /// 開始編輯時的設定（draft 的比較基準）：dirty 看 draft 和它差在哪；套用時只把差的欄位疊到最新的設定檔上
+    /// （Config.applyingPanelEdits），編輯期間別處改的鍵（手動、CLI、MCP）不會被舊 draft 蓋回
+    var draftBase = Config.load(path: nil)
     var saveMessage: String? = nil
     var saveFailed = false               // saveMessage 是不是錯誤（紅字）；不再靠比對字串前綴，換語言才不會失效
     /// 選單有沒有打開。關著的時候只更新標題（讀一個 JSON，不開 SMC、不畫圖）
@@ -305,9 +564,12 @@ final class Monitor {
     var notifyAuth: Notifier.Auth = .unknown
     @ObservationIgnored private var notifyState = NotifyState()
     // 「今天」時間軸與健康檢查（面板開著才更新）
-    var showToday: Bool { didSet { UserDefaults.standard.set(showToday, forKey: "today.show"); if showToday { refreshToday(force: true) } } }
+    /// 熱度格和「今天」一次只展開一個（兩個都開時面板約 1,080pt，1080p 螢幕放不下、要捲動）
+    var showToday: Bool { didSet {
+        UserDefaults.standard.set(showToday, forKey: "today.show")
+        if showToday { if showSensors { showSensors = false }; refreshToday(force: true) }
+    } }
     var todayEvents: [DayEvent] = []
-    var showHealth: Bool { didSet { UserDefaults.standard.set(showHealth, forKey: "health.show") } }
     var health: [HealthItem] = []
     @ObservationIgnored private var hookMarks = HookMarks()
     @ObservationIgnored private var todayStamp: (Date, Date?, UInt64)? = nil   // 上次讀的時間、log mtime、大小
@@ -318,26 +580,27 @@ final class Monitor {
     // 情境與噪音上限：專注模式授權與目前狀態（面板讀、寫旗標給 guard）、展開編輯中的規則
     var focusAuth: FocusWatcher.Auth = .unavailable
     var focusNow: Bool? = nil
-    var editingProfile: Int? = nil { didSet { if editingProfile != nil { showProfiles = true } } }
-    /// 情境卡展開（預設收合，面板才不會長到要捲很久）
-    var showProfiles: Bool { didSet { UserDefaults.standard.set(showProfiles, forKey: "profiles.show") } }
-    /// 「偏好」卡（提示音＋面板偏好）展開；預設收合
-    var showPrefs: Bool { didSet { UserDefaults.standard.set(showPrefs, forKey: "prefs.show") } }
+    var editingProfile: Int? = nil
+    /// 打開設定視窗（指定分頁；nil＝上次看的那頁）
+    @ObservationIgnored var onShowSettings: ((SettingsTab?) -> Void)? = nil
 
     // 各感測器明細：只有面板展開「各感測器」時才每輪讀 73 個 key，收合不花這個成本
-    var showSensors: Bool { didSet { UserDefaults.standard.set(showSensors, forKey: "sensors.show"); if showSensors { readSensors() } } }
+    var showSensors: Bool { didSet {
+        UserDefaults.standard.set(showSensors, forKey: "sensors.show")
+        if showSensors { if showToday { showToday = false }; readSensors() }
+    } }
     var sensorTemps: [String: Double] = [:]
+    /// 健康檢查亮紅燈時熱度格先收起來（面板才放得下紅燈＋其他監控）；使用者自己再展開就照他的（只到這次紅燈結束）
+    var sensorsDespiteHealth = false
 
     init() {
         hotSoundOn = UserDefaults.standard.object(forKey: "sound.hot") as? Bool ?? true
         coldSoundOn = UserDefaults.standard.object(forKey: "sound.cold") as? Bool ?? true
-        showSensors = UserDefaults.standard.bool(forKey: "sensors.show")
+        let sensorsOpen = UserDefaults.standard.bool(forKey: "sensors.show")
+        showSensors = sensorsOpen
         showTempInMenuBar = UserDefaults.standard.object(forKey: "menubar.showTemp") as? Bool ?? true
         notifyOn = UserDefaults.standard.object(forKey: "notify.on") as? Bool ?? true
-        showToday = UserDefaults.standard.bool(forKey: "today.show")
-        showHealth = UserDefaults.standard.bool(forKey: "health.show")
-        showProfiles = UserDefaults.standard.bool(forKey: "profiles.show")
-        showPrefs = UserDefaults.standard.bool(forKey: "prefs.show")
+        showToday = UserDefaults.standard.bool(forKey: "today.show") && !sensorsOpen   // 舊版兩個都開過：留熱度格
         emergencyPrevMode = UserDefaults.standard.string(forKey: "emergency.prevMode")
         smcOpened = (try? SMC.open()) != nil
         tick()
@@ -474,6 +737,7 @@ final class Monitor {
         healthTime = Date()
         let h = Health.run(snapshot: snapshot, config: config)
         if h != health { health = h }
+        if sensorsDespiteHealth, !h.contains(where: { $0.severity == .bad }) { sensorsDespiteHealth = false }
     }
 
     /// 緊急交還原廠：只把設定檔的 mode 改成 auto（其他欄位照舊），走面板寫設定檔的同一條路（使用者可寫、不需要 root），
@@ -505,12 +769,27 @@ final class Monitor {
         }
     }
 
+    /// 面板上的一鍵模式切換：直接寫設定檔的 mode（其他欄位照舊、設定視窗裡未套用的編輯保留），guard 熱重載。
+    /// 切到「自動」也記下原本的模式，右鍵選單才有「恢復」
+    func setModeNow(_ mode: String) {
+        do {
+            var c = try Config.loadOrError(path: nil)
+            guard c.mode != mode else { return }
+            let prev = c.mode
+            c.mode = mode
+            try c.validate()
+            try c.save()
+            emergencyPrevMode = mode == "auto" ? prev : nil
+            afterEmergencyWrite(L("已切換為「%@」模式", modeDisplayName(mode)))
+        } catch {
+            saveMessage = L("寫入失敗：%@", error.localizedDescription); saveFailed = true
+        }
+    }
+
     private func afterEmergencyWrite(_ msg: String) {
-        let keepDraft = dirty
-        let edited = draft
         config = Config.load(path: nil)
-        // 其他未套用的編輯保留，只有模式跟著設定檔走
-        if keepDraft { draft = edited; draft.mode = config.mode } else { draft = config }
+        // 其他未套用的編輯保留（疊到新的設定檔上），模式跟著設定檔走
+        rebaseDraft(onto: config, dropping: [.mode])
         configMtime = Config.mtime(config.loadedFrom)
         saveMessage = msg; saveFailed = false
         tick()
@@ -583,30 +862,45 @@ final class Monitor {
     /// 外部（手動編輯、另一台面板）改了設定檔也跟上
     func reloadConfig() {
         let fresh = Config.load(path: nil)
-        if !dirty { draft = fresh }
+        rebaseDraft(onto: fresh)
         config = fresh
         // 模式已經不是 auto（套用了別的模式、別處改了設定檔）：「恢復」按鈕就沒有意義了
         if fresh.mode != "auto", emergencyPrevMode != nil { emergencyPrevMode = nil }
     }
 
-    var fanDirty: Bool {
-        draft.mode != config.mode || draft.fixedRPM != config.fixedRPM || draft.includeGPU != config.includeGPU ||
-        draft.curve.map { [$0.temp, $0.rpm] } != config.curve.map { [$0.temp, $0.rpm] }
+    /// 設定檔換了（別處改的、面板一鍵切模式）：使用者還沒套用的編輯疊到新的設定檔上，其餘欄位跟著新的走。
+    /// dropping：這些欄位的編輯作廢、直接用新值（例如一鍵切模式之後的 mode）
+    private func rebaseDraft(onto fresh: Config, dropping: Set<Config.PanelField> = []) {
+        let base = draftBase
+        var edited = draft
+        if dropping.contains(.mode) { edited.mode = base.mode }
+        draft = Config.applyingPanelEdits(base: base, draft: edited, onto: fresh)
+        draftBase = fresh
     }
-    var soundDirty: Bool { draft.overheatAbove != config.overheatAbove || draft.cooldownBelow != config.cooldownBelow }
-    var profileDirty: Bool { draft.maxRPM != config.maxRPM || draft.profiles != config.profiles }
-    var dirty: Bool { fanDirty || soundDirty || profileDirty }
 
-    /// 寫回設定檔，guard 會偵測 mtime 自動重載
+    /// 使用者在設定視窗改了、還沒套用的欄位（比的是開始編輯時的 draftBase，不是設定檔最新值）
+    var edits: Set<Config.PanelField> { Config.panelEdits(base: draftBase, draft: draft) }
+    var fanDirty: Bool { !edits.isDisjoint(with: [.mode, .fixedRPM, .includeGPU, .curve]) }
+    var soundDirty: Bool { !edits.isDisjoint(with: [.overheatAbove, .cooldownBelow]) }
+    var profileDirty: Bool { !edits.isDisjoint(with: [.maxRPM, .profiles]) }
+    var dirty: Bool { !edits.isEmpty }
+
+    /// 寫回設定檔，guard 會偵測 mtime 自動重載。
+    /// 先重讀磁碟上最新的設定檔，只把使用者改過的欄位疊上去再寫（三方合併），別處在編輯期間改的鍵保留
     func apply() {
         do {
             if let (name, problem) = firstProfileProblem {
                 saveMessage = L("規則「%@」：%@", name, problem); saveFailed = true; return
             }
-            try draft.validate()   // guard 會拒絕載入的設定不寫出去（它會保留舊設定，面板卻以為套用了）
-            try draft.save()
+            // 設定檔壞掉（解析失敗）時不寫：寫下去會把使用者手改到一半的檔整個蓋掉
+            let latest = try Config.loadOrError(path: nil)
+            let merged = Config.applyingPanelEdits(base: draftBase, draft: draft, onto: latest)
+            try merged.validate()   // guard 會拒絕載入的設定不寫出去（它會保留舊設定，面板卻以為套用了）
+            try merged.save()
             config = Config.load(path: nil)
+            configMtime = Config.mtime(config.loadedFrom)
             draft = config
+            draftBase = config
             if config.mode != "auto" { emergencyPrevMode = nil }
             saveMessage = L("已套用（%@）", ((config.loadedFrom ?? "") as NSString).lastPathComponent)
             saveFailed = false
@@ -616,7 +910,7 @@ final class Monitor {
         }
     }
 
-    func revert() { draft = config; saveMessage = nil; saveFailed = false; editingProfile = nil }
+    func revert() { draft = config; draftBase = config; saveMessage = nil; saveFailed = false; editingProfile = nil }
 
     /// 名稱在第一次用到時就換成目前語言；它同時是 segmented 的 tag（同一次執行內一致即可）。
     /// 曲線本身在 Cool42Core（Config.presetCurves），情境規則的 "curve": "quiet" 用的是同一份
@@ -677,10 +971,11 @@ extension Level {
 // MARK: - 漸層微光風格
 
 /// 霓虹線 + 線下漸層消失。發光用三層同路徑線疊出來（Charts 的 mark 不能 blur）
-/// 每個文字色都有四版：淺 / 深 × 一般 / 增加對比。深色是原本的霓虹；淺色把同一色相壓暗，
-/// 卡片白底上 ≥ 4.5:1（WCAG 公式算過：cyan 4.8、green 5.0、purple 6.1、amber 5.2、red 5.4）；增加對比版淺色 ≥ 7:1。
-/// 這些對比值只在卡片底上成立，所以霓虹色字只放在卡片裡（Neon.cardBG 是近實色）；
-/// 卡片外直接壓在玻璃上的字一律用 .primary / .secondary（系統 vibrant），狀態色只上在 SF Symbol
+/// 每個霓虹色都有四版：淺 / 深 × 一般 / 增加對比。深色是原本的霓虹；淺色把同一色相壓暗
+/// （淺色玻璃 tint 0.62 壓在深色桌布上底色 ≈ 193/255，淺色值再壓暗一階，大數字才維持 ≥ 3:1）。
+/// 面板沒有實心卡片了（直接壓在玻璃上），所以霓虹色只給「大數字、圖表線、狀態點」：
+///   大數字（title2 semibold ≥ 3:1）、圖表線與狀態點（非文字 ≥ 3:1）—— 在深色 tint 玻璃與淺色玻璃上實測過（docs/img/screens/glass-*）；
+///   一般說明字、標籤一律 .primary / .secondary（系統 vibrant），不上霓虹色
 enum Neon {
     typealias RGBA = (Double, Double, Double, Double)
     /// 動態色：NSColor 依當下 appearance 解析，SwiftUI 與 NSWindow 背景都吃得到
@@ -691,39 +986,60 @@ enum Neon {
             let m = ap.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua])
             let isDark = m == .darkAqua || m == .accessibilityHighContrastDarkAqua
             let hc = m == .accessibilityHighContrastAqua || m == .accessibilityHighContrastDarkAqua
-                || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+                || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast || A11y.forceHC
             let c = hc ? ((isDark ? hcDark : hcLight) ?? (isDark ? dark : light)) : (isDark ? dark : light)
             return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: min(1, c.3 * (hc ? highContrast : 1)))
         }
     }
-    static let cyan   = Color(nsColor: dynamic("cyan",   light: (0.00, 0.47, 0.70, 1), dark: (0.16, 0.87, 0.96, 1), hcLight: (0.00, 0.36, 0.56, 1), hcDark: (0.45, 0.93, 1.00, 1)))
-    static let green  = Color(nsColor: dynamic("green",  light: (0.05, 0.50, 0.24, 1), dark: (0.36, 0.95, 0.55, 1), hcLight: (0.02, 0.38, 0.17, 1), hcDark: (0.55, 1.00, 0.70, 1)))
+    static let cyan   = Color(nsColor: dynamic("cyan",   light: (0.00, 0.41, 0.63, 1), dark: (0.16, 0.87, 0.96, 1), hcLight: (0.00, 0.36, 0.56, 1), hcDark: (0.45, 0.93, 1.00, 1)))
+    static let green  = Color(nsColor: dynamic("green",  light: (0.04, 0.44, 0.20, 1), dark: (0.36, 0.95, 0.55, 1), hcLight: (0.02, 0.38, 0.17, 1), hcDark: (0.55, 1.00, 0.70, 1)))
     static let purple = Color(nsColor: dynamic("purple", light: (0.42, 0.26, 0.85, 1), dark: (0.72, 0.56, 1.00, 1), hcLight: (0.34, 0.18, 0.72, 1), hcDark: (0.82, 0.72, 1.00, 1)))
-    static let amber  = Color(nsColor: dynamic("amber",  light: (0.62, 0.36, 0.00, 1), dark: (1.00, 0.72, 0.30, 1), hcLight: (0.50, 0.29, 0.00, 1), hcDark: (1.00, 0.82, 0.50, 1)))
-    static let red    = Color(nsColor: dynamic("red",    light: (0.80, 0.13, 0.22, 1), dark: (1.00, 0.36, 0.42, 1), hcLight: (0.66, 0.06, 0.15, 1), hcDark: (1.00, 0.55, 0.60, 1)))
-    /// 「減少透明度」時的實色視窗底（正式 app 平常用玻璃，見 AppDelegate.applyBackground）；離屏截圖也用它當底
-    static let panelSolidColor = dynamic("panelSolid", light: (0.965, 0.966, 0.975, 1), dark: (0.06, 0.07, 0.11, 1))
+    static let amber  = Color(nsColor: dynamic("amber",  light: (0.55, 0.31, 0.00, 1), dark: (1.00, 0.72, 0.30, 1), hcLight: (0.50, 0.29, 0.00, 1), hcDark: (1.00, 0.82, 0.50, 1)))
+    static let red    = Color(nsColor: dynamic("red",    light: (0.75, 0.11, 0.20, 1), dark: (1.00, 0.36, 0.42, 1), hcLight: (0.66, 0.06, 0.15, 1), hcDark: (1.00, 0.55, 0.60, 1)))
+    /// 「減少透明度」時的實色視窗底（正式 app 平常用玻璃，見 AppDelegate.applyBackground）；離屏截圖也用它當底。
+    /// 取樣自實機玻璃（深色 clear＋tint 0.70 壓在星空上 ≈ 10/255、淺色 ≈ 225–255），關掉透明度時看起來還是同一個面板
+    static let panelSolidColor = dynamic("panelSolid", light: (0.965, 0.966, 0.975, 1), dark: (0.04, 0.04, 0.063, 1))
+    /// 窗緣 1pt 亮邊（Dock、桌面 widget 那種上下亮、側邊淡的光）：離屏截圖畫框用，實機由 PanelEdgeView 畫同一組值
+    static let rim = Color(nsColor: dynamic("rim", light: (0, 0, 0, 0.10), dark: (1, 1, 1, 0.26)))
+    static let rimSide = Color(nsColor: dynamic("rimSide", light: (0, 0, 0, 0.04), dark: (1, 1, 1, 0.07)))   // 離屏實色底沒有玻璃自己的邊，補一點
+    /// 離屏截圖用的窗緣漸層（上下亮、中段淡；fade 是從上下緣算起幾 pt 轉淡，跟 PanelEdgeView 一樣）
+    static func rimGradient(height: CGFloat) -> LinearGradient {
+        let f = min(0.45, PanelEdgeView.fade / max(height, 1))
+        return LinearGradient(stops: [.init(color: rim, location: 0), .init(color: rimSide, location: f),
+                                      .init(color: rimSide, location: 1 - f), .init(color: rim, location: 1)],
+                              startPoint: .top, endPoint: .bottom)
+    }
     static let panelBG = Color(nsColor: panelSolidColor)
-    /// 視窗圓角（玻璃 / 舊系統材質 / 截圖外框共用）
-    static let windowRadius: CGFloat = 16
-    static let plotBG  = Color(nsColor: dynamic("plotBG", light: (0, 0, 0, 0.035), dark: (0, 0, 0, 0.28)))
-    /// 卡片是彩色字的「固定的底」：玻璃（macOS 26+）或 popover 材質下，桌布透過來的顏色不能決定霓虹字的對比。
-    /// 深色原本是白 0.045（等於透明，4.5:1 只在實色底上成立）→ 改成接近實色的深藍灰 0.88；
-    /// 疊在實色 panelBG 上的樣子和舊版幾乎一樣（≈ 0.10, 0.11, 0.15），玻璃上則不再透出桌布
-    static let cardBG  = Color(nsColor: dynamic("cardBG", light: (1, 1, 1, 0.88), dark: (0.10, 0.11, 0.15, 0.88)))
+    /// 視窗圓角（玻璃 / 舊系統材質 / 截圖外框共用）。量自同一張整螢幕截圖：桌面 widget 與 Dock 的圓角 ≈ 26pt
+    /// （逐列量輪廓、和圓弧比對），原本 16 並排時明顯比較尖（不像同一家族）
+    static let windowRadius: CGFloat = 26
+    /// 圖表底：極淡的井（不是實心板），只讓圖的範圍看得出來
+    static let plotBG  = Color(nsColor: dynamic("plotBG", light: (0, 0, 0, 0.03), dark: (1, 1, 1, 0.035), highContrast: 2))
+    /// 一般視窗（導覽頁）裡的淡底框；面板本身不用
+    static let cardBG  = Color(nsColor: dynamic("cardBG", light: (0, 0, 0, 0.035), dark: (1, 1, 1, 0.05)))
     /// 卡片 / 視窗邊的髮絲線、圖表格線、座標字
     static let hairline = Color(nsColor: dynamic("hairline", light: (0, 0, 0, 0.08), dark: (1, 1, 1, 0.08), highContrast: 3))
     static let grid     = Color(nsColor: dynamic("grid", light: (0, 0, 0, 0.07), dark: (1, 1, 1, 0.06), highContrast: 2.5))
     static let axis     = Color(nsColor: .secondaryLabelColor)
-    /// 間距節奏（4pt 基準）：卡片內 12、卡片之間 8、「看狀態」與「改設定」兩群之間 16
-    static let cardPadding: CGFloat = 12
-    static let cardRadius: CGFloat = 12
-    static let plotRadius: CGFloat = 4    // 同心圓角：卡片 12 − 內距 8 左右
-    static let stackSpacing: CGFloat = 8
-    static let groupSpacing: CGFloat = 16
+    /// 間距節奏（4pt 基準）：區段內 6、區段上下各 10（分隔線兩側）、視窗邊 16
+    static let sectionPadding: CGFloat = 10
+    /// 圖表井、紅燈提示框的圓角：跟視窗同心（內圓角 ＝ 外圓角 − 視窗邊距 16）
+    static let plotRadius: CGFloat = windowRadius - 16
+    static let stackSpacing: CGFloat = 6
     /// 字級角色：macOS 可讀下限 10pt（HIG），所以最小字就是 caption2；會跳動的數字一律等寬數字
     static let axisFont = Font.caption2.monospacedDigit()
     static let valueFont = Font.system(.title2, design: .rounded, weight: .semibold).monospacedDigit()
+
+    /// 發光線、發光點的暈：只在深色外觀出現（淺色底上彩色暈只會讓線變粗變糊）；「增加對比」也關掉
+    static func halo(_ c: Color, _ alpha: Double) -> Color {
+        let base = NSColor(c)
+        return Color(nsColor: NSColor(name: nil) { ap in
+            guard A11y.isDark(ap), !A11y.increaseContrast(ap) else { return .clear }
+            var out = NSColor.clear
+            ap.performAsCurrentDrawingAppearance { out = (base.usingColorSpace(.sRGB) ?? base).withAlphaComponent(alpha) }
+            return out
+        })
+    }
 
     /// 線下漸層：上濃下淡到透明
     static func fade(_ c: Color, top: Double = 0.45) -> LinearGradient {
@@ -742,19 +1058,19 @@ extension Level {
     }
 }
 
-/// 三層疊出來的發光線：寬淡暈 → 中暈 → 細實線
+/// 三層疊出來的發光線：寬淡暈 → 中暈 → 細實線（暈只在深色外觀，見 Neon.halo）
 @ChartContentBuilder
 func glowLine<X: Plottable, Y: Plottable>(x: PlottableValue<X>, y: PlottableValue<Y>, series: String, color: Color, smooth: Bool = true) -> some ChartContent {
-    LineMark(x: x, y: y, series: .value("s", series + "•halo")).foregroundStyle(color.opacity(0.10)).lineStyle(.init(lineWidth: 10, lineCap: .round, lineJoin: .round)).interpolationMethod(smooth ? .catmullRom : .linear).accessibilityHidden(true)
-    LineMark(x: x, y: y, series: .value("s", series + "•glow")).foregroundStyle(color.opacity(0.28)).lineStyle(.init(lineWidth: 4.5, lineCap: .round, lineJoin: .round)).interpolationMethod(smooth ? .catmullRom : .linear).accessibilityHidden(true)
+    LineMark(x: x, y: y, series: .value("s", series + "•halo")).foregroundStyle(Neon.halo(color, 0.10)).lineStyle(.init(lineWidth: 10, lineCap: .round, lineJoin: .round)).interpolationMethod(smooth ? .catmullRom : .linear).accessibilityHidden(true)
+    LineMark(x: x, y: y, series: .value("s", series + "•glow")).foregroundStyle(Neon.halo(color, 0.28)).lineStyle(.init(lineWidth: 4.5, lineCap: .round, lineJoin: .round)).interpolationMethod(smooth ? .catmullRom : .linear).accessibilityHidden(true)
     LineMark(x: x, y: y, series: .value("s", series)).foregroundStyle(color).lineStyle(.init(lineWidth: 1.6, lineCap: .round, lineJoin: .round)).interpolationMethod(smooth ? .catmullRom : .linear)
 }
 
 /// 發光點：大暈 + 小實點
 @ChartContentBuilder
 func glowPoint<X: Plottable, Y: Plottable>(x: PlottableValue<X>, y: PlottableValue<Y>, color: Color, size: CGFloat = 40) -> some ChartContent {
-    PointMark(x: x, y: y).foregroundStyle(color.opacity(0.18)).symbolSize(size * 4).accessibilityHidden(true)
-    PointMark(x: x, y: y).foregroundStyle(color.opacity(0.45)).symbolSize(size * 1.8).accessibilityHidden(true)
+    PointMark(x: x, y: y).foregroundStyle(Neon.halo(color, 0.18)).symbolSize(size * 4).accessibilityHidden(true)
+    PointMark(x: x, y: y).foregroundStyle(Neon.halo(color, 0.45)).symbolSize(size * 1.8).accessibilityHidden(true)
     PointMark(x: x, y: y).foregroundStyle(color).symbolSize(size)
 }
 
@@ -784,26 +1100,22 @@ struct NeonGlow: ViewModifier {
         return false
     }
     func body(content: Content) -> some View {
-        let on = scheme == .dark && contrast != .increased && !NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast && !reduceHighlight
+        let on = scheme == .dark && contrast != .increased && !A11y.increaseContrast() && !reduceHighlight
         return content.shadow(color: on ? color : .clear, radius: radius)
     }
 }
 
-/// 卡片外框：統一內距、圓角、底色與髮絲線
-struct NeonCard: ViewModifier {
-    var padding: CGFloat = Neon.cardPadding
+/// 面板區段：沒有底色（玻璃上不再疊實心卡片），上下留白；區段之間由 PanelView 放分隔線
+struct PanelSection: ViewModifier {
     func body(content: Content) -> some View {
-        content
-            .padding(padding)
-            .background(Neon.cardBG, in: RoundedRectangle(cornerRadius: Neon.cardRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Neon.cardRadius, style: .continuous).strokeBorder(Neon.hairline, lineWidth: 0.5))
+        content.padding(.vertical, Neon.sectionPadding).frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 extension View {
     func neonPlot() -> some View { modifier(NeonPlot()) }
     func neonGlow(_ color: Color, radius: CGFloat) -> some View { modifier(NeonGlow(color: color, radius: radius)) }
-    func neonCard(padding: CGFloat = Neon.cardPadding) -> some View { modifier(NeonCard(padding: padding)) }
+    func panelSection() -> some View { modifier(PanelSection()) }
 }
 
 // MARK: - 畫面
@@ -814,55 +1126,50 @@ struct PanelView: View {
     static let edgePadding: CGFloat = 16      // 視窗邊距（4pt 節奏；原本 14）
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                content(proxy: proxy)
-                    .background(GeometryReader { g in
-                        Color.clear
-                            .onAppear { monitor.contentHeight = g.size.height }
-                            .onChange(of: g.size.height) { _, h in monitor.contentHeight = h }
-                    })
-            }
+        // 內容量出多高，視窗就多高。放得下就不包 ScrollView：
+        // 包著的話，視窗從矮長到剛好時 NSScrollView 會停在捲過的位置（標題列被推出去、底下空一截）；只有螢幕真的放不下才捲
+        ViewThatFits(in: .vertical) {
+            measured.frame(maxHeight: .infinity, alignment: .top)
+            ScrollView(.vertical, showsIndicators: false) { measured }
         }
         .frame(width: AppDelegate.panelWidth)
         .onExitCommand { monitor.onHide?() }   // Esc 隱藏面板（面板拿到 key 時）
         .onAppear { monitor.tick() }
     }
 
-    /// 兩群：上面「看現在」（狀態 + 曲線 + 今日統計），下面「改設定」（風扇 / 提示音 / 套用）。
-    /// 群組內 8、群組之間 16 —— 靠留白分群，不再加分隔線
-    var content: some View { content(proxy: nil) }
+    private var measured: some View {
+        content.background(GeometryReader { g in
+            Color.clear
+                .onAppear { monitor.contentHeight = g.size.height }
+                .onChange(of: g.size.height) { _, h in monitor.contentHeight = h }
+        })
+    }
 
-    /// proxy：頂部紅燈的「查看」要捲到面板最下面的健康檢查卡（離屏截圖沒有 ScrollView，傳 nil）
-    func content(proxy: ScrollViewProxy?) -> some View {
-        VStack(alignment: .leading, spacing: Neon.groupSpacing) {
+    /// 面板只做監控：狀態 → 溫度 → 熱度格 → 風扇 → 頻率 → 今日 → 模式切換。設定全在設定視窗（⌘,）。
+    /// 沒有卡片：區段之間一條系統分隔線，區段上下各 10pt —— 1080p 螢幕上不捲動就看得完
+    var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
             if let s = monitor.snapshot {
-                VStack(alignment: .leading, spacing: Neon.stackSpacing) {
-                    header(s)
-                    healthBanner {
-                        // 等展開的內容排好版再捲，不然捲到的是收合時的位置
-                        DispatchQueue.main.async {
-                            withAnimation(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .smooth) {
-                                proxy?.scrollTo(Self.healthAnchor, anchor: .top)
-                            }
-                        }
-                    }
-                    tempCard(s)
-                    sensorGrid
-                    fanCard(s)
-                    if s.pcoreMHz != nil { freqCard(s) }
-                    timeAxis
-                    statsRow(s)
-                    todayCard
+                header(s).padding(.bottom, Neon.sectionPadding)
+                healthBanner.padding(.bottom, Neon.sectionPadding)
+                Divider()
+                tempCard(s).panelSection()
+                sensorGrid.panelSection().padding(.top, -4)
+                Divider()
+                fanCard(s).panelSection()
+                if s.pcoreMHz != nil {
+                    Divider()
+                    freqCard(s).panelSection()
                 }
-                VStack(alignment: .leading, spacing: Neon.stackSpacing) {
-                    controls(s)
-                    profilesCard(s)
-                    prefsCard
-                    applyBar
-                }
-                healthCard.id(Self.healthAnchor)
-                footer
+                timeAxis.padding(.bottom, Neon.sectionPadding)
+                Divider()
+                statsRow(s).panelSection()
+                Divider()
+                todayCard.panelSection()
+                Divider()
+                modeRow(s).panelSection()
+                Divider()
+                footer.padding(.top, Neon.sectionPadding)
             } else {
                 Label(L("讀取SMC中⋯"), systemImage: "thermometer.medium").foregroundStyle(.secondary).padding()
             }
@@ -965,7 +1272,6 @@ struct PanelView: View {
             }
             chart()
         }
-        .neonCard(padding: 8)
     }
 
     func bigValue(_ v: String, _ color: Color, unit: String = "") -> some View {
@@ -1025,8 +1331,14 @@ struct PanelView: View {
     }
 
     /// 各感測器熱度格：P-core / E-core / GPU 三組，一格一個感測器，顏色隨溫度；滑過看 key 與度數
+    /// 熱度格現在要不要展開：使用者的偏好；紅燈時先收起來（不改偏好，紅燈消失就恢復）
+    var sensorsShown: Bool { monitor.showSensors && (badHealth.isEmpty || monitor.sensorsDespiteHealth) }
+
     var sensorGrid: some View {
-        DisclosureGroup(isExpanded: Binding(get: { monitor.showSensors }, set: { monitor.showSensors = $0 })) {
+        DisclosureGroup(isExpanded: Binding(get: { sensorsShown }, set: { v in
+            if badHealth.isEmpty { monitor.showSensors = v; monitor.sensorsDespiteHealth = false }
+            else { monitor.sensorsDespiteHealth = v; if v { monitor.showSensors = true } }
+        })) {
             VStack(alignment: .leading, spacing: 8) {
                 sensorGroup("P-core", prefix: "Tp")
                 sensorGroup("E-core", prefix: "Te")
@@ -1048,12 +1360,11 @@ struct PanelView: View {
             HStack(spacing: 6) {
                 Image(systemName: "square.grid.3x3.fill").font(.caption).foregroundStyle(.secondary)
                 Text(L("熱度格")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                if monitor.showSensors {
+                if sensorsShown {
                     Text(L("%ld個感測器", monitor.sensorTemps.count)).font(.caption2).monospacedDigit().foregroundStyle(.secondary)
                 }
             }
         }
-        .neonCard(padding: 8)
     }
 
     func sensorGroup(_ name: String, prefix: String) -> some View {
@@ -1064,7 +1375,11 @@ struct PanelView: View {
             HStack(spacing: 8) {
                 Text(name).font(.caption2.weight(.semibold)).foregroundStyle(.primary).frame(width: 44, alignment: .leading)
                 if let hi, let avg {
-                    Text(L("最熱%.0f°", hi)).font(.caption2.weight(.semibold).monospacedDigit()).foregroundStyle(tempText(hi))
+                    // 小字不用霓虹色（淺色玻璃壓在深色桌布上只有 3.8–4.3:1）：字用 .primary，狀態色給前面的點
+                    HStack(spacing: 3) {
+                        Circle().fill(tempText(hi)).frame(width: 6, height: 6).accessibilityHidden(true)
+                        Text(L("最熱%.0f°", hi)).font(.caption2.weight(.semibold).monospacedDigit()).foregroundStyle(.primary)
+                    }
                     Text(L("平均%.0f°", avg)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 } else {
                     Text(verbatim: "—").font(.caption2).foregroundStyle(.secondary)
@@ -1224,7 +1539,6 @@ struct PanelView: View {
                     stat(L("預熱"), "\(st.boosts)", color: .secondary)
                 }
             }
-            .neonCard(padding: 8)
         }
     }
 
@@ -1243,80 +1557,6 @@ struct PanelView: View {
     var currentPresetName: String? {
         let d = monitor.draft.curve.map { [$0.temp, $0.rpm] }
         return Monitor.presets.first { $0.1.map { [$0.temp, $0.rpm] } == d }?.0
-    }
-
-    @ViewBuilder
-    func controls(_ s: Snapshot) -> some View {
-        let fmin = s.fans.first?.min ?? 1000
-        let fmax = s.fans.first?.max ?? 4900
-        VStack(alignment: .leading, spacing: 8) {
-            // 標題列：模式 + 狀態
-            HStack(spacing: 6) {
-                Image(systemName: "fan").font(.caption).foregroundStyle(.secondary)
-                Text(L("風扇控制")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Spacer()
-                // guard 沒跑已經在頂部提示、狀態列與下面的交還列講過，這裡不再重複
-                if s.guardRunning, monitor.fanDirty {
-                    Text(L("未套用")).font(.caption2.weight(.medium)).foregroundStyle(Neon.amber)
-                }
-            }
-            Picker(L("模式"), selection: Binding(get: { monitor.draft.mode }, set: { monitor.draft.mode = $0 })) {
-                Text(L("曲線")).tag("curve")
-                Text(L("固定")).tag("fixed")
-                Text(L("自動")).tag("auto")
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)   // 和下面的預設曲線 segmented、套用列同一尺寸（原本 regular 比卡片標題還重）
-
-            switch monitor.draft.mode {
-            case "fixed":
-                curvePreview(s, fixed: monitor.draft.fixedRPM, fmin: fmin, fmax: fmax)
-                HStack {
-                    Slider(value: Binding(get: { monitor.draft.fixedRPM }, set: { monitor.draft.fixedRPM = ($0 / 50).rounded() * 50 }),
-                           in: fmin...fmax)
-                        .accessibilityLabel(L("固定轉速"))
-                        .accessibilityValue(Text(verbatim: "\(Int(monitor.draft.fixedRPM)) RPM"))
-                    Text(verbatim: "\(Int(monitor.draft.fixedRPM)) rpm").font(.caption.monospacedDigit()).frame(width: 64, alignment: .trailing)
-                }
-            case "curve":
-                curvePreview(s, fixed: nil, fmin: fmin, fmax: fmax)
-                presetChips
-                DisclosureGroup {
-                    VStack(spacing: 4) {
-                        ForEach(monitor.draft.curve.indices, id: \.self) { i in
-                            HStack(spacing: 6) {
-                                Stepper(value: Binding(get: { monitor.draft.curve[i].temp }, set: { monitor.draft.curve[i].temp = $0 }), in: 40...105, step: 1) {
-                                    Text(verbatim: "\(Int(monitor.draft.curve[i].temp))°").font(.caption.monospacedDigit()).frame(width: 34, alignment: .trailing)
-                                }
-                                .controlSize(.regular)   // small 的上下箭頭各約 7pt 高，低於 macOS 可點範圍
-                                .accessibilityLabel(L("第%ld點溫度", i + 1))
-                                .accessibilityValue(L("%ld度", Int(monitor.draft.curve[i].temp)))
-                                Slider(value: Binding(get: { monitor.draft.curve[i].rpm }, set: { monitor.draft.curve[i].rpm = ($0 / 50).rounded() * 50 }),
-                                       in: fmin...fmax)
-                                    .controlSize(.small)
-                                    .accessibilityLabel(L("第%ld點轉速", i + 1))
-                                    .accessibilityValue(Text(verbatim: "\(Int(monitor.draft.curve[i].rpm)) RPM"))
-                                Text(verbatim: "\(Int(monitor.draft.curve[i].rpm))").font(.caption.monospacedDigit()).frame(width: 36, alignment: .trailing)
-                            }
-                        }
-                    }
-                    .padding(.top, 4)
-                } label: {
-                    Text(currentPresetName.map { L("微調「%@」的點", $0) } ?? L("編輯自訂曲線的點")).font(.caption)
-                }
-            default:
-                Text(L("風扇交回macOS自己管。M4 mini原廠策略很保守：CPU到100°C才加速，重載10–15分鐘後會降頻。"))
-                    .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-
-            Toggle(isOn: Binding(get: { monitor.draft.includeGPU }, set: { monitor.draft.includeGPU = $0 })) {
-                Text(L("GPU溫度也納入")).font(.caption).foregroundStyle(.secondary)
-            }
-            .toggleStyle(.checkbox).controlSize(.small)
-            emergencyRow
-        }
-        .neonCard()
     }
 
     /// 三組預設曲線：標準 segmented（鍵盤、VoiceOver、增加對比都由系統處理）。
@@ -1388,94 +1628,86 @@ struct PanelView: View {
         .accessibilityValue(L("目前%.0f度，%.0f RPM", s.controlTemp, rpmNow))
     }
 
-    /// 提示音卡：熱 / 冷兩列，每列 = 開關（即時生效）+ ▶ 試聽 + 觸發門檻（走「套用」寫進 config）
-    /// 提示音（併在「偏好」卡裡；門檻走「套用」寫回設定檔，開關存面板本地）
-    var soundSection: some View {
+    /// 一鍵模式切換：直接寫設定檔（不走「套用」），guard 幾秒內熱重載。曲線形狀、固定轉速在設定視窗調
+    func modeRow(_ s: Snapshot) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "speaker.wave.2").font(.caption).foregroundStyle(.secondary)
-                Text(L("提示音")).font(.caption.weight(.medium))
-                Spacer()
+            HStack(spacing: 8) {
+                Text(L("風扇模式")).font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                Picker(L("風扇模式"), selection: Binding(get: { monitor.config.mode }, set: { monitor.setModeNow($0) })) {
+                    Text(L("曲線")).tag("curve")
+                    Text(L("固定")).tag("fixed")
+                    Text(L("自動")).tag("auto")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.small)
+                .disabled(!s.guardRunning)   // guard 沒跑時改設定檔沒人讀
+                .help(s.guardRunning ? L("曲線：cool42照曲線提早加速；固定：固定轉速；自動：交還macOS原廠控制") : L("guard沒在執行，切換不會生效"))
             }
-            soundLine(L("過熱／降頻"), Neon.red, hot: true,
-                      isOn: Binding(get: { monitor.hotSoundOn }, set: { monitor.hotSoundOn = $0 }),
-                      threshold: Binding(get: { monitor.draftOverheatAbove }, set: { monitor.draftOverheatAbove = $0 }),
-                      range: (monitor.draftCooldownBelow + 1)...105, prefix: "≥")
-            soundLine(L("降溫回穩"), Neon.green, hot: false,
-                      isOn: Binding(get: { monitor.coldSoundOn }, set: { monitor.coldSoundOn = $0 }),
-                      threshold: Binding(get: { monitor.draftCooldownBelow }, set: { monitor.draftCooldownBelow = $0 }),
-                      range: 40...(monitor.draftOverheatAbove - 1), prefix: "<")
-            Text(L("CPU／GPU一降頻就算過熱，不看溫度。門檻獨立於風扇與hook的hot線。"))
-                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            // 模式的一句說明＋上一次切換／寫入的結果（錯誤要看得到）
+            HStack(spacing: 4) {
+                if let m = monitor.saveMessage, monitor.saveFailed {
+                    Image(systemName: "xmark.octagon.fill").foregroundStyle(Neon.red)
+                    Text(verbatim: m).foregroundStyle(.primary).lineLimit(2)
+                } else {
+                    Text(verbatim: modeDetail(s)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.caption2)
         }
     }
 
-    func soundLine(_ title: String, _ color: Color, hot: Bool, isOn: Binding<Bool>, threshold: Binding<Double>,
-                   range: ClosedRange<Double>, prefix: String) -> some View {
-        let file = monitor.soundPath(hot: hot)
-        return HStack(spacing: 4) {
-            Toggle(isOn: isOn) { Text(verbatim: title).font(.caption).foregroundStyle(isOn.wrappedValue ? color : .secondary) }
-                .toggleStyle(.checkbox).controlSize(.small)
-            Button { monitor.play(hot: hot) } label: {
-                Image(systemName: "play.circle").font(.body).foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22).contentShape(Rectangle())   // macOS 可點範圍至少 20pt
+    func modeDetail(_ s: Snapshot) -> String {
+        switch monitor.config.mode {
+        case "fixed": return L("固定%ld rpm · 在設定裡調整", Int(monitor.config.fixedRPM))
+        case "auto": return L("macOS原廠控制 · cool42只監看")
+        default:
+            let name = Monitor.presets.first { $0.1.map { [$0.temp, $0.rpm] } == monitor.config.curve.map { [$0.temp, $0.rpm] } }?.0 ?? L("自訂")
+            return L("「%@」曲線 · 在設定裡調整", name)
+        }
+    }
+
+    /// 設定視窗裡有還沒套用的變更：頁尾上方一行提示，按了打開那一頁（面板上本來看不到設定視窗的狀態）
+    @ViewBuilder
+    var pendingSettingsLine: some View {
+        if monitor.dirty {
+            Button {
+                monitor.onShowSettings?(monitor.fanDirty ? .fan : monitor.profileDirty ? .profiles : .sounds)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Neon.amber)
+                    Text(L("設定有未套用的變更")).foregroundStyle(.primary)
+                    Spacer(minLength: 4)
+                    Text(L("打開設定⋯")).foregroundStyle(.secondary)
+                }
+                .font(.caption2)
+                .frame(minHeight: 20).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(L("試聽「%@」提示音", title))
-            .help(L("試聽：%@", file.map { ($0 as NSString).lastPathComponent } ?? L("系統音%@", hot ? Monitor.hotSound : Monitor.coldSound)))
-            Spacer()
-            Stepper(value: threshold, in: range, step: 1) {
-                Text(verbatim: "\(prefix) \(Int(threshold.wrappedValue))°")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(isOn.wrappedValue ? Color.primary : Color.secondary)
-                    .frame(width: 44, alignment: .trailing)
-            }
-            .controlSize(.regular)   // small 的上下箭頭各約 7pt 高，低於 macOS 可點範圍
-            .accessibilityLabel(L("「%@」門檻", title))
-            .accessibilityValue(L("%@%ld度", prefix, Int(threshold.wrappedValue)))
-            .disabled(!isOn.wrappedValue)
-        }
-    }
-
-    /// 全域套用列：風扇或提示音任一有改動才出現，一次寫回設定檔
-    @ViewBuilder
-    var applyBar: some View {
-        if monitor.dirty || monitor.saveMessage != nil {
-            HStack {
-                // 套用列在卡片外（壓在玻璃上）：字用 vibrant 的 .primary / .secondary，狀態色只給 SF Symbol
-                if let m = monitor.saveMessage {
-                    Label { Text(verbatim: m).foregroundStyle(monitor.saveFailed ? Color.primary : Color.secondary) } icon: {
-                        Image(systemName: monitor.saveFailed ? "xmark.octagon.fill" : "checkmark.circle.fill")
-                            .foregroundStyle(monitor.saveFailed ? Neon.red : Neon.green)
-                    }
-                    .font(.caption2).lineLimit(2)
-                } else if monitor.dirty {
-                    Label { Text(L("有未套用的變更")).foregroundStyle(.secondary) } icon: {
-                        Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Neon.amber)
-                    }
-                    .font(.caption2).lineLimit(1)
-                }
-                Spacer()
-                Button(L("捨棄")) { monitor.revert() }.disabled(!monitor.dirty).help(L("捨棄未套用的變更"))
-                Button(L("套用")) { monitor.apply() }.disabled(!monitor.dirty).keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
-            }
-            .controlSize(.small)
-            .padding(.horizontal, 4)
+            .help(L("在設定視窗按「套用」才會寫入設定檔"))
+            .padding(.bottom, 6)
         }
     }
 
     var footer: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            pendingSettingsLine
+            footerButtons
+        }
+    }
+
+    var footerButtons: some View {
         // 文字按鈕前加 SF Symbol：一眼看得出是能按的動作，不是說明文字
-        HStack(spacing: 12) {
-            Button { NSWorkspace.shared.open(URL(fileURLWithPath: "/var/log/cool42.log")) } label: { Label(L("記錄檔"), systemImage: "doc.text") }.help(L("打開%@", "/var/log/cool42.log"))
-            Button { NSWorkspace.shared.selectFile(monitor.config.loadedFrom ?? "/etc/cool42/config.json", inFileViewerRootedAtPath: "") } label: {
-                Label(L("設定檔"), systemImage: "folder")
-            }.help(L("在Finder中顯示設定檔"))
-            Spacer()
+        HStack(spacing: 14) {
+            Button { monitor.onShowSettings?(nil) } label: { Label(L("設定⋯"), systemImage: "gearshape") }
+                .keyboardShortcut(",", modifiers: .command)
+                .help(L("打開設定視窗（⌘,）"))
+            Button { NSWorkspace.shared.open(URL(fileURLWithPath: "/var/log/cool42.log")) } label: { Label(L("記錄檔"), systemImage: "doc.text") }
+                .help(L("打開%@", "/var/log/cool42.log"))
+            Spacer(minLength: 4)
             Text(verbatim: "cool42 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 .lineLimit(1).layoutPriority(-1)
-            Button { monitor.relaunch() } label: { Label(L("重新啟動"), systemImage: "arrow.clockwise") }.help(L("重新啟動面板"))
-            Button { NSApp.terminate(nil) } label: { Label(L("結束"), systemImage: "power") }.help(L("結束面板程式（guard不受影響）"))
         }
         .labelStyle(FooterLabelStyle())
         .font(.caption)

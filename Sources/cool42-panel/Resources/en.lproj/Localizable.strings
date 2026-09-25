@@ -6,7 +6,6 @@
 "cool42：按一下顯示／隱藏面板，按右鍵打開選單" = "cool42 — Click to show or hide the panel. Right-click for more options.";
 "隱藏面板" = "Hide Panel";
 "顯示面板" = "Show Panel";
-"恢復自動調整高度" = "Resume Automatic Height";
 "重新啟動面板" = "Relaunch Panel";
 "結束cool42面板" = "Quit cool42 Panel";
 "cool42，讀取中" = "cool42, loading";
@@ -76,7 +75,6 @@
 
 /* 風扇控制 */
 "風扇控制" = "Fan Control";
-"未套用" = "Not applied";
 "模式" = "Mode";
 "曲線" = "Curve";
 "固定" = "Fixed";
@@ -87,8 +85,6 @@
 "均衡" = "Balanced";
 "強力" = "Performance";
 "自訂" = "Custom";
-"微調「%@」的點" = "Fine-tune “%@” points";
-"編輯自訂曲線的點" = "Edit custom curve points";
 "第%ld點溫度" = "Point %ld temperature";
 "第%ld點轉速" = "Point %ld fan speed";
 "%ld度" = "%ld degrees";
@@ -102,17 +98,13 @@
 "提示音" = "Alert Sounds";
 "過熱／降頻" = "Overheat/throttle";
 "降溫回穩" = "Cooled down";
-"CPU／GPU一降頻就算過熱，不看溫度。門檻獨立於風扇與hook的hot線。" = "Any CPU or GPU throttling counts as overheating, whatever the temperature. These thresholds are separate from the fan and hook hot line.";
 "試聽「%@」提示音" = "Preview “%@” sound";
-"試聽：%@" = "Preview: %@";
 "系統音%@" = "System sound %@";
 "「%@」門檻" = "“%@” threshold";
 "%@%ld度" = "%@%ld degrees";
 
 /* 套用列 */
 "有未套用的變更" = "Unapplied changes";
-"捨棄" = "Discard";
-"捨棄未套用的變更" = "Discard unapplied changes";
 "套用" = "Apply";
 "已套用（%@）" = "Applied (%@)";
 "寫入失敗：%@" = "Couldn’t save: %@";
@@ -121,7 +113,6 @@
 "記錄檔" = "Log";
 "打開%@" = "Open %@";
 "設定檔" = "Config File";
-"在Finder中顯示設定檔" = "Show config file in Finder";
 "重新啟動" = "Relaunch";
 "結束" = "Quit";
 "結束面板程式（guard不受影響）" = "Quit the panel (guard keeps running)";
@@ -189,7 +180,6 @@
 "健康檢查有%ld項要處理" = "Health check: %ld issues";
 "健康檢查有1項要處理" = "Health check: 1 issue";
 "%@：%@" = "%@: %@";
-"查看" = "Show";
 "%ld項要處理" = "%ld issues";
 "正常 · %ld項提醒" = "OK · %ld notes";
 "全部正常" = "All OK";
@@ -299,7 +289,6 @@
 
 /* 體驗改版 A–D 審查修正（2026-09-25） */
 "沒在執行，風扇停在手動%.0f rpm，hook也看不到降頻" = "Not running. The fan is stuck at manual %.0f rpm and the hook can’t see throttling.";
-"展開面板下方的健康檢查" = "Expand the health check at the bottom of the panel";
 "cool42提早轉風扇，減少降頻" = "cool42 Spins the Fan Up Early to Reduce Throttling";
 "每5秒看一次CPU與GPU溫度，照曲線比macOS原廠更早把風扇轉起來，減少熱到降頻的機會；重負載下仍可能降頻，這時hook會讓AI的重工作先等。" = "Every 5 seconds it checks CPU and GPU temperature and spins the fan up earlier than macOS does, lowering the chance of throttling. Under heavy load it can still throttle; then the hook holds heavy AI jobs.";
 "這個面板讀溫度、風扇和今天發生了什麼；只有你改設定、或用了專注模式規則時，才會寫入設定檔與專注模式旗標。" = "This panel reads temperature, fan speed and what happened today. It writes the config file and the Focus flag only when you change settings or use a Focus rule.";
@@ -313,7 +302,7 @@
 "guard：記錄檔（自動輪替）" = "guard: log file (rotated automatically)";
 "面板：設定（你也能直接改）" = "Panel: settings (you can edit them too)";
 "面板：專注模式旗標（有專注模式規則才寫）" = "Panel: Focus flag (only with a Focus rule)";
-"guard在執行時，面板的「緊急交還原廠」幾秒內就把風扇交回macOS，不需要密碼；之後按「恢復」就回到原本的模式。" = "While guard is running, “Hand Back to macOS” in the panel returns the fan to macOS within a few seconds, no password needed. Press “Restore” later to go back to your previous mode.";
+"guard在執行時，面板上的「自動」、選單列右鍵的「交還原廠控制⋯」或設定視窗的「緊急交還原廠」，幾秒內就把風扇交回macOS，不需要密碼；之後按「恢復」就回到原本的模式。" = "While guard is running, “Automatic” in the panel, “Hand Back to macOS…” in the menu bar item’s right-click menu, or “Hand Back to macOS” in Settings returns the fan to macOS within a few seconds, no password needed. Press “Restore” later to go back to your previous mode.";
 "完整移除：在cool42資料夾執行./uninstall.sh。會移除guard、指令列工具、面板、hook與專注模式旗標，設定檔保留。" = "To remove everything, run ./uninstall.sh in the cool42 folder. It removes guard, the command-line tool, the panel, the hook and the Focus flag, and keeps your config file.";
 "交還原廠控制⋯" = "Hand Back to macOS…";
 "AI的重工作會先等降溫。" = " Heavy AI jobs will wait until it cools down.";
@@ -324,16 +313,9 @@
 "溫度回到%.0f°C，沒有降頻。" = "Back to %.0f°C, no throttling.";
 "guard沒在執行，風扇停在手動%.0f rpm" = "guard isn’t running · fan stuck at manual %.0f rpm";
 "幾秒內把風扇交回macOS自己管，不需要密碼；之後可以恢復" = "Hands the fan back to macOS within a few seconds, no password needed. You can restore it later.";
-"偏好" = "Preferences";
-"提示音、選單列、通知" = "Sounds, menu bar, notifications";
-"面板" = "Panel";
 "關掉就只顯示圖示：溫度計刻度分正常／偏溫，過熱時右下角多一個點，危險換成三角形，降頻時改成右上角一隻烏龜" = "When off, only the icon shows: the thermometer level tells Normal from Warm, Hot adds a dot at the bottom right, Critical turns into a triangle, and throttling shows a tortoise at the top right instead.";
 "只在開始降頻、溫度到critical、恢復正常三個時刻發；同一段過熱每一類只發一次，穩定正常2.5分鐘才算恢復" = "Sent only when throttling starts, when temperature turns critical, and when it recovers. Each kind is sent once per hot spell, and it counts as recovered after 2.5 minutes of steady normal.";
 "和另一條規則同名" = "Same name as another rule";
-"guard沒在跑" = "guard isn’t running";
-"macOS控制中，暫不作用" = "macOS in control, paused";
-"沒有規則" = "No rules";
-"基本設定" = "Base settings";
 "風扇由macOS原廠控制中，情境與上限暫不作用" = "macOS is controlling the fan; profiles and the cap are paused.";
 "固定模式不套曲線，只有上限會作用" = "Fixed mode doesn’t use curves; only the cap applies.";
 "溫度高或降頻中：暫時不限轉速" = "Hot or throttling: cap lifted for now";
@@ -355,3 +337,57 @@
 "噪音上限%ld rpm暫停：溫度高或降頻，風扇不受限" = "Noise cap %ld rpm paused: hot or throttling, fan unrestricted";
 "噪音上限%ld rpm恢復" = "Noise cap %ld rpm restored";
 "設定檔裡的上限或情境規則不見了（舊版面板按了套用？）" = "The cap or profile rules vanished from the config file (an old panel pressed Apply?)";
+
+/* 設定視窗與面板改版（2026-09-25） */
+"查看⋯" = "Details…";
+"打開設定視窗的健康檢查" = "Open the health check in Settings";
+"設定⋯" = "Settings…";
+"編輯" = "Edit";
+"還原" = "Undo";
+"重做" = "Redo";
+"剪下" = "Cut";
+"拷貝" = "Copy";
+"貼上" = "Paste";
+"全選" = "Select All";
+"視窗" = "Window";
+"關閉" = "Close";
+"cool42面板" = "cool42 panel";
+"已切換為「%@」模式" = "Switched to “%@” mode";
+"風扇模式" = "Fan mode";
+"曲線：cool42照曲線提早加速；固定：固定轉速；自動：交還macOS原廠控制" = "Curve: cool42 speeds up early along the curve. Fixed: one fixed speed. Automatic: macOS controls the fan";
+"guard沒在執行，切換不會生效" = "guard isn’t running, so switching has no effect";
+"固定%ld rpm · 在設定裡調整" = "Fixed %ld rpm · adjust in Settings";
+"macOS原廠控制 · cool42只監看" = "macOS controls the fan · cool42 only watches";
+"「%@」曲線 · 在設定裡調整" = "“%@” curve · adjust in Settings";
+"打開設定視窗（⌘,）" = "Open Settings (⌘,)";
+"通知與顯示" = "Notifications & Display";
+"關於與檢查" = "About & Health";
+"按「套用」後寫入設定檔，guard幾秒內生效。" = "Apply writes the config file; guard picks it up in seconds.";
+"捨棄變更" = "Discard Changes";
+"轉速" = "Speed";
+"緊急交還" = "Emergency hand-back";
+"風扇一直停在同一個轉速，不看溫度。" = "The fan stays at one speed regardless of temperature.";
+"照溫度曲線提早把風扇轉起來。點與點之間線性內插；溫度到hot、critical或降頻時不受噪音上限限制。" = "Spins the fan up early along the temperature curve, interpolating between points. At hot, critical or while throttling, the noise cap doesn’t apply.";
+"第%ld點" = "Point %ld";
+"噪音上限" = "Noise cap";
+"溫度到達" = "When temperature reaches";
+"溫度降到" = "When temperature drops below";
+"CPU／GPU一降頻就算過熱，不看溫度。門檻獨立於風扇與hook的hot線；開關立即生效，門檻按「套用」才寫入。" = "Any CPU/GPU throttling counts as overheating regardless of temperature. These thresholds are separate from the fan and hook hot line. Switches take effect immediately; thresholds are written when you click Apply.";
+"播放提示音" = "Play sound";
+"聲音" = "Sound";
+"試聽" = "Preview";
+"選單列" = "Menu bar";
+"通知" = "Notifications";
+"Apple Silicon風扇守門員 · 版本%@" = "Fan guard for Apple Silicon · Version %@";
+"檔案與程式" = "Files & App";
+"在Finder中顯示" = "Show in Finder";
+"打開" = "Open";
+"面板程式" = "Panel app";
+
+/* 未套用的變更：關設定視窗前確認、面板頁尾提示 */
+"要套用設定的變更嗎？" = "Do you want to apply your settings changes?";
+"還沒套用的變更不會寫入設定檔，guard看不到。" = "Changes that aren’t applied won’t be written to the config file, so the guard won’t see them.";
+"設定有未套用的變更" = "Settings have unapplied changes";
+"打開設定⋯" = "Open Settings…";
+"在設定視窗按「套用」才會寫入設定檔" = "Changes are written to the config file only when you click Apply in Settings";
+"模式按了就生效；曲線與轉速按「套用」才寫入。" = "Mode changes take effect right away; curve and speed changes are written when you click Apply.";
