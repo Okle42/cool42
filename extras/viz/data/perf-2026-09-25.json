@@ -1,0 +1,2023 @@
+{
+ "source": "docs/perf-2026-09-25（recompute.py --viz 產生）",
+ "full_mhz": 3936,
+ "auto_cpugpu": {
+  "run": "run3-cpugpu",
+  "step": 4,
+  "trace": [
+   {
+    "t": 0.1,
+    "temp": 100.8,
+    "rpm": 2627,
+    "pcore": 3670,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 5.1,
+    "temp": 103.36,
+    "rpm": 2310,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 10.1,
+    "temp": 106.14,
+    "rpm": 2315,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 15.2,
+    "temp": 108.69,
+    "rpm": 2337,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 20.2,
+    "temp": 110.78,
+    "rpm": 2429,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 25.3,
+    "temp": 111.47,
+    "rpm": 2533,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 30.3,
+    "temp": 111.94,
+    "rpm": 2649,
+    "pcore": 3918,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 35.3,
+    "temp": 111.7,
+    "rpm": 2761,
+    "pcore": 3918,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 40.4,
+    "temp": 111.0,
+    "rpm": 2899,
+    "pcore": 3880,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 45.4,
+    "temp": 111.47,
+    "rpm": 2952,
+    "pcore": 3800,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 50.4,
+    "temp": 108.92,
+    "rpm": 2949,
+    "pcore": 3761,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 55.5,
+    "temp": 109.84,
+    "rpm": 2950,
+    "pcore": 3771,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 60.5,
+    "temp": 107.77,
+    "rpm": 2950,
+    "pcore": 3750,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 65.6,
+    "temp": 108.92,
+    "rpm": 2950,
+    "pcore": 3773,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 70.6,
+    "temp": 107.08,
+    "rpm": 2949,
+    "pcore": 3756,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 75.7,
+    "temp": 108.47,
+    "rpm": 2951,
+    "pcore": 3752,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 80.7,
+    "temp": 108.92,
+    "rpm": 2949,
+    "pcore": 3744,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 85.7,
+    "temp": 108.92,
+    "rpm": 2950,
+    "pcore": 3723,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 90.8,
+    "temp": 108.69,
+    "rpm": 2949,
+    "pcore": 3729,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 95.8,
+    "temp": 108.92,
+    "rpm": 2947,
+    "pcore": 3736,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 100.8,
+    "temp": 108.47,
+    "rpm": 2951,
+    "pcore": 3729,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 105.8,
+    "temp": 108.47,
+    "rpm": 2950,
+    "pcore": 3707,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 110.9,
+    "temp": 109.39,
+    "rpm": 2949,
+    "pcore": 3705,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 115.9,
+    "temp": 108.47,
+    "rpm": 2950,
+    "pcore": 3705,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 120.9,
+    "temp": 107.77,
+    "rpm": 2950,
+    "pcore": 3714,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 126.0,
+    "temp": 107.53,
+    "rpm": 2951,
+    "pcore": 3698,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 131.0,
+    "temp": 108.92,
+    "rpm": 2953,
+    "pcore": 3706,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 136.0,
+    "temp": 108.47,
+    "rpm": 2951,
+    "pcore": 3715,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 141.1,
+    "temp": 109.39,
+    "rpm": 2951,
+    "pcore": 3717,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 146.1,
+    "temp": 108.92,
+    "rpm": 2948,
+    "pcore": 3684,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 151.1,
+    "temp": 107.08,
+    "rpm": 2950,
+    "pcore": 3689,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 156.2,
+    "temp": 107.08,
+    "rpm": 2950,
+    "pcore": 3693,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 161.2,
+    "temp": 107.77,
+    "rpm": 2947,
+    "pcore": 3694,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 166.3,
+    "temp": 106.84,
+    "rpm": 2953,
+    "pcore": 3694,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 171.3,
+    "temp": 106.38,
+    "rpm": 2949,
+    "pcore": 3700,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 176.4,
+    "temp": 108.0,
+    "rpm": 2951,
+    "pcore": 3669,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 181.4,
+    "temp": 108.92,
+    "rpm": 2949,
+    "pcore": 3682,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 186.5,
+    "temp": 108.23,
+    "rpm": 2949,
+    "pcore": 3652,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 191.5,
+    "temp": 106.61,
+    "rpm": 2949,
+    "pcore": 3680,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 196.6,
+    "temp": 108.47,
+    "rpm": 2950,
+    "pcore": 3668,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 201.6,
+    "temp": 110.31,
+    "rpm": 2949,
+    "pcore": 3653,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 206.6,
+    "temp": 105.67,
+    "rpm": 2948,
+    "pcore": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 211.7,
+    "temp": 108.69,
+    "rpm": 2949,
+    "pcore": 3667,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 216.7,
+    "temp": 107.53,
+    "rpm": 2950,
+    "pcore": 3634,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 221.8,
+    "temp": 107.3,
+    "rpm": 2954,
+    "pcore": 3635,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 226.8,
+    "temp": 108.47,
+    "rpm": 2949,
+    "pcore": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 231.8,
+    "temp": 105.22,
+    "rpm": 2948,
+    "pcore": 3645,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 236.9,
+    "temp": 107.08,
+    "rpm": 2951,
+    "pcore": 3609,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 242.0,
+    "temp": 106.84,
+    "rpm": 2949,
+    "pcore": 3668,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 247.0,
+    "temp": 106.61,
+    "rpm": 2948,
+    "pcore": 3650,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 252.0,
+    "temp": 109.62,
+    "rpm": 2951,
+    "pcore": 3664,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 257.1,
+    "temp": 107.3,
+    "rpm": 2949,
+    "pcore": 3672,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 262.1,
+    "temp": 107.08,
+    "rpm": 2950,
+    "pcore": 3659,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 267.2,
+    "temp": 108.92,
+    "rpm": 2948,
+    "pcore": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 272.2,
+    "temp": 107.77,
+    "rpm": 2948,
+    "pcore": 3652,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 277.2,
+    "temp": 110.55,
+    "rpm": 2952,
+    "pcore": 3638,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 282.2,
+    "temp": 106.84,
+    "rpm": 2951,
+    "pcore": 3638,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 287.3,
+    "temp": 108.92,
+    "rpm": 2949,
+    "pcore": 3654,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 292.3,
+    "temp": 105.22,
+    "rpm": 2948,
+    "pcore": 3659,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 297.3,
+    "temp": 111.47,
+    "rpm": 2951,
+    "pcore": 3661,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 302.4,
+    "temp": 106.61,
+    "rpm": 2946,
+    "pcore": 3599,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 307.4,
+    "temp": 106.61,
+    "rpm": 2950,
+    "pcore": 3688,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 312.5,
+    "temp": 108.92,
+    "rpm": 2950,
+    "pcore": 3655,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 317.5,
+    "temp": 106.84,
+    "rpm": 2947,
+    "pcore": 3658,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 322.6,
+    "temp": 104.98,
+    "rpm": 2950,
+    "pcore": 3655,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 327.6,
+    "temp": 107.53,
+    "rpm": 2950,
+    "pcore": 3666,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 332.6,
+    "temp": 105.45,
+    "rpm": 2948,
+    "pcore": 3641,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 337.7,
+    "temp": 108.92,
+    "rpm": 2949,
+    "pcore": 3660,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 342.7,
+    "temp": 108.47,
+    "rpm": 2950,
+    "pcore": 3670,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 347.8,
+    "temp": 108.23,
+    "rpm": 2947,
+    "pcore": 3670,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 352.8,
+    "temp": 106.61,
+    "rpm": 2948,
+    "pcore": 3648,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 357.9,
+    "temp": 106.61,
+    "rpm": 2948,
+    "pcore": 3629,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 362.9,
+    "temp": 106.14,
+    "rpm": 2949,
+    "pcore": 3629,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 368.0,
+    "temp": 106.14,
+    "rpm": 2951,
+    "pcore": 3651,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 373.0,
+    "temp": 106.84,
+    "rpm": 2950,
+    "pcore": 3642,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 378.0,
+    "temp": 108.69,
+    "rpm": 2953,
+    "pcore": 3642,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 383.1,
+    "temp": 107.3,
+    "rpm": 2949,
+    "pcore": 3648,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 388.1,
+    "temp": 106.84,
+    "rpm": 2951,
+    "pcore": 3643,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 393.2,
+    "temp": 107.77,
+    "rpm": 2950,
+    "pcore": 3650,
+    "pressure": "Nominal"
+   }
+  ],
+  "pm": [
+   {
+    "t": 399.3,
+    "p": 3626,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 400.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 401.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 402.3,
+    "p": 3656,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 403.3,
+    "p": 3688,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 404.3,
+    "p": 3639,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 405.3,
+    "p": 3644,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 406.3,
+    "p": 3663,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 408.3,
+    "p": 3689,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 409.3,
+    "p": 3629,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 410.3,
+    "p": 3626,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 411.3,
+    "p": 3634,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 412.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 413.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 414.3,
+    "p": 3588,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 415.3,
+    "p": 3575,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 416.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 417.3,
+    "p": 3660,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 418.3,
+    "p": 3661,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 419.3,
+    "p": 3669,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 420.3,
+    "p": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 421.3,
+    "p": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 422.3,
+    "p": 3684,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 423.3,
+    "p": 3639,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 424.3,
+    "p": 3665,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 425.3,
+    "p": 3670,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 426.3,
+    "p": 3683,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 427.3,
+    "p": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 428.3,
+    "p": 3659,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 429.3,
+    "p": 3633,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 430.3,
+    "p": 3641,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 431.3,
+    "p": 3649,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 432.3,
+    "p": 3681,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 433.3,
+    "p": 3652,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 434.3,
+    "p": 3659,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 435.3,
+    "p": 3645,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 436.3,
+    "p": 3648,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 437.3,
+    "p": 3659,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 438.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 439.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 440.3,
+    "p": 3672,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 441.3,
+    "p": 3662,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 442.3,
+    "p": 3634,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 443.3,
+    "p": 3636,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 444.3,
+    "p": 3626,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 445.3,
+    "p": 3636,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 446.3,
+    "p": 3662,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 447.3,
+    "p": 3702,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 448.3,
+    "p": 3659,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 449.3,
+    "p": 3665,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 450.3,
+    "p": 3650,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 451.3,
+    "p": 3562,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 452.3,
+    "p": 3589,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 453.3,
+    "p": 3616,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 454.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 455.3,
+    "p": 3680,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 456.3,
+    "p": 3692,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 457.3,
+    "p": 3652,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 458.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 459.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 460.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 461.3,
+    "p": 3660,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 462.3,
+    "p": 3631,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 463.3,
+    "p": 3629,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 464.3,
+    "p": 3669,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 465.3,
+    "p": 3683,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 466.3,
+    "p": 3643,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 467.3,
+    "p": 3644,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 468.3,
+    "p": 3627,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 469.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 470.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 471.3,
+    "p": 3610,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 472.3,
+    "p": 3602,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 473.3,
+    "p": 3610,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 474.3,
+    "p": 3646,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 475.3,
+    "p": 3652,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 476.3,
+    "p": 3655,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 477.3,
+    "p": 3636,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 478.3,
+    "p": 3635,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 479.3,
+    "p": 3654,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 480.3,
+    "p": 3706,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 481.3,
+    "p": 3675,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 482.3,
+    "p": 3657,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 483.3,
+    "p": 3624,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 484.3,
+    "p": 3604,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 485.3,
+    "p": 3604,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 486.3,
+    "p": 3608,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 487.3,
+    "p": 3646,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 488.3,
+    "p": 3669,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 489.3,
+    "p": 3667,
+    "pressure": "Nominal"
+   }
+  ],
+  "sample": {
+   "temp": 106.83799342105263,
+   "rpm": 2950.5263157894738,
+   "pcore": 3643.7555555555555,
+   "ops": 17066.236238126014,
+   "cpu_w": 20.3364,
+   "ops_j": 839.1965263333733
+  },
+  "settle_s": 399.3,
+  "state": "timeout"
+ },
+ "curve_cpugpu": {
+  "run": "run4-cpugpu",
+  "step": 1,
+  "trace": [
+   {
+    "t": 0.0,
+    "temp": 79.75,
+    "rpm": 1000,
+    "pcore": 0,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 5.1,
+    "temp": 86.8,
+    "rpm": 1660,
+    "pcore": 3916,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 10.1,
+    "temp": 91.47,
+    "rpm": 2460,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 15.2,
+    "temp": 95.2,
+    "rpm": 3233,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 20.2,
+    "temp": 96.84,
+    "rpm": 3974,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 25.2,
+    "temp": 98.7,
+    "rpm": 4679,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 30.2,
+    "temp": 98.7,
+    "rpm": 4853,
+    "pcore": 3935,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 35.3,
+    "temp": 99.17,
+    "rpm": 4853,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 40.3,
+    "temp": 100.33,
+    "rpm": 4849,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 45.4,
+    "temp": 100.8,
+    "rpm": 4856,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 50.4,
+    "temp": 101.03,
+    "rpm": 4855,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 55.4,
+    "temp": 100.8,
+    "rpm": 4848,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 60.5,
+    "temp": 101.5,
+    "rpm": 4859,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 65.5,
+    "temp": 101.03,
+    "rpm": 4854,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 70.5,
+    "temp": 101.73,
+    "rpm": 4859,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 75.6,
+    "temp": 101.97,
+    "rpm": 4857,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 80.6,
+    "temp": 101.97,
+    "rpm": 4854,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 85.7,
+    "temp": 101.5,
+    "rpm": 4855,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 90.7,
+    "temp": 102.42,
+    "rpm": 4851,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 95.8,
+    "temp": 103.59,
+    "rpm": 4855,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 100.8,
+    "temp": 103.12,
+    "rpm": 4847,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 105.8,
+    "temp": 103.36,
+    "rpm": 4849,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 110.9,
+    "temp": 103.36,
+    "rpm": 4847,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 115.9,
+    "temp": 103.59,
+    "rpm": 4853,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 120.9,
+    "temp": 103.59,
+    "rpm": 4847,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 126.0,
+    "temp": 103.36,
+    "rpm": 4854,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 131.0,
+    "temp": 103.36,
+    "rpm": 4851,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 136.0,
+    "temp": 103.12,
+    "rpm": 4849,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 141.1,
+    "temp": 103.59,
+    "rpm": 4856,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 146.1,
+    "temp": 103.83,
+    "rpm": 4851,
+    "pcore": 3936,
+    "pressure": "Nominal"
+   }
+  ],
+  "pm": [
+   {
+    "t": 148.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 149.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 150.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 151.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 152.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 153.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 154.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 155.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 156.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 157.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 158.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 159.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 160.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 161.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 162.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 163.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 164.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 165.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 166.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 167.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 168.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 169.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 170.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 171.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 172.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 173.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 174.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 175.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 176.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 177.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 178.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 179.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 180.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 181.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 182.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 183.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 184.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 185.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 186.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 187.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 188.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 189.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 190.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 191.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 192.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 193.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 194.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 195.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 196.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 197.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 198.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 199.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 200.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 201.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 202.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 203.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 204.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 205.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 206.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 207.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 208.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 209.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 210.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 211.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 212.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 213.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 214.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 215.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 216.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 217.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 219.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 220.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 221.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 222.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 223.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 224.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 225.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 226.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 227.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 228.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 229.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 230.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 231.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 232.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 233.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 234.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 235.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 236.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 237.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   },
+   {
+    "t": 238.2,
+    "p": 3936,
+    "pressure": "Nominal"
+   }
+  ],
+  "sample": {
+   "temp": 104.15131578947368,
+   "rpm": 4853.684210526316,
+   "pcore": 3936.0,
+   "ops": 17912.856477453453,
+   "cpu_w": 23.8987,
+   "ops_j": 749.5326723819057
+  },
+  "settle_s": 148.2,
+  "state": "converged",
+  "both": {
+   "temp": 104.41324013157895,
+   "rpm": 4877.421052631579,
+   "ops": 17874.593256441152,
+   "ops_j": 748.0513629742687
+  }
+ },
+ "auto_cold": [
+  {
+   "run": "run4-cpugpu",
+   "step": 2,
+   "trace": [
+    {
+     "t": 0.0,
+     "temp": 84.67,
+     "rpm": 1000,
+     "pcore": 0,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 5.1,
+     "temp": 91.0,
+     "rpm": 999,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 10.1,
+     "temp": 96.38,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 15.2,
+     "temp": 101.03,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 20.2,
+     "temp": 106.14,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 25.3,
+     "temp": 109.16,
+     "rpm": 1061,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 30.3,
+     "temp": 111.23,
+     "rpm": 1240,
+     "pcore": 3935,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 35.4,
+     "temp": 112.62,
+     "rpm": 1437,
+     "pcore": 3935,
+     "pressure": "Nominal"
+    }
+   ]
+  },
+  {
+   "run": "run4-cpugpu",
+   "step": 4,
+   "trace": [
+    {
+     "t": 0.0,
+     "temp": 85.86,
+     "rpm": 1001,
+     "pcore": 3858,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 5.1,
+     "temp": 90.3,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 10.1,
+     "temp": 96.61,
+     "rpm": 999,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 15.2,
+     "temp": 101.03,
+     "rpm": 1001,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 20.3,
+     "temp": 104.75,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 25.3,
+     "temp": 110.08,
+     "rpm": 1111,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 30.3,
+     "temp": 111.7,
+     "rpm": 1299,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 35.4,
+     "temp": 111.94,
+     "rpm": 1499,
+     "pcore": 3896,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 40.5,
+     "temp": 112.62,
+     "rpm": 1714,
+     "pcore": 3803,
+     "pressure": "Nominal"
+    }
+   ]
+  }
+ ],
+ "auto_cpu": [
+  {
+   "run": "run2-cpu",
+   "step": 2,
+   "trace": [
+    {
+     "t": 0.0,
+     "temp": 89.83,
+     "rpm": 4817,
+     "pcore": 3800,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 5.1,
+     "temp": 91.47,
+     "rpm": 1005,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 10.1,
+     "temp": 94.97,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 15.2,
+     "temp": 97.31,
+     "rpm": 1001,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 20.2,
+     "temp": 99.88,
+     "rpm": 1001,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 25.3,
+     "temp": 101.5,
+     "rpm": 1001,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 30.3,
+     "temp": 103.12,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 35.3,
+     "temp": 105.22,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 40.4,
+     "temp": 106.61,
+     "rpm": 1152,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 45.4,
+     "temp": 107.77,
+     "rpm": 1356,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 50.4,
+     "temp": 107.3,
+     "rpm": 1558,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 55.5,
+     "temp": 108.47,
+     "rpm": 1780,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    }
+   ]
+  },
+  {
+   "run": "run2-cpu",
+   "step": 4,
+   "trace": [
+    {
+     "t": 0.0,
+     "temp": 90.53,
+     "rpm": 3404,
+     "pcore": 0,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 5.0,
+     "temp": 93.11,
+     "rpm": 1001,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 10.1,
+     "temp": 95.91,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 15.1,
+     "temp": 98.94,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 20.2,
+     "temp": 100.8,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 25.2,
+     "temp": 102.42,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 30.3,
+     "temp": 104.05,
+     "rpm": 1000,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 35.3,
+     "temp": 106.38,
+     "rpm": 1067,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 40.4,
+     "temp": 106.38,
+     "rpm": 1245,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    },
+    {
+     "t": 45.5,
+     "temp": 108.0,
+     "rpm": 1439,
+     "pcore": 3936,
+     "pressure": "Nominal"
+    }
+   ]
+  }
+ ],
+ "guard_log": [
+  "2026-09-25 11:09:32 設定已重載：模式 auto，曲線 60→1000 75→1800 85→2600 92→3600 97→4900",
+  "2026-09-25 11:09:32 🔴 101°C 🌀4778rpm ⚡3.94GHz → 交還自動",
+  "2026-09-25 11:10:08 ⚠️ 熱降頻開始：pressure Nominal，P-core 3880 MHz，GPU CLTM 16%（🔴 109°C 🌀2761rpm ⚡3.88GHz GPU降頻）",
+  "2026-09-25 11:10:19 熱降頻結束：P-core 3761 MHz（🔴 111°C 🌀2950rpm ⚡3.76GHz）",
+  "2026-09-25 11:10:24 ⚠️ 熱降頻開始：pressure Nominal，P-core 3771 MHz，GPU CLTM 18%（🔴 109°C 🌀2949rpm ⚡3.77GHz GPU降頻）",
+  "2026-09-25 11:11:11 熱降頻結束：P-core 3729 MHz（🔴 110°C 🌀2952rpm ⚡3.73GHz）",
+  "2026-09-25 11:11:16 ⚠️ 熱降頻開始：pressure Nominal，P-core 3707 MHz，GPU CLTM 13%（🔴 109°C 🌀2952rpm ⚡3.71GHz GPU降頻）",
+  "2026-09-25 11:17:45 設定已重載：模式 curve，曲線 60→1000 75→1800 85→2600 92→3600 97→4900",
+  "2026-09-25 11:17:46 🔴 109°C 🌀2949rpm ⚡3.64GHz GPU降頻 → 目標 4900 rpm",
+  "2026-09-25 11:17:51 熱降頻結束：P-core 3382 MHz（🔴 74°C 🌀4884rpm ⚡3.38GHz）",
+  "2026-09-25 11:18:22 等級 critical → ok（🟢 55°C 🌀4907rpm）"
+ ]
+}

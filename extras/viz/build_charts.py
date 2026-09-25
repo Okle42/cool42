@@ -5,16 +5,17 @@
   * docs/ab-test-2026-09-16/        A/B 實測（samples.txt、powermetrics-A/B.txt、config-A/B.json）
   * extras/viz/data/cool42-log-*.txt  /var/log/cool42.log 凍結快照（2026-09-20 01:18:34 → 2026-09-23 23:42:28）
   * extras/viz/data/stats-*.json      /var/db/cool42/stats.json 當日快照
+  * extras/viz/data/perf-2026-09-25.json  docs/perf-2026-09-25 四次原廠對照實跑的 trace／powermetrics（recompute.py --viz 產生）
   加 --live 改讀 /var/log/cool42.log 與 /var/db/cool42/stats.json（數字會跟著變）。
 
 輸出：
   * docs/img/charts/<name>-light.svg、<name>-dark.svg   README 用（<picture> 切換亮暗）
-  * docs/img/charts/<name>-en-light.svg、<name>-en-dark.svg   英文版（README.en.md 用），9 張都有
+  * docs/img/charts/<name>-en-light.svg、<name>-en-dark.svg   英文版（README.en.md 用），11 張都有
   * docs/viz/index.html                                 互動比對頁（單檔、內嵌 SVG＋數據、hover 看值）
   * 另外複製到 ~/Desktop/cool42-數據比對.html（--no-desktop 可略過）
 
 用法：python3 extras/viz/build_charts.py [--live] [--lang zh|en|both] [--no-desktop]
-  --lang 預設 both：中文 <name>-light/-dark.svg 與英文 <name>-en-light/-dark.svg 各 9 張（同一份數據）；
+  --lang 預設 both：中文 <name>-light/-dark.svg 與英文 <name>-en-light/-dark.svg 各 11 張（同一份數據）；
   互動頁一律內含中英兩版，右上「中文 / English」切換，也可用 index.html?lang=en 直接開英文。
 """
 import argparse
@@ -37,6 +38,7 @@ DESKTOP = os.path.expanduser("~/Desktop/cool42-數據比對.html")
 
 FROZEN_LOG = os.path.join(DATA, "cool42-log-20260920_20260923.txt")
 FROZEN_STATS = os.path.join(DATA, "stats-2026-09-23.json")
+PERF = os.path.join(DATA, "perf-2026-09-25.json")   # docs/perf-2026-09-25/recompute.py --viz 產生
 
 # ---------------------------------------------------------------- 色彩（dataviz 參考色盤，已跑 validate_palette.js）
 # 分類三色 all-pairs 亮暗都 PASS；亮色 aqua 對比 2.74 < 3:1 → 以直接標籤＋表格補足（relief rule）。
@@ -453,8 +455,8 @@ def chart_timeline(D, th, inter, show_title=True):
     s = D["summary"]
     title = L(f"近 {s['hours']:.0f} 小時：{len(segs)} 段高溫（{len(hot)} 筆 ≥90°C），hook 等待 0 次",
               f"Last {s['hours']:.0f} h: {len(segs)} hot periods ({len(hot)} writes ≥ 90 °C), 0 hook waits")
-    sub = L(f"每一點是 guard 寫 SMC 的時刻（共 {len(w):,} 筆，只在轉速改變時記錄，非等間隔）；hook 等待 0、擋下 0、pressure 非 Nominal 0 秒",
-            f"Each dot is a fan-guard SMC write ({len(w):,} total, logged only when the target changes); 0 hook waits, 0 denials, 0 s non-Nominal pressure")
+    sub = L(f"每一點是 guard 寫 SMC 的時刻（共 {len(w):,} 筆，只在轉速改變時記錄，非等間隔）；hook 等待 0、擋下 0、降頻 0 秒（舊版定義＝pressure 非 Nominal 或 GPU CLTM，不看時脈，不能排除無聲降頻）",
+            f"Each dot is a fan-guard SMC write ({len(w):,} total, logged only when the target changes); 0 hook waits, 0 denials, 0 s throttled (old definition = non-Nominal pressure or GPU CLTM, no clock check, so silent throttling isn't ruled out)")
     p = Plot(th, 760, 380, 0, x1, 30, 105, interactive=inter, title=title, subtitle=sub, ylabel="°C",
              show_title=show_title, mr=176)
     p.ygrid([30, 40, 50, 60, 70, 80, 90, 100], lambda v: f"{v:.0f}°")
@@ -531,8 +533,8 @@ def chart_daily_max(D, th, inter, show_title=True):
     days = D["daily"]
     full = [d["logmax"] for d in days if not d.get("partial")]
     last = days[-1]
-    title = L(f"每日最高 {min(full)}–{max(full)}°C（log 值；{last['date'][5:]} 至 23:42 為 {last['logmax']}°C），降頻 0 秒",
-              f"Daily peak {min(full)}–{max(full)} °C (log values; {last['date'][5:]} to 23:42: {last['logmax']} °C), 0 s throttled")
+    title = L(f"每日最高 {min(full)}–{max(full)}°C（log 值；{last['date'][5:]} 至 23:42 為 {last['logmax']}°C），降頻 0 秒（舊版定義）",
+              f"Daily peak {min(full)}–{max(full)} °C (log values; {last['date'][5:]} to 23:42: {last['logmax']} °C), 0 s throttled (old definition)")
     sub = L("柱＝每日結算（Int 截斷，可能比 log 值低 1°C）；09-23 取 stats.json 快照，約 23:48–23:50 抓取，log 只到 23:42",
             "Bars = daily summary (truncated to int, may be 1 °C below the log value); 09-23 from a stats.json snapshot taken ~23:48–23:50, log ends 23:42")
     p = Plot(th, 760, 380, -0.5, len(days) - 0.5, 0, 110, interactive=inter, title=title, subtitle=sub,
@@ -544,7 +546,7 @@ def chart_daily_max(D, th, inter, show_title=True):
     for i, d in enumerate(days):
         p.col(p.sx(i), d["max"], 24, "s1", tip=(d["date"] + (L("（至 23:42）", " (to 23:42)") if d.get("partial") else ""),
               [[f"{d['max']:.0f}°C" if isinstance(d['max'], int) else f"{d['max']:.1f}°C", L("結算最高", "daily summary")],
-               [f"{d['logmax']}°C", L("log 行最高", "log max")], [f"{d['throttle']} s", L("降頻（pressure 非 Nominal）", "throttled (non-Nominal)")],
+               [f"{d['logmax']}°C", L("log 行最高", "log max")], [f"{d['throttle']} s", L("降頻（舊定義：pressure 或 GPU CLTM）", "throttled (old def.: pressure or GPU CLTM)")],
                [f"{d['waits']} / {d['denies']}", L("hook 等待 / 擋下", "hook waits / denials")]]),
               label=None)
         p.text(p.sx(i), p.pb + 18, d["date"][5:].replace("-", "/") + (L("（部分）", " (partial)") if d.get("partial") else "") + f" · log {d['logmax']}°C", "ink", 12, "middle", 600)
@@ -577,7 +579,7 @@ def chart_daily_ctrl(D, th, inter, show_title=True):
 def chart_curves(D, th, inter, show_title=True):
     A, B = D["curveA"], D["curveB"]
     tk = D["ev"]["takeovers"]
-    title = L("macOS 自動 vs cool42 曲線：缺同負載穩態對照", "macOS auto vs cool42 curves: no same-load steady-state comparison yet")
+    title = L("macOS 自動 vs cool42 曲線：接管前一刻的轉速（非穩態）", "macOS auto vs cool42 curves: rpm right before takeover (not steady state)")
     sub = L("線＝cool42 設定曲線；點＝guard 接管前一刻 macOS 自動控制下的實際轉速（非穩態、非同負載）",
             "Lines = cool42 curves; dots = actual rpm under macOS auto control right before guard took over (not steady state, not same load)")
     p = Plot(th, 760, 400, 40, 110, 0, 5000, interactive=inter, title=title, subtitle=sub, ylabel="rpm",
@@ -604,33 +606,209 @@ def chart_curves(D, th, inter, show_title=True):
     p.text(p.sx(100) + 6, p.sy(4300) + 15, L("擋下區", "deny zone"), "muted", 11)
     p.text(p.sx(100) + 6, p.sy(4300) + 30, L("近 4 天 0 次", "0 in 4 days"), "muted", 11)
     by = p.pt + 90
-    p.parts.append(f'<rect x="{p.pr + 12}" y="{by - 10}" width="10" height="10" rx="2" fill="{th["crit"]}"/>')
-    p.text(p.pr + 28, by, L("待補", "TODO"), "ink", 12, weight=650)
-    p.text(p.pr + 12, by + 18, "perf_vs_temp.py", "ink2", 11.5)
-    p.text(p.pr + 12, by + 35, L("同負載、固定轉速", "same load, fixed rpm"), "muted", 11)
-    p.text(p.pr + 12, by + 51, L("的穩態對照", "steady-state test"), "muted", 11)
-    p.text(p.pr + 12, by + 67, L("（需 sudo＋空機）", "(needs sudo + idle Mac)"), "muted", 11)
+    p.text(p.pr + 12, by, L("同負載穩態對照", "Same-load steady state"), "ink", 12, weight=650)
+    p.text(p.pr + 12, by + 18, "docs/perf-2026-09-25", "ink2", 11.5)
+    p.text(p.pr + 12, by + 35, L("見「原廠對照 09-25」", "see “Stock comparison"), "muted", 11)
+    p.text(p.pr + 12, by + 51, L("兩張圖", "09-25” charts"), "muted", 11)
     med = st.median(x["rpm"] for x in tk)
     p.text(p.sx(56), p.sy(med) + 22, L(f"macOS 自動中位 {med:,.0f} rpm（n={len(tk)}）", f"macOS auto median {med:,.0f} rpm (n={len(tk)})"), "ink", 11, "start", 600)
     p.legend([("line", "s1", L("A 強力", "A strong")), ("line", "s2", L("B 均衡", "B balanced")), ("dot", "s3", L("macOS 自動（接管前一刻）", "macOS auto (right before takeover)")), ("ring", "muted", L("外部資料", "external data"))])
     return p.render()
 
 
+# ---------------------------------------------------------------- 2026-09-25 原廠自動 vs cool42 曲線（docs/perf-2026-09-25）
+def stack_panels(frame, specs, gap=34):
+    """一張 SVG 內上下疊多個小圖（共用 X 軸、各自 Y 軸），不做雙軸。
+    frame：負責標題／圖例／十字線的外框 Plot；specs：[(高度, y0, y1)]。回傳每個 panel 的 Plot。"""
+    panels, top = [], frame.mt + 20   # 圖例在 frame.mt − 22；第一個 panel 標題再往下 20px，免得貼著圖例
+    for h, y0, y1 in specs:
+        p = Plot(frame.th, frame.W, frame.H, frame.x0, frame.x1, y0, y1, ml=frame.ml, mr=frame.mr,
+                 mt=top, mb=frame.H - top - h, interactive=frame.interactive, show_title=True)
+        panels.append(p)
+        top += h + gap
+    return panels
+
+
+def dedupe_labels(items, min_gap=14):
+    """右側直接標籤避免重疊：items=[(y, …)]，依 y 排序後往下推開。"""
+    items = sorted(items, key=lambda it: it[0])
+    out, last = [], -1e9
+    for it in items:
+        y = max(it[0], last + min_gap)
+        out.append((y,) + tuple(it[1:]))
+        last = y
+    return out
+
+
+def _bucket(trace, key):
+    return {int(round(p["t"] / 5)) * 5: p[key] for p in trace}
+
+
+def chart_perf_cpugpu(D, th, inter, show_title=True):
+    P = D["perf"]
+    au, cu = P["auto_cpugpu"], P["curve_cpugpu"]
+    full = P["full_mhz"]
+    s_au, s_cu, both = au["sample"], cu["sample"], cu["both"]
+    title = L(f"CPU＋GPU 滿載：原廠風扇停在 {s_au['rpm']:,.0f} rpm、P-core 掉到 {s_au['pcore']:,.0f}，pressure 全程 Nominal",
+              f"CPU+GPU load: stock fan parks at {s_au['rpm']:,.0f} rpm, P-core {s_au['pcore']:,.0f} MHz, still Nominal")
+    sub = L(f"原廠＝run3 第 4 檔（熱機起跑，n=1）；cool42＝run4 第 1 檔；線＝每 5 秒輪詢、P-core 細線＝取樣窗 powermetrics 每秒；工作量曲線多 {both['ops'] / s_au['ops'] * 100 - 100:.1f}%",
+            f"Stock = run3 step 4 (heat-soaked start, n=1); cool42 = run4 step 1; lines = 5 s polls, thin P-core line = 1 s powermetrics in the sample window; curve does {both['ops'] / s_au['ops'] * 100 - 100:.1f}% more work")
+    W, H = 760, 104 + 20 + 3 * 118 + 2 * 34 + 56
+    frame = Plot(th, W, H, 0, 500, 0, 1, interactive=inter, title=title, subtitle=sub, show_title=show_title, mr=170,
+                 xlabel=L("換到該模式後秒數", "seconds after switching mode"))
+    pT, pR, pP = stack_panels(frame, [(118, 75, 115), (118, 0, 5000), (118, 3500, 4000)])
+    xt = [0, 100, 200, 300, 400, 500]
+    ser = ((au, "s2", L("macOS 原廠自動", "macOS stock auto")), (cu, "s1", L("cool42 曲線", "cool42 curve")))
+    # 溫度
+    pT.text(pT.pl, pT.pt - 10, L("控制溫度 °C", "control temp °C"), "ink2", 12, weight=600)
+    pT.ygrid([75, 85, 95, 105, 115], lambda v: f"{v:.0f}°")
+    pT.hline(112, L("腳本上限 112°C", "script cutoff 112 °C"), "crit", side="left")
+    for s, c, _ in ser:
+        pT.line([(p["t"], p["temp"]) for p in s["trace"]], c)
+    t0 = au["trace"][0]
+    pT.dot(t0["t"], t0["temp"], "s2", 4, hollow=True)
+    # 標註放在 t=0 圈標右下、曲線（run4 冷機起跑）下方，用引線指回圈標
+    lx, ly = pT.sx(16), pT.sy(89)
+    pT.parts.append(f'<line x1="{pT.sx(t0["t"]) + 3:.1f}" y1="{pT.sy(t0["temp"]) + 4:.1f}" x2="{lx - 2:.1f}" y2="{ly - 10:.1f}" '
+                    f'stroke="{th["muted"]}" stroke-width="1"/>')
+    pT.text(lx, ly, L(f"原廠 t=0 已 {t0['temp']:.1f}°C（熱機起跑，降溫判定 bug）", f"stock already {t0['temp']:.1f} °C at t=0 (heat-soaked start, cool-down bug)"), "muted", 11)
+    labs = [(pT.sy(s_au["temp"]) + 4, L(f"原廠 {s_au['temp']:.1f}°C", f"stock {s_au['temp']:.1f} °C")),
+            (pT.sy(s_cu["temp"]) + 4, L(f"曲線 {s_cu['temp']:.1f}°C", f"curve {s_cu['temp']:.1f} °C"))]
+    labs = dedupe_labels(labs)
+    for y, lab in labs:
+        pT.text(pT.pr + 8, y, lab, "ink", 12, weight=600)
+    pT.text(pT.pr + 8, labs[0][0] - 16, L("取樣窗平均", "sample-window mean"), "muted", 11)
+    # 風扇
+    pR.text(pR.pl, pR.pt - 10, L("風扇 rpm", "fan rpm"), "ink2", 12, weight=600)
+    pR.ygrid([0, 2500, 5000])
+    for s, c, _ in ser:
+        pR.line([(p["t"], p["rpm"]) for p in s["trace"]], c)
+    labs = [(pR.sy(s_au["rpm"]) + 4, f"{s_au['rpm']:,.0f}"), (pR.sy(s_cu["rpm"]) + 4, f"{s_cu['rpm']:,.0f}")]
+    for y, lab in dedupe_labels(labs):
+        pR.text(pR.pr + 8, y, lab, "ink", 12, weight=600)
+    pR.text(pR.sx(300), pR.sy(s_au["rpm"]) + 18, L("原廠停在這裡，最高檔沒用", "stock parks here, top speed unused"), "muted", 11, "middle")
+    # P-core
+    pP.text(pP.pl, pP.pt - 10, L("P-core 硬體頻率 MHz", "P-core HW frequency MHz"), "ink2", 12, weight=600)
+    pP.ygrid([3500, 3750, 4000])
+    pP.hline(full, L(f"全核滿載 {full}", f"all-core full {full}"), "ink2", dash="2 3")
+    pP.hline(round(full * 0.95), L("×0.95 時脈降頻門檻", "×0.95 clock-throttle line"), "crit", side="right")
+    for s, c, _ in ser:
+        pP.line([(p["t"], p["pcore"]) for p in s["trace"] if p["pcore"] >= 3500], c)
+        pP.line([(p["t"], p["p"]) for p in s["pm"]], c, width=1, opacity=0.7)
+    pP.text(pP.sx(250), pP.sy(3540), L(f"pressure 全程 Nominal：原廠 {len(au['trace'])}+{len(au['pm'])} 筆、曲線 {len(cu['trace'])}+{len(cu['pm'])} 筆（輪詢＋pm）",
+                                       f"pressure Nominal throughout: stock {len(au['trace'])}+{len(au['pm'])}, curve {len(cu['trace'])}+{len(cu['pm'])} samples (poll + pm)"), "ink", 11.5, "middle", 600)
+    pP.xaxis(xt, lambda v: f"{v}s")
+    for p in (pT, pR):
+        p.parts.append(f'<line x1="{p.pl}" x2="{p.pr}" y1="{p.pb:.1f}" y2="{p.pb:.1f}" stroke="{th["axis"]}" stroke-width="1"/>')
+    pP.text(pP.pr, pP.pb + 38, frame.xlabel, "muted", 11, "end")
+    for p in (pT, pR, pP):
+        frame.parts += p.parts
+    frame.legend([("line", "s2", L("macOS 原廠自動（run3）", "macOS stock auto (run3)")), ("line", "s1", L("cool42 曲線（run4）", "cool42 curve (run4)"))])
+    # 十字線：每 5 秒一格，列出兩條的溫度／轉速／頻率
+    bt = {k: (_bucket(s["trace"], "temp"), _bucket(s["trace"], "rpm"), _bucket(s["trace"], "pcore")) for k, (s, _, _) in zip(("a", "c"), ser)}
+    pmb = {}
+    for k, (s, _, _) in zip(("a", "c"), ser):
+        g = defaultdict(list)
+        for p in s["pm"]:
+            g[int(round(p["t"] / 5)) * 5].append(p["p"])
+        pmb[k] = {x: st.mean(v) for x, v in g.items()}
+    xs = sorted(set().union(*[set(v[0]) for v in bt.values()], *[set(v) for v in pmb.values()]))
+    xs = [x for x in xs if 0 <= x <= 500]
+
+    def rows(x):
+        out = []
+        for k, name in (("a", L("原廠", "stock")), ("c", L("曲線", "curve"))):
+            tm, rp, pc = bt[k]
+            if x in tm:
+                out.append([f"{tm[x]:.1f}°C · {rp[x]:,.0f} rpm · {pc[x]:,} MHz", name + L("（輪詢）", " (poll)")])
+            elif x in pmb[k]:
+                out.append([f"{pmb[k][x]:,.0f} MHz", name + L("（取樣窗 pm 5 秒平均）", " (sample-window pm, 5 s mean)")])
+        return out
+    frame.crosshair_hits(xs, rows, lambda x: L(f"換檔後 {x}s", f"{x}s after switch"))
+    return frame.render()
+
+
+def chart_perf_cpu60(D, th, inter, show_title=True):
+    P = D["perf"]
+    rs = P["auto_cpu"]
+    tr1 = rs[0]["trace"]
+    last1000 = [p for p in tr1[1:] if p["rpm"] <= 1010][-1]
+    first_up = [p for p in tr1[1:] if p["rpm"] > 1010][0]
+    # 兩輪合起來：最後一筆 1000 的最低溫 ～ 第一筆 >1000 的最高溫（run2：104.0～106.6）
+    lo = min([p for p in r["trace"][1:] if p["rpm"] <= 1010][-1]["temp"] for r in rs[:2])
+    hi = max([p for p in r["trace"][1:] if p["rpm"] > 1010][0]["temp"] for r in rs[:2])
+    title = L(f"CPU-only：原廠接手後風扇先降到 1000 rpm，溫度爬到 {lo:.0f}–{hi:.1f}°C 才開始拉",
+              f"CPU only: after stock takes over the fan drops to 1000 rpm and only ramps at {lo:.0f}–{hi:.1f} °C")
+    sub = L("run2 兩輪原廠自動（10 個 sha256 worker、無 GPU），每 5 秒輪詢；P-core 全程 3936 MHz、pressure 全程 Nominal；108°C 被腳本切掉，沒看到降頻",
+            "run2, two stock-auto rounds (10 sha256 workers, no GPU), 5 s polls; P-core 3936 MHz and pressure Nominal throughout; cut by the script at 108 °C before any throttling")
+    W, H = 760, 104 + 20 + 2 * 130 + 34 + 56
+    frame = Plot(th, W, H, 0, 60, 0, 1, interactive=inter, title=title, subtitle=sub, show_title=show_title, mr=170,
+                 xlabel=L("原廠接手後秒數（t=0 是換檔前一刻）", "seconds after stock takeover (t=0 is the moment before the switch)"))
+    pT, pR = stack_panels(frame, [(130, 85, 110), (130, 0, 5000)])
+    ser = ((rs[0], "s2", L("第 1 輪", "round 1")), (rs[1], "s3", L("第 2 輪", "round 2")))
+    pT.text(pT.pl, pT.pt - 10, L("控制溫度 °C", "control temp °C"), "ink2", 12, weight=600)
+    pT.ygrid([85, 90, 95, 100, 105, 110], lambda v: f"{v:.0f}°")
+    pT.hline(108, L("此版腳本上限 108°C", "cutoff in this script 108 °C"), "crit", side="left")
+    for s, c, _ in ser:
+        pT.line([(p["t"], p["temp"]) for p in s["trace"]], c)
+        for p in s["trace"][1:]:
+            pT.dot(p["t"], p["temp"], c, 3, ring=True)
+    pT.text(pT.sx(last1000["t"]) + 8, pT.sy(last1000["temp"]) + 18, L(f"{last1000['temp']:.1f}°C 仍 1000 rpm", f"{last1000['temp']:.1f} °C, still 1000 rpm"), "ink", 11.5, "start", 600)
+    labs = [(pT.sy(s["trace"][-1]["temp"]) + 4, f"{name} {s['trace'][-1]['temp']:.1f}°C") for s, _, name in ser]
+    for y, lab in dedupe_labels(labs):
+        pT.text(pT.pr + 8, y, lab, "ink", 12, weight=600)
+    pR.text(pR.pl, pR.pt - 10, L("風扇 rpm", "fan rpm"), "ink2", 12, weight=600)
+    pR.ygrid([0, 1000, 2500, 5000])
+    pR.hline(1000, "", "ink2")
+    for s, c, _ in ser:
+        tr = s["trace"]
+        pR.parts.append(f'<line x1="{pR.sx(tr[0]["t"]):.1f}" y1="{pR.sy(tr[0]["rpm"]):.1f}" x2="{pR.sx(tr[1]["t"]):.1f}" y2="{pR.sy(tr[1]["rpm"]):.1f}" '
+                        f'stroke="{th[c]}" stroke-width="1" stroke-dasharray="3 3"/>')
+        pR.line([(p["t"], p["rpm"]) for p in tr[1:]], c)
+        pR.dot(tr[0]["t"], tr[0]["rpm"], c, 4, hollow=True)
+        for p in tr[1:]:
+            pR.dot(p["t"], p["rpm"], c, 3, ring=True)
+    pR.text(pR.sx(1.4), pR.sy(rs[0]["trace"][0]["rpm"]) + 4, L("t=0：換檔前降溫檔留下的轉速", "t=0: leftover from the cool-down step"), "muted", 11)
+    pR.text(pR.sx(first_up["t"]) - 6, pR.sy(first_up["rpm"]) - 12, L(f"{first_up['temp']:.1f}°C 起每 5 秒 +67～+222", f"from {first_up['temp']:.1f} °C, +67 to +222 per 5 s"), "ink", 11.5, "end", 600)
+    labs = [(pR.sy(s["trace"][-1]["rpm"]) + 4, f"{name} {s['trace'][-1]['rpm']:,.0f}") for s, _, name in ser]
+    for y, lab in dedupe_labels(labs):
+        pR.text(pR.pr + 8, y, lab, "ink", 12, weight=600)
+    pR.xaxis([0, 10, 20, 30, 40, 50, 60], lambda v: f"{v}s")
+    pT.parts.append(f'<line x1="{pT.pl}" x2="{pT.pr}" y1="{pT.pb:.1f}" y2="{pT.pb:.1f}" stroke="{th["axis"]}" stroke-width="1"/>')
+    pR.text(pR.pr, pR.pb + 38, frame.xlabel, "muted", 11, "end")
+    for p in (pT, pR):
+        frame.parts += p.parts
+    frame.legend([("line", "s2", L("原廠自動 第 1 輪", "stock auto, round 1")), ("line", "s3", L("原廠自動 第 2 輪", "stock auto, round 2"))])
+    b = [(_bucket(s["trace"], "temp"), _bucket(s["trace"], "rpm"), _bucket(s["trace"], "pcore")) for s, _, _ in ser]
+    xs = sorted(set(b[0][0]) | set(b[1][0]))
+
+    def rows(x):
+        out = []
+        for (tm, rp, pc), (_, _, name) in zip(b, ser):
+            if x in tm:
+                out.append([f"{tm[x]:.1f}°C · {rp[x]:,.0f} rpm", name + (f" · P {pc[x]:,} MHz" if pc[x] else "")])
+        return out
+    frame.crosshair_hits(xs, rows, lambda x: L(f"接手後 {x}s", f"{x}s after takeover"))
+    return frame.render()
+
+
 CHARTS = [
     # id, 函式, 標題 zh / en（HTML 用）, 群組 id
-    ("hook-timeline", chart_timeline, "高溫期間 hook 等待 0 次：5 段高溫、31 筆 ≥90°C",
-     "0 hook waits during hot periods: 5 hot periods, 31 writes ≥ 90 °C", "main"),
+    ("perf-cpugpu", chart_perf_cpugpu, "原廠自動 vs cool42 曲線（CPU＋GPU 滿載）", "Stock auto vs cool42 curve (CPU + GPU full load)", "main"),
     ("ab-temp", lambda D, th, i, st_=True: chart_ab_series(D, th, i, "temp", st_), "A/B 溫度", "A/B temperature", "ab"),
     ("ab-rpm", lambda D, th, i, st_=True: chart_ab_series(D, th, i, "rpm", st_), "A/B 轉速", "A/B fan speed", "ab"),
     ("ab-pcore", chart_ab_pcore, "A/B P-core 時脈", "A/B P-core clock", "ab"),
+    ("hook-timeline", chart_timeline, "高溫期間 hook 等待 0 次：5 段高溫、31 筆 ≥90°C（舊版定義）",
+     "0 hook waits during hot periods: 5 hot periods, 31 writes ≥ 90 °C (old definition)", "log"),
     ("daily-max", chart_daily_max, "每日最高溫與降頻", "Daily peak temperature and throttling", "log"),
     ("daily-control", chart_daily_ctrl, "每日接管 / 交還 / 預熱", "Daily takeovers / hand-backs / pre-warms", "log"),
     ("temp-hist", chart_hist, "寫入時溫度分布", "Temperature at write time", "log"),
     ("rpm-vs-temp", chart_scatter, "目標轉速 vs 溫度", "Target rpm vs temperature", "log"),
     ("curve-vs-macos", chart_curves, "macOS 自動 vs cool42 曲線", "macOS auto vs cool42 curves", "todo"),
+    ("perf-cpu-auto60", chart_perf_cpu60, "CPU-only：原廠接手後前 60 秒", "CPU only: first 60 s after stock takes over", "perf"),
 ]
 GROUPS = {"main": ("主打", "Headline"), "ab": ("A/B 實測", "A/B test"), "log": ("近 4 天 log", "4-day log"),
-          "todo": ("對照（待補）", "Comparison (TODO)")}
+          "todo": ("對照（接管前一刻）", "Comparison (before takeover)"), "perf": ("原廠對照 09-25", "Stock comparison 09-25")}
 
 
 # ---------------------------------------------------------------- 匯總
@@ -723,7 +901,19 @@ def tables(D):
                              L("cool42.log 接管那一行的 🌀 值", "🌀 value on the takeover line in cool42.log")],
                             [L("README 第一次接管", "README, first takeover"), "105°C", "1,774", L("原始 log 已不在，照文件引用", "original log is gone; quoted from the docs")],
                             [L("外部資料", "external data"), "105–107°C", "~2,100", "MacRumors / theenterprisemac"],
-                            [L("待補", "TODO"), "—", "—", L("perf_vs_temp.py：同負載、固定轉速的穩態溫度／時脈／ops/J", "perf_vs_temp.py: steady-state temp / clock / ops/J at the same load and fixed rpm")]])
+                            [L("同負載穩態", "same-load steady state"), "—", "—", L("docs/perf-2026-09-25（見「原廠對照 09-25」兩張圖）", "docs/perf-2026-09-25 (see the “Stock comparison 09-25” charts)")]])
+    P = D["perf"]
+    hd = [L("模式", "mode"), L("來源", "source"), L("換檔後秒", "s after switch"), L("溫度 °C", "temp °C"), L("轉速 rpm", "fan rpm"), "P-core MHz", "pressure"]
+    rr = []
+    for key, name in (("auto_cpugpu", L("原廠自動", "stock auto")), ("curve_cpugpu", L("cool42 曲線", "cool42 curve"))):
+        s_ = P[key]
+        tag = f"{s_['run']} #{s_['step']}"
+        rr += [[name, f"{tag} {L('輪詢', 'poll')}", f"{p['t']:.1f}", f"{p['temp']:.1f}", f"{p['rpm']:,}", f"{p['pcore']:,}" if p["pcore"] else "—", p["pressure"]] for p in s_["trace"]]
+        rr += [[name, f"{tag} pm", f"{p['t']:.1f}", "—", "—", f"{p['p']:,}", p["pressure"]] for p in s_["pm"]]
+    T["perf-cpugpu"] = (hd, rr)
+    T["perf-cpu-auto60"] = ([L("輪", "round"), L("接手後秒", "s after takeover"), L("溫度 °C", "temp °C"), L("轉速 rpm", "fan rpm"), "P-core MHz", "pressure"],
+                            [[f"{r['run']} #{r['step']}", f"{p['t']:.1f}", f"{p['temp']:.1f}", f"{p['rpm']:,}", f"{p['pcore']:,}" if p["pcore"] else "—", p["pressure"]]
+                             for r in P["auto_cpu"] for p in r["trace"]])
     return T
 
 
@@ -740,28 +930,38 @@ def conclusions(D):
     s = D["summary"]
     A, B = s["A"], s["B"]
     days = D["daily"]
+    P = D["perf"]
+    pf = P["full_mhz"] / 100
+    pa, pb = P["auto_cpugpu"]["sample"], P["curve_cpugpu"]["both"]
+    c1, c2 = P["auto_cpu"][0]["trace"], P["auto_cpu"][1]["trace"]
+    l1, l2 = [p for p in c1[1:] if p["rpm"] <= 1010][-1], [p for p in c2[1:] if p["rpm"] <= 1010][-1]
+    u1, u2 = [p for p in c1[1:] if p["rpm"] > 1010][0], [p for p in c2[1:] if p["rpm"] > 1010][0]
     if LANG == "en":
         return {
-            "hook-timeline": f"Over {s['hours']:.1f} h there were {s['hot_segs']} hot periods (split on gaps > 5 min; {s['ge90']} writes with control temp ≥ 90 °C, max {s['max_log']} °C, {s['ge100']} at ≥ 100 °C); the hook waited {s['waits']} times, denied {s['denies']} times, and thermal pressure was non-Nominal for {s['throttle']} s. The log doesn't record every pass, so how many Bash calls went through the hook in those periods is unknown. Inference: if heavy commands ran then, the v1 “wait at 90 °C” threshold would have made them wait.",
+            "hook-timeline": f"Over {s['hours']:.1f} h there were {s['hot_segs']} hot periods (split on gaps > 5 min; {s['ge90']} writes with control temp ≥ 90 °C, max {s['max_log']} °C, {s['ge100']} at ≥ 100 °C); the hook waited {s['waits']} times, denied {s['denies']} times, and thermal pressure was non-Nominal for {s['throttle']} s (old definition: pressure or GPU CLTM, no clock check — 0 s doesn't rule out silent throttling). The log doesn't record every pass, so how many Bash calls went through the hook in those periods is unknown. Inference: if heavy commands ran then, the v1 “wait at 90 °C” threshold would have made them wait.",
             "ab-temp": f"After dropping the first 60 s: A mean {A['temp']:.1f} °C ({A['tmin']}–{A['tmax']}) → B mean {B['temp']:.1f} °C ({B['tmin']}–{B['tmax']}), only {B['temp'] - A['temp']:.1f} °C warmer.",
             "ab-rpm": f"A mean {A['rpm']:,.0f} rpm → B mean {B['rpm']:,.0f} rpm, {A['rpm'] - B['rpm']:,.0f} slower (−{(1 - B['rpm'] / A['rpm']) * 100:.0f}%); fan-law estimate ≈ −{50 * math.log10(A['rpm'] / B['rpm']):.1f} dB (inferred, not measured).",
             "ab-pcore": f"Of 9 powermetrics samples, 8 read 3936 MHz and 1 read 3950; pressure {s['pm_pressure'].get('Nominal', 0)}/9 Nominal — but all were taken while curve A was active: 3 before A (05:00:41–47) and 6 about 3 minutes after B ended and A was restored (05:19–05:20). There are no samples inside the 5-minute B run, so this chart can't be used to say “B doesn't throttle”. Whether 3936 is the all-core power limit is an inference; in the 09-20 to 09-23 log the median frequency at ≥ 90 °C is 3.64 GHz.",
-            "daily-max": "Daily peak (log values) " + ", ".join(f"{d['date'][5:]} {d['logmax']} °C" for d in days) + "; summary values (int-truncated) " + ", ".join(f"{d['max']:.0f}" for d in days) + f". 09-23 runs to 23:42. Over 4 days: {s['throttle']} s throttled (pressure non-Nominal) in total, {s['waits']} hook waits.",
+            "daily-max": "Daily peak (log values) " + ", ".join(f"{d['date'][5:]} {d['logmax']} °C" for d in days) + "; summary values (int-truncated) " + ", ".join(f"{d['max']:.0f}" for d in days) + f". 09-23 runs to 23:42. Over 4 days: {s['throttle']} s throttled in total and {s['waits']} hook waits. That is the old guard's definition (non-Nominal pressure or GPU CLTM > 5%) with no clock check, so 0 s doesn't rule out silent throttling (see the 09-25 stock comparison).",
             "daily-control": "Handed back to macOS auto " + ", ".join(f"{d['date'][5:]} {d['handbacks']}" for d in days) + f" times ({s['handbacks']} total); {s['takeovers']} takeovers, {s['boosts']} pre-warms ({s['early']} ended early). Inferred in control ≈ {s['ctrl_hours']:.1f}/{s['hours']:.1f} h ({s['ctrl_pct']:.0f}%, sleep not excluded).",
             "temp-hist": f"60–79 °C accounts for {s['n6080'] / s['writes'] * 100:.0f}% (60–74 °C: {s['n6075'] / s['writes'] * 100:.0f}%). Across {s['writes']:,} writes the control temp median is {s['temp_med']:.0f} °C, mean {s['temp_mean']:.1f} °C; only {s['ge90']} are ≥ 90 °C ({s['ge90'] / s['writes'] * 100:.1f}%). This is a distribution of write moments, not of time.",
             "rpm-vs-temp": f"{s['targets']:,} target rpm values: median {s['target_med']:,.0f} rpm, mean {s['target_mean']:,.0f}, max {s['target_max']:,} ({s['target_ge3000']} at ≥ 3000); never reached 4900. Inference: points below the curve are the EMA still catching up while heating; points above are the −300 rpm-per-round limit while cooling and the 3000 rpm pre-warm.",
-            "curve-vs-macos": f"Right before takeover, macOS auto ran a median {s['macos_rpm_med']:,.0f} rpm (n={s['takeovers']}); the README records only 1,774 rpm at 105 °C, while cool42 curve B already gives 2,600 at 85 °C. No same-load steady-state comparison yet — to be filled in by perf_vs_temp.py.",
+            "curve-vs-macos": f"Right before takeover, macOS auto ran a median {s['macos_rpm_med']:,.0f} rpm (n={s['takeovers']}); the README records only 1,774 rpm at 105 °C, while cool42 curve B already gives 2,600 at 85 °C. These are not steady-state or same-load values; the same-load comparison is in the two “Stock comparison 09-25” charts.",
+            "perf-cpugpu": f"Same Mac, 10 sha256 workers + Metal GPU full load. Stock auto (run3 step 4, 6.5 min without converging, sampled as-is): {pa['temp']:.1f} °C, fan {pa['rpm']:,.0f} rpm, P-core {pa['pcore']:,.0f} MHz ({pa['pcore'] / pf - 100:+.1f}% vs {P['full_mhz']}), {pa['ops']:,.0f} ops/s, pressure Nominal in all samples. cool42 curve (run4, 2 rounds): {pb['temp']:.1f} °C, {pb['rpm']:,.0f} rpm, {P['full_mhz']} MHz, {pb['ops']:,.0f} ops/s ({pb['ops'] / pa['ops'] * 100 - 100:+.1f}%). Limits: stock n=1 and it started heat-soaked (script cool-down bug); across two runs 40 min apart; stock is {pa['ops_j'] / pb['ops_j'] * 100 - 100:.0f}% better in ops/J. Noise +{50 * math.log10(pb['rpm'] / pa['rpm']):.1f} dB is a fan-law estimate, not measured.",
+            "perf-cpu-auto60": f"CPU only (run2): after stock takes over, the fan sits at 1000 rpm while temperature climbs from {c1[1]['temp']:.1f} to {l1['temp']:.1f} °C; the first reading above 1000 comes at {u1['temp']:.1f} °C (round 2: last 1000 at {l2['temp']:.1f}, first rise at {u2['temp']:.1f}), then +67–222 rpm per 5 s (5 of 7 steps at +178–222). At the 108 °C script cutoff P-core is still 3936 MHz and pressure Nominal — no throttling was observed before the cut.",
         }
     return {
-        "hook-timeline": f"{s['hours']:.1f} 小時內有 {s['hot_segs']} 段高溫期間（間隔 >5 分鐘分段；控制溫度 ≥90°C 的寫入共 {s['ge90']} 筆，最高 {s['max_log']}°C、≥100°C {s['ge100']} 次），hook 等待 {s['waits']} 次、擋下 {s['denies']} 次、thermal pressure 非 Nominal {s['throttle']} 秒。log 不記每次放行，不知道這些期間實際有幾次 Bash 經過 hook。推論：若這些期間有重指令，第一版「90°C 就等」的門檻會讓它等。",
+        "hook-timeline": f"{s['hours']:.1f} 小時內有 {s['hot_segs']} 段高溫期間（間隔 >5 分鐘分段；控制溫度 ≥90°C 的寫入共 {s['ge90']} 筆，最高 {s['max_log']}°C、≥100°C {s['ge100']} 次），hook 等待 {s['waits']} 次、擋下 {s['denies']} 次、thermal pressure 非 Nominal {s['throttle']} 秒（舊版定義＝pressure 或 GPU CLTM，不看時脈，0 秒不能排除無聲降頻）。log 不記每次放行，不知道這些期間實際有幾次 Bash 經過 hook。推論：若這些期間有重指令，第一版「90°C 就等」的門檻會讓它等。",
         "ab-temp": f"丟前 60 秒後 A 均 {A['temp']:.1f}°C（{A['tmin']}–{A['tmax']}）→ B 均 {B['temp']:.1f}°C（{B['tmin']}–{B['tmax']}），只多 {B['temp'] - A['temp']:.1f}°C。",
         "ab-rpm": f"A 均 {A['rpm']:,.0f} rpm → B 均 {B['rpm']:,.0f} rpm，少轉 {A['rpm'] - B['rpm']:,.0f}（−{(1 - B['rpm'] / A['rpm']) * 100:.0f}%），風扇定律推估約 −{50 * math.log10(A['rpm'] / B['rpm']):.1f} dB（推論值，非實測）。",
         "ab-pcore": f"9 筆 powermetrics 中 8 筆 3936 MHz、1 筆 3950，pressure {s['pm_pressure'].get('Nominal', 0)}/9 Nominal —— 但全部是在 A 曲線生效時量的：A 段前 3 筆（05:00:41–47）、B 結束並還原成 A 約 3 分鐘後 6 筆（05:19–05:20）。B 段 5 分鐘內沒有取樣，這張圖不能拿來說「B 不降頻」。3936 是否為全核功耗上限是推論；09-20～23 的 log 裡 ≥90°C 時的頻率中位是 3.64 GHz。",
-        "daily-max": "每日最高（log 值）" + "、".join(f"{d['date'][5:]} {d['logmax']}°C" for d in D["daily"]) + "；結算值（Int 截斷）" + "、".join(f"{d['max']:.0f}" for d in D["daily"]) + f"。09-23 至 23:42。4 天降頻（pressure 非 Nominal）合計 {s['throttle']} 秒，hook 等待 {s['waits']} 次。",
+        "daily-max": "每日最高（log 值）" + "、".join(f"{d['date'][5:]} {d['logmax']}°C" for d in D["daily"]) + "；結算值（Int 截斷）" + "、".join(f"{d['max']:.0f}" for d in D["daily"]) + f"。09-23 至 23:42。4 天降頻合計 {s['throttle']} 秒、hook 等待 {s['waits']} 次。這是舊版 guard 的定義（pressure 非 Nominal 或 GPU CLTM > 5%），不看時脈，0 秒不能排除無聲降頻（見 09-25 原廠對照）。",
         "daily-control": "交還 macOS 自動 " + "、".join(f"{d['date'][5:]} {d['handbacks']}" for d in D["daily"]) + f" 次（共 {s['handbacks']}）；接管 {s['takeovers']} 次、預熱 {s['boosts']} 次（{s['early']} 次提早結束）。推論接管時間約 {s['ctrl_hours']:.1f}/{s['hours']:.1f} 小時（{s['ctrl_pct']:.0f}%，未扣睡眠）。",
         "temp-hist": f"60–79°C 佔 {s['n6080'] / s['writes'] * 100:.0f}%（60–74°C 佔 {s['n6075'] / s['writes'] * 100:.0f}%）。{s['writes']:,} 筆寫入的溫度中位 {s['temp_med']:.0f}°C、平均 {s['temp_mean']:.1f}°C；≥90°C 只有 {s['ge90']} 筆（{s['ge90'] / s['writes'] * 100:.1f}%）。這是寫入時刻分布，不是時間佔比。",
         "rpm-vs-temp": f"{s['targets']:,} 次目標轉速中位 {s['target_med']:,.0f} rpm、平均 {s['target_mean']:,.0f}、最高 {s['target_max']:,}（≥3000 共 {s['target_ge3000']} 次），從未到 4900。推論：曲線下方的點是升溫時 EMA 還在追、上方的點是降溫時每輪最多降 300 rpm 與預熱 3000 rpm。",
-        "curve-vs-macos": f"macOS 自動在接管前一刻的轉速中位 {s['macos_rpm_med']:,.0f} rpm（n={s['takeovers']}），README 記載 105°C 時只有 1,774 rpm；cool42 曲線 B 在 85°C 就給 2,600。缺同負載穩態對照，待 perf_vs_temp.py 補。",
+        "curve-vs-macos": f"macOS 自動在接管前一刻的轉速中位 {s['macos_rpm_med']:,.0f} rpm（n={s['takeovers']}），README 記載 105°C 時只有 1,774 rpm；cool42 曲線 B 在 85°C 就給 2,600。這些不是穩態、也不是同負載；同負載對照見「原廠對照 09-25」兩張圖。",
+        "perf-cpugpu": f"同機、10 個 sha256 worker＋Metal GPU 滿載。原廠自動（run3 第 4 檔，6.5 分鐘未收斂、以現況取樣）：{pa['temp']:.1f}°C、風扇 {pa['rpm']:,.0f} rpm、P-core {pa['pcore']:,.0f} MHz（比 {P['full_mhz']} {pa['pcore'] / pf - 100:+.1f}%）、{pa['ops']:,.0f} ops/s，pressure 全部 Nominal。cool42 曲線（run4 兩輪）：{pb['temp']:.1f}°C、{pb['rpm']:,.0f} rpm、{P['full_mhz']} MHz、{pb['ops']:,.0f} ops/s（{pb['ops'] / pa['ops'] * 100 - 100:+.1f}%）。限制：原廠 n=1 且熱機起跑（腳本降溫判定 bug）；跨兩次實跑、相隔約 40 分鐘；每焦耳工作量原廠多 {pa['ops_j'] / pb['ops_j'] * 100 - 100:.0f}%。噪音 +{50 * math.log10(pb['rpm'] / pa['rpm']):.1f} dB 是風扇定律推估，不是量測。",
+        "perf-cpu-auto60": f"CPU-only（run2）：原廠接手後風扇停在 1000 rpm，溫度從 {c1[1]['temp']:.1f} 爬到 {l1['temp']:.1f}°C；第一筆 >1000 出現在 {u1['temp']:.1f}°C（第 2 輪：最後一筆 1000 在 {l2['temp']:.1f}、開始拉在 {u2['temp']:.1f}），之後每 5 秒 +67–222 rpm（7 步裡 5 步在 +178–222）。到腳本上限 108°C 時 P-core 仍 3936 MHz、pressure 仍 Nominal —— 被切之前沒看到降頻。",
     }
 
 
@@ -894,6 +1094,10 @@ SOURCES = {
     "rpm-vs-temp": ("cool42.log 寫入行＋docs/ab-test-2026-09-16/config-B.json", "cool42.log write lines + docs/ab-test-2026-09-16/config-B.json"),
     "curve-vs-macos": ("config-A/B.json、cool42.log 接管行、README「實測」段、外部資料",
                        "config-A/B.json, cool42.log takeover lines, the README “measured” section, external data"),
+    "perf-cpugpu": ("extras/viz/data/perf-2026-09-25.json ← docs/perf-2026-09-25/run3-cpugpu、run4-cpugpu 的 results.json trace＋pm/*.txt（recompute.py --viz）",
+                    "extras/viz/data/perf-2026-09-25.json ← results.json traces + pm/*.txt in docs/perf-2026-09-25/run3-cpugpu, run4-cpugpu (recompute.py --viz)"),
+    "perf-cpu-auto60": ("extras/viz/data/perf-2026-09-25.json ← docs/perf-2026-09-25/run2-cpu/results.json 第 2、4 檔 trace",
+                        "extras/viz/data/perf-2026-09-25.json ← steps 2 and 4 traces in docs/perf-2026-09-25/run2-cpu/results.json"),
 }
 
 
@@ -913,20 +1117,25 @@ def lang_block(D, lang):
             head, rows = T[cid]
             tbl = "<table><thead><tr>" + "".join(f"<th>{esc(h)}</th>" for h in head) + "</tr></thead><tbody>" + \
                   "".join("<tr>" + "".join(f"<td>{esc('—' if c is None else c)}</td>" for c in r) + "</tr>" for r in rows) + "</tbody></table>"
-            todo = f'<span class="todo">{L("待補：perf_vs_temp.py", "TODO: perf_vs_temp.py")}</span>' if cid == "curve-vs-macos" else ""
+            todo = ""
             static = f"docs/img/charts/{cid}{'-en' if lang == 'en' else ''}-light.svg / -dark.svg"
             figs[cid] = (f'<div class="grp">{esc(GROUPS[g][ix])}</div>'
                          f'<h2>{esc(name)}{todo}</h2><p class="con">{esc(C[cid])}</p><div class="svgw">{svg}</div>'
                          f'<p class="src">{L("來源：", "Source: ")}{esc(SOURCES[cid][ix])} · {L("靜態圖：", "static: ")}{static}</p>'
                          f'<details><summary>{L(f"表格檢視（{len(rows):,} 列）", f"Table view ({len(rows):,} rows)")}</summary><div class="tw">{tbl}</div></details>')
         A, B = s["A"], s["B"]
+        P = D["perf"]
+        pa, pb, pf = P["auto_cpugpu"]["sample"], P["curve_cpugpu"]["both"], P["full_mhz"]
+        # 180/180：run4 兩輪 pm/01-curve-r1.txt＋03-curve-r2.txt（recompute.py 結論 3）；perf JSON 只收第 1 輪的 90 筆
         if lang == "en":
-            header = (f'<h1>cool42 data comparison</h1><p>While AI writes code, cool42 lets it queue on thermal pressure by itself and '
-                      f'wait only when macOS reports throttling (thermal pressure non-Nominal). Everything below is real data from this Mac: '
-                      f'the A/B test (2026-09-16) + guard log {esc(s["log_first"])} → {esc(s["log_last"])}.</p>')
+            header = (f'<h1>cool42 data comparison</h1><p>While AI writes code, cool42 lets it wait only when the Mac is actually throttling. '
+                      f'“Throttling” means any of three signals: thermal pressure non-Nominal, GPU CLTM capping, or a clock drop (P-core below the all-core full-load clock while hot; '
+                      f'the third was added after the 2026-09-25 run and is not in any release yet). The 4-day log below uses the old definition (first two only). '
+                      f'Everything below is real data from this Mac: the A/B test (2026-09-16) + guard log {esc(s["log_first"])} → {esc(s["log_last"])} + stock-vs-curve runs (2026-09-25).</p>')
             tiles = f"""
 <div class="tiles">
-  <div class="tile hero"><div class="lab">Hot periods → hook waits</div><div class="val">{s['hot_segs']} → {s['waits']}</div><div class="sub">last {s['hours']:.1f} h; {s['ge90']} writes ≥ 90 °C; {s['denies']} denials, {s['throttle']} s non-Nominal pressure</div></div>
+  <div class="tile hero"><div class="lab">Stock P-core clock, CPU + GPU load (09-25)</div><div class="val">{pa['pcore'] / pf * 100 - 100:+.1f}%</div><div class="sub">{pf} → {pa['pcore']:,.0f} MHz, pressure still Nominal; cool42 curve {pf} MHz in 180/180 window samples over 2 rounds, {pb['ops'] / pa['ops'] * 100 - 100:+.1f}% work/s (stock n = 1)</div></div>
+  <div class="tile"><div class="lab">Hot periods → hook waits (old definition)</div><div class="val">{s['hot_segs']} → {s['waits']}</div><div class="sub">last {s['hours']:.1f} h; {s['ge90']} writes ≥ 90 °C; {s['denies']} denials, {s['throttle']} s throttled — pressure or GPU CLTM only, no clock check, so silent throttling isn't ruled out</div></div>
   <div class="tile"><div class="lab">A/B fan speed</div><div class="val">−{(1 - B['rpm'] / A['rpm']) * 100:.0f}%</div><div class="sub">{A['rpm']:,.0f} → {B['rpm']:,.0f} rpm</div></div>
   <div class="tile"><div class="lab">A/B control temp</div><div class="val">+{B['temp'] - A['temp']:.1f}°C</div><div class="sub">{A['temp']:.1f} → {B['temp']:.1f}°C</div></div>
   <div class="tile"><div class="lab">P-core HW clock (curve A)</div><div class="val">3936</div><div class="sub">MHz · 9/9 Nominal; not measured during B</div></div>
@@ -934,7 +1143,7 @@ def lang_block(D, lang):
 </div>"""
             gaps = """
 <section class="gap"><h2>Missing data (can't be claimed until filled in)</h2><ul>
-<li><b>macOS default vs cool42 at the same load, steady state</b>: the A/B has only two cool42 curves and no “stock auto” group. Stock 105–107 °C / ~2,100 rpm / P-core 3300–3800 MHz are external web data. <span class="todo">TODO: perf_vs_temp.py</span> (needs sudo + an idle Mac).</li>
+<li><b>macOS default vs cool42 at the same load, steady state</b>: first measured on 2026-09-25 (docs/perf-2026-09-25), but the stock steady state is a single round that started heat-soaked; both cold-start stock rounds crossed 112 °C in 35–40 s and were cut, with no steady state. Getting a stock steady state means starting heat-soaked or raising the cutoff; needs more rounds. <span class="todo">n = 1</span></li>
 <li><b>Clock and pressure during B</b>: all 9 powermetrics samples fall outside the 5-minute A/B windows, and all while curve A was active (before A, 05:00:41–47; 05:19–05:20, after B ended and ab.sh restored A). Claiming “B doesn't throttle” needs a re-run with in-run logging.</li>
 <li><b>Total time for the same job</b>: never measured, so no “X% faster” claim.</li>
 <li><b>Real throttle → hook wait → released again</b>: 0 times in the last 4 days, so there is no real instance of the headline feature's “wait” step; it needs a controlled reproduction.</li>
@@ -946,11 +1155,13 @@ def lang_block(D, lang):
                       'validate_palette.js (light / dark all-pairs PASS); light-mode aqua is below 3:1 contrast, compensated with direct labels and table views. '
                       'Inferred values are marked as such.')
         else:
-            header = (f'<h1>cool42 數據比對</h1><p>AI 寫程式時自己看熱壓力排隊，只在 macOS 回報降頻（thermal pressure 非 Nominal）才等。'
-                      f'以下全部是本機真實數據：A/B 實測（2026-09-16）＋ guard log {esc(s["log_first"])} → {esc(s["log_last"])}。</p>')
+            header = (f'<h1>cool42 數據比對</h1><p>AI 寫程式時自己看降頻排隊，真的降頻才等。「降頻」看三個訊號：thermal pressure 非 Nominal、GPU 被 CLTM 限頻、'
+                      f'時脈降頻（高溫時 P-core 掉到全核滿載以下；第三條是 2026-09-25 實測後才加，尚未發布）。下面近 4 天 log 用的是舊版定義（只有前兩條）。'
+                      f'以下全部是本機真實數據：A/B 實測（2026-09-16）＋ guard log {esc(s["log_first"])} → {esc(s["log_last"])}＋原廠對照實跑（2026-09-25）。</p>')
             tiles = f"""
 <div class="tiles">
-  <div class="tile hero"><div class="lab">高溫期間 → hook 等待</div><div class="val">{s['hot_segs']} 段 → {s['waits']}</div><div class="sub">近 {s['hours']:.1f} 小時；{s['ge90']} 筆 ≥90°C 寫入；擋下 {s['denies']} 次、pressure 非 Nominal {s['throttle']} 秒</div></div>
+  <div class="tile hero"><div class="lab">原廠 P-core 時脈（CPU＋GPU 滿載，09-25）</div><div class="val">{pa['pcore'] / pf * 100 - 100:+.1f}%</div><div class="sub">{pf} → {pa['pcore']:,.0f} MHz，pressure 仍是 Nominal；cool42 曲線兩輪取樣窗 180/180 筆全是 {pf}、每秒工作量 {pb['ops'] / pa['ops'] * 100 - 100:+.1f}%（原廠 n=1）</div></div>
+  <div class="tile"><div class="lab">高溫期間 → hook 等待（舊版定義）</div><div class="val">{s['hot_segs']} 段 → {s['waits']}</div><div class="sub">近 {s['hours']:.1f} 小時；{s['ge90']} 筆 ≥90°C 寫入；擋下 {s['denies']} 次、降頻 {s['throttle']} 秒 —— 只看 pressure 與 GPU CLTM、不看時脈，不能排除無聲降頻</div></div>
   <div class="tile"><div class="lab">A/B 風扇轉速</div><div class="val">−{(1 - B['rpm'] / A['rpm']) * 100:.0f}%</div><div class="sub">{A['rpm']:,.0f} → {B['rpm']:,.0f} rpm</div></div>
   <div class="tile"><div class="lab">A/B 控制溫度</div><div class="val">+{B['temp'] - A['temp']:.1f}°C</div><div class="sub">{A['temp']:.1f} → {B['temp']:.1f}°C</div></div>
   <div class="tile"><div class="lab">P-core 硬體時脈（A 曲線時）</div><div class="val">3936</div><div class="sub">MHz · 9/9 Nominal；B 段內未量</div></div>
@@ -958,7 +1169,7 @@ def lang_block(D, lang):
 </div>"""
             gaps = """
 <section class="gap"><h2>缺的數據（不補就不能宣稱）</h2><ul>
-<li><b>macOS 預設 vs cool42 同負載穩態</b>：A/B 只有兩條 cool42 曲線，沒有「原廠自動」組。原廠 105–107°C / ~2,100 rpm / P-core 3300–3800 MHz 是外部網路資料。<span class="todo">待補：perf_vs_temp.py</span>（需 sudo＋空機）。</li>
+<li><b>macOS 預設 vs cool42 同負載穩態</b>：2026-09-25 已實跑一次（docs/perf-2026-09-25），但原廠穩態只有 1 輪、而且是熱機起跑；冷機起跑的兩輪 35–40 秒就衝過 112°C 被切，沒有穩態。要拿到原廠穩態只能熱機起跑或放寬上限，需要再跑幾輪。<span class="todo">n=1</span></li>
 <li><b>B 段內的時脈與 pressure</b>：powermetrics 9 筆都在 A/B 5 分鐘視窗外，而且都在 A 曲線生效時（A 段前 05:00:41–47；B 結束、ab.sh 還原成 A 之後的 05:19–05:20）。要主張「B 不降頻」需重做 A/B 並在段內同步記錄。</li>
 <li><b>同一工作總耗時</b>：沒量過，不能宣稱「快 X%」。</li>
 <li><b>真的降頻 → hook 等待 → 恢復放行</b>：近 4 天 0 次，沒有實例可展示主打功能的「等」那一段；需受控重現。</li>
@@ -990,7 +1201,7 @@ def build_html(D):
               '<button type="button" data-lang="en" aria-pressed="false">English</button></span>')
     return f"""<!doctype html>
 <html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>cool42 數據比對</title><meta name="description" content="okle42 cool42：A/B 實測與近 4 天 guard log 的真實數據圖 · real data from the A/B test and 4 days of guard log">
+<title>cool42 數據比對</title><meta name="description" content="okle42 cool42：A/B 實測、近 4 天 guard log 與 2026-09-25 原廠對照的真實數據圖 · real data from the A/B test, 4 days of guard log and the 2026-09-25 stock comparison">
 <script>{HTML_LANG_BOOT}</script>
 <style>{HTML_CSS}</style></head>
 <body><main>
@@ -1017,7 +1228,8 @@ def main():
     D = dict(samples=load_samples(),
              pm=load_powermetrics(os.path.join(AB, "powermetrics-A.txt"), "A") + load_powermetrics(os.path.join(AB, "powermetrics-B.txt"), "B"),
              curveA=load_curve(os.path.join(AB, "config-A.json")), curveB=load_curve(os.path.join(AB, "config-B.json")),
-             ev=load_log(log_path), stats=json.load(open(stats_path, encoding="utf-8")))
+             ev=load_log(log_path), stats=json.load(open(stats_path, encoding="utf-8")),
+             perf=json.load(open(PERF, encoding="utf-8")))
     summarize(D)
     os.makedirs(OUT_IMG, exist_ok=True)
     os.makedirs(os.path.dirname(OUT_HTML), exist_ok=True)

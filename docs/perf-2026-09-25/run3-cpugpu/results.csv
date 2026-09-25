@@ -1,0 +1,5 @@
+step,rep,mode,rpm_set,state,measured,settle_s,temp_c,temp_max_c,cpu_max_c,gpu_max_c,rpm_actual,rpm_min,rpm_max,pcore_mhz,ecore_mhz,cpu_w,gpu_w,ops,sample_s,ops_per_s,ops_per_j,mhz_per_w,pressure,boost_seen,reason,started_at
+1,1,curve,,aborted,False,97.7,103.1,,,,4776,,,3936,,,,,,,,,Nominal,,溫度 103.1°C ≥ 103，中止（t+96s，期間風扇最高 4786 rpm）,11:06:45
+2,1,auto,,aborted,False,24.3,112.2,,,,1374,,,3863,,,,,,,,,Nominal,,溫度 112.2°C ≥ 112，中止（t+20s，期間風扇最高 1811 rpm）,11:08:25
+3,2,curve,,aborted,False,22.2,103.6,,,,4899,,,3936,,,,,,,,,Nominal,,溫度 103.6°C ≥ 103，中止（t+20s，期間風扇最高 4907 rpm）,11:08:51
+4,2,auto,,timeout,True,399.3,106.8,108.9,106.8,89.19,2951,2947,2955,3644,2808,20.34,12.65,1632221,95.6,1.707e+04,839.2,179.2,Nominal,False,超過 390s 未收斂，以現況取樣,11:09:25

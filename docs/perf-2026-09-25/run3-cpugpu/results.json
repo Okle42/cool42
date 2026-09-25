@@ -1,0 +1,1289 @@
+{
+  "meta": {
+    "chip": "Apple M4",
+    "model": "Mac16,10",
+    "macos": "27.0",
+    "ncpu": 10,
+    "python": "3.9.6",
+    "started_at": "2026-09-25 11:06:40",
+    "finished_at": "2026-09-25 11:17:46",
+    "plan": [
+      "cool42 曲線#1",
+      "macOS 原廠自動#1",
+      "cool42 曲線#2",
+      "macOS 原廠自動#2"
+    ],
+    "curve": [
+      {
+        "rpm": 1000,
+        "temp": 60
+      },
+      {
+        "rpm": 1800,
+        "temp": 75
+      },
+      {
+        "rpm": 2600,
+        "temp": 85
+      },
+      {
+        "rpm": 3600,
+        "temp": 92
+      },
+      {
+        "rpm": 4900,
+        "temp": 97
+      }
+    ],
+    "original_mode": "curve",
+    "args": {
+      "modes": [
+        "curve",
+        "auto"
+      ],
+      "rpm": [],
+      "repeat": 2,
+      "workers": 10,
+      "load_cmd": null,
+      "sample": 90,
+      "poll": 5,
+      "settle_window": 60,
+      "settle_delta": 1.5,
+      "settle_rpm_delta": 200,
+      "min_settle": 120,
+      "settle_max": 480,
+      "confirm_timeout": 25,
+      "abort_temp": 103,
+      "auto_abort_temp": 112,
+      "auto_observe_max": 480,
+      "throttle_observe": 60,
+      "gpu": true,
+      "cooldown_to": 75,
+      "cooldown_mode": "curve",
+      "cooldown_rpm": 4900,
+      "cooldown_max": 420,
+      "config": "/etc/cool42/config.json",
+      "out_dir": "~/cool42-perf-20260925-1106",
+      "dry_run": false
+    },
+    "load": "10 個 sha256 worker ＋ Metal GPU 滿載（gpu_burn）",
+    "start_loadavg": "2.90 3.82 7.14",
+    "interrupted": null,
+    "start_temp": 57.390625,
+    "elapsed_s": 665.5
+  },
+  "results": [
+    {
+      "step": 1,
+      "rep": 1,
+      "mode": "curve",
+      "title": "cool42 曲線",
+      "rpm_set": null,
+      "started_at": "11:06:45",
+      "cooldown_s": 0.0,
+      "cooldown_end_c": 53.296875,
+      "cooldown_ok": true,
+      "state": "aborted",
+      "reason": "溫度 103.1°C ≥ 103，中止（t+96s，期間風扇最高 4786 rpm）",
+      "settle_s": 97.7,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 82.796875,
+          "rpm": 1734.0,
+          "pcore": 3906,
+          "gpu": 59.84516906738281,
+          "gpu_mhz": 1493.4493888367208,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.0,
+          "temp": 88.203125,
+          "rpm": 2378.0,
+          "pcore": 3738,
+          "gpu": 67.61957550048828,
+          "gpu_mhz": 1543.6508898924196,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 91.234375,
+          "rpm": 2891.0,
+          "pcore": 3936,
+          "gpu": 71.05703735351562,
+          "gpu_mhz": 1575.2797477587662,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.1,
+          "temp": 94.515625,
+          "rpm": 3488.0,
+          "pcore": 3936,
+          "gpu": 73.73589324951172,
+          "gpu_mhz": 1575.7341338169517,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.1,
+          "temp": 96.375,
+          "rpm": 4258.0,
+          "pcore": 3936,
+          "gpu": 75.36019134521484,
+          "gpu_mhz": 1575.8849668373184,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 25.1,
+          "temp": 97.78125,
+          "rpm": 4741.0,
+          "pcore": 3936,
+          "gpu": 76.68949127197266,
+          "gpu_mhz": 1575.3507042362867,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 30.2,
+          "temp": 98.234375,
+          "rpm": 4781.0,
+          "pcore": 3936,
+          "gpu": 77.1239013671875,
+          "gpu_mhz": 1575.5202738250453,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 35.3,
+          "temp": 99.40625,
+          "rpm": 4775.0,
+          "pcore": 3936,
+          "gpu": 77.69412994384766,
+          "gpu_mhz": 1575.5374232904103,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 40.3,
+          "temp": 98.9375,
+          "rpm": 4778.0,
+          "pcore": 3936,
+          "gpu": 77.82811737060547,
+          "gpu_mhz": 1575.5990266119218,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 45.3,
+          "temp": 100.796875,
+          "rpm": 4777.0,
+          "pcore": 3936,
+          "gpu": 79.32223510742188,
+          "gpu_mhz": 1576.131279837701,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 50.4,
+          "temp": 100.796875,
+          "rpm": 4781.0,
+          "pcore": 3936,
+          "gpu": 79.35966491699219,
+          "gpu_mhz": 1576.1068549189458,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 55.4,
+          "temp": 101.03125,
+          "rpm": 4774.0,
+          "pcore": 3936,
+          "gpu": 79.40703582763672,
+          "gpu_mhz": 1575.2477577007605,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 60.4,
+          "temp": 101.03125,
+          "rpm": 4777.0,
+          "pcore": 3936,
+          "gpu": 79.80352020263672,
+          "gpu_mhz": 1575.1899311465977,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 65.5,
+          "temp": 101.265625,
+          "rpm": 4786.0,
+          "pcore": 3936,
+          "gpu": 80.0912094116211,
+          "gpu_mhz": 1575.7275213028179,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 70.5,
+          "temp": 101.734375,
+          "rpm": 4778.0,
+          "pcore": 3936,
+          "gpu": 80.39198303222656,
+          "gpu_mhz": 1575.51452836207,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 75.5,
+          "temp": 101.5,
+          "rpm": 4778.0,
+          "pcore": 3936,
+          "gpu": 80.3031005859375,
+          "gpu_mhz": 1575.436375245243,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 80.6,
+          "temp": 102.65625,
+          "rpm": 4781.0,
+          "pcore": 3936,
+          "gpu": 81.20389556884766,
+          "gpu_mhz": 1575.8775264618594,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 85.6,
+          "temp": 101.734375,
+          "rpm": 4779.0,
+          "pcore": 3936,
+          "gpu": 80.67935180664062,
+          "gpu_mhz": 1575.243482337675,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 90.7,
+          "temp": 102.65625,
+          "rpm": 4777.0,
+          "pcore": 3936,
+          "gpu": 80.86772918701172,
+          "gpu_mhz": 1575.770204039119,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 95.7,
+          "temp": 103.125,
+          "rpm": 4776.0,
+          "pcore": 3936,
+          "gpu": 81.21548461914062,
+          "gpu_mhz": 1575.7118963307994,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "measured": false,
+      "temp_c": 103.125,
+      "rpm_actual": 4776.0,
+      "pcore_mhz": 3936,
+      "pressure": "Nominal"
+    },
+    {
+      "step": 2,
+      "rep": 1,
+      "mode": "auto",
+      "title": "macOS 原廠自動",
+      "rpm_set": null,
+      "started_at": "11:08:25",
+      "cooldown_s": 0.0,
+      "cooldown_end_c": 69.8125,
+      "cooldown_ok": true,
+      "state": "aborted",
+      "reason": "溫度 112.2°C ≥ 112，中止（t+20s，期間風扇最高 1811 rpm）",
+      "settle_s": 24.3,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 100.109375,
+          "rpm": 1811.0,
+          "pcore": 3695,
+          "gpu": 79.24368286132812,
+          "gpu_mhz": 1530.4655499449987,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.1,
+          "temp": 104.046875,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "gpu": 82.01280212402344,
+          "gpu_mhz": 1575.4271745465398,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 107.765625,
+          "rpm": 1003.0,
+          "pcore": 3936,
+          "gpu": 86.2243423461914,
+          "gpu_mhz": 1575.6815067999453,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.2,
+          "temp": 111.46875,
+          "rpm": 1171.0,
+          "pcore": 3936,
+          "gpu": 90.20523071289062,
+          "gpu_mhz": 1575.6670934834035,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 112.171875,
+          "rpm": 1374.0,
+          "pcore": 3863,
+          "gpu": 91.98490142822266,
+          "gpu_mhz": 1575.679101263794,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "measured": false,
+      "temp_c": 112.171875,
+      "rpm_actual": 1374.0,
+      "pcore_mhz": 3863,
+      "pressure": "Nominal"
+    },
+    {
+      "step": 3,
+      "rep": 2,
+      "mode": "curve",
+      "title": "cool42 曲線",
+      "rpm_set": null,
+      "started_at": "11:08:51",
+      "cooldown_s": 5.1,
+      "cooldown_end_c": 67.671875,
+      "cooldown_ok": true,
+      "state": "aborted",
+      "reason": "溫度 103.6°C ≥ 103，中止（t+20s，期間風扇最高 4907 rpm）",
+      "settle_s": 22.2,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 101.03125,
+          "rpm": 4902.0,
+          "pcore": 0,
+          "gpu": 79.46549987792969,
+          "gpu_mhz": 725.6375267641826,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.1,
+          "temp": 100.109375,
+          "rpm": 4907.0,
+          "pcore": 0,
+          "gpu": 80.09999084472656,
+          "gpu_mhz": 1528.6381748116737,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 101.96875,
+          "rpm": 4895.0,
+          "pcore": 3936,
+          "gpu": 80.81693267822266,
+          "gpu_mhz": 1575.1090520913096,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.1,
+          "temp": 102.65625,
+          "rpm": 4900.0,
+          "pcore": 3936,
+          "gpu": 81.52227020263672,
+          "gpu_mhz": 1575.954662863471,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 103.59375,
+          "rpm": 4899.0,
+          "pcore": 3936,
+          "gpu": 81.86512756347656,
+          "gpu_mhz": 1575.5975193046324,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "measured": false,
+      "temp_c": 103.59375,
+      "rpm_actual": 4899.0,
+      "pcore_mhz": 3936,
+      "pressure": "Nominal"
+    },
+    {
+      "step": 4,
+      "rep": 2,
+      "mode": "auto",
+      "title": "macOS 原廠自動",
+      "rpm_set": null,
+      "started_at": "11:09:25",
+      "cooldown_s": 0.0,
+      "cooldown_end_c": 69.328125,
+      "cooldown_ok": true,
+      "state": "timeout",
+      "reason": "超過 390s 未收斂，以現況取樣",
+      "settle_s": 399.3,
+      "trace": [
+        {
+          "t": 0.1,
+          "temp": 100.796875,
+          "rpm": 2627.0,
+          "pcore": 3670,
+          "gpu": 79.59028625488281,
+          "gpu_mhz": 1566.1482852271595,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.1,
+          "temp": 103.359375,
+          "rpm": 2310.0,
+          "pcore": 3936,
+          "gpu": 81.65021514892578,
+          "gpu_mhz": 1575.7353911422535,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 106.140625,
+          "rpm": 2315.0,
+          "pcore": 3936,
+          "gpu": 84.62004852294922,
+          "gpu_mhz": 1575.3223977011878,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.2,
+          "temp": 108.6875,
+          "rpm": 2337.0,
+          "pcore": 3936,
+          "gpu": 86.33671569824219,
+          "gpu_mhz": 1575.6451081069117,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 110.78125,
+          "rpm": 2429.0,
+          "pcore": 3936,
+          "gpu": 88.25747680664062,
+          "gpu_mhz": 1576.299109408976,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 25.3,
+          "temp": 111.46875,
+          "rpm": 2533.0,
+          "pcore": 3936,
+          "gpu": 89.6027603149414,
+          "gpu_mhz": 1575.9011189384896,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 30.3,
+          "temp": 111.9375,
+          "rpm": 2649.0,
+          "pcore": 3918,
+          "gpu": 90.6070327758789,
+          "gpu_mhz": 1575.8452435524428,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 35.3,
+          "temp": 111.703125,
+          "rpm": 2761.0,
+          "pcore": 3918,
+          "gpu": 90.81846618652344,
+          "gpu_mhz": 1575.8452435524428,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 40.4,
+          "temp": 111.0,
+          "rpm": 2899.0,
+          "pcore": 3880,
+          "gpu": 90.27730560302734,
+          "gpu_mhz": 1574.9054090257544,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 45.4,
+          "temp": 111.46875,
+          "rpm": 2952.0,
+          "pcore": 3800,
+          "gpu": 90.37725067138672,
+          "gpu_mhz": 1574.4827226896678,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 50.4,
+          "temp": 108.921875,
+          "rpm": 2949.0,
+          "pcore": 3761,
+          "gpu": 89.77189636230469,
+          "gpu_mhz": 1575.6944969971637,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 55.5,
+          "temp": 109.84375,
+          "rpm": 2950.0,
+          "pcore": 3771,
+          "gpu": 89.70686340332031,
+          "gpu_mhz": 1574.1992919615284,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 60.5,
+          "temp": 107.765625,
+          "rpm": 2950.0,
+          "pcore": 3750,
+          "gpu": 89.7056884765625,
+          "gpu_mhz": 1574.84628049787,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 65.6,
+          "temp": 108.921875,
+          "rpm": 2950.0,
+          "pcore": 3773,
+          "gpu": 89.49117279052734,
+          "gpu_mhz": 1574.483218321288,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 70.6,
+          "temp": 107.078125,
+          "rpm": 2949.0,
+          "pcore": 3756,
+          "gpu": 89.25382232666016,
+          "gpu_mhz": 1575.008264901622,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 75.7,
+          "temp": 108.46875,
+          "rpm": 2951.0,
+          "pcore": 3752,
+          "gpu": 89.85001373291016,
+          "gpu_mhz": 1574.0102615947178,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 80.7,
+          "temp": 108.921875,
+          "rpm": 2949.0,
+          "pcore": 3744,
+          "gpu": 89.6541519165039,
+          "gpu_mhz": 1575.033333716475,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 85.7,
+          "temp": 108.921875,
+          "rpm": 2950.0,
+          "pcore": 3723,
+          "gpu": 89.6063461303711,
+          "gpu_mhz": 1574.8844081638642,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 90.8,
+          "temp": 108.6875,
+          "rpm": 2949.0,
+          "pcore": 3729,
+          "gpu": 89.98826599121094,
+          "gpu_mhz": 1574.7311301480206,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 95.8,
+          "temp": 108.921875,
+          "rpm": 2947.0,
+          "pcore": 3736,
+          "gpu": 89.63768005371094,
+          "gpu_mhz": 1574.1040834452856,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 100.8,
+          "temp": 108.46875,
+          "rpm": 2951.0,
+          "pcore": 3729,
+          "gpu": 89.28919219970703,
+          "gpu_mhz": 1575.37737322786,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 105.8,
+          "temp": 108.46875,
+          "rpm": 2950.0,
+          "pcore": 3707,
+          "gpu": 89.71855926513672,
+          "gpu_mhz": 1574.503803113315,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 110.9,
+          "temp": 109.390625,
+          "rpm": 2949.0,
+          "pcore": 3705,
+          "gpu": 89.29621124267578,
+          "gpu_mhz": 1574.2523088442047,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 115.9,
+          "temp": 108.46875,
+          "rpm": 2950.0,
+          "pcore": 3705,
+          "gpu": 89.25910949707031,
+          "gpu_mhz": 1573.8019584930896,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 120.9,
+          "temp": 107.765625,
+          "rpm": 2950.0,
+          "pcore": 3714,
+          "gpu": 89.1331787109375,
+          "gpu_mhz": 1574.893341213762,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 126.0,
+          "temp": 107.53125,
+          "rpm": 2951.0,
+          "pcore": 3698,
+          "gpu": 89.41364288330078,
+          "gpu_mhz": 1573.7611002029385,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 131.0,
+          "temp": 108.921875,
+          "rpm": 2953.0,
+          "pcore": 3706,
+          "gpu": 89.46418762207031,
+          "gpu_mhz": 1574.142798678815,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 136.0,
+          "temp": 108.46875,
+          "rpm": 2951.0,
+          "pcore": 3715,
+          "gpu": 89.35310363769531,
+          "gpu_mhz": 1574.0159426467246,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 141.1,
+          "temp": 109.390625,
+          "rpm": 2951.0,
+          "pcore": 3717,
+          "gpu": 89.15766143798828,
+          "gpu_mhz": 1573.544730099203,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 146.1,
+          "temp": 108.921875,
+          "rpm": 2948.0,
+          "pcore": 3684,
+          "gpu": 89.51924133300781,
+          "gpu_mhz": 1573.3019687788526,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 151.1,
+          "temp": 107.078125,
+          "rpm": 2950.0,
+          "pcore": 3689,
+          "gpu": 89.22212982177734,
+          "gpu_mhz": 1573.7806757422334,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 156.2,
+          "temp": 107.078125,
+          "rpm": 2950.0,
+          "pcore": 3693,
+          "gpu": 89.06593322753906,
+          "gpu_mhz": 1574.4380627465387,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 161.2,
+          "temp": 107.765625,
+          "rpm": 2947.0,
+          "pcore": 3694,
+          "gpu": 89.5921401977539,
+          "gpu_mhz": 1575.1030844560423,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 166.3,
+          "temp": 106.84375,
+          "rpm": 2953.0,
+          "pcore": 3694,
+          "gpu": 89.31753540039062,
+          "gpu_mhz": 1575.1030844560423,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 171.3,
+          "temp": 106.375,
+          "rpm": 2949.0,
+          "pcore": 3700,
+          "gpu": 88.8416519165039,
+          "gpu_mhz": 1574.477085029142,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 176.4,
+          "temp": 108.0,
+          "rpm": 2951.0,
+          "pcore": 3669,
+          "gpu": 89.14063262939453,
+          "gpu_mhz": 1575.117423569317,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 181.4,
+          "temp": 108.921875,
+          "rpm": 2949.0,
+          "pcore": 3682,
+          "gpu": 89.42498779296875,
+          "gpu_mhz": 1574.0643571824387,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 186.5,
+          "temp": 108.234375,
+          "rpm": 2949.0,
+          "pcore": 3652,
+          "gpu": 89.047607421875,
+          "gpu_mhz": 1573.6941154282388,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 191.5,
+          "temp": 106.609375,
+          "rpm": 2949.0,
+          "pcore": 3680,
+          "gpu": 88.62063598632812,
+          "gpu_mhz": 1573.5165439774203,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 196.6,
+          "temp": 108.46875,
+          "rpm": 2950.0,
+          "pcore": 3668,
+          "gpu": 89.33265686035156,
+          "gpu_mhz": 1573.2801295496192,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 201.6,
+          "temp": 110.3125,
+          "rpm": 2949.0,
+          "pcore": 3653,
+          "gpu": 88.7833480834961,
+          "gpu_mhz": 1574.5718825057138,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 206.6,
+          "temp": 105.671875,
+          "rpm": 2948.0,
+          "pcore": 3657,
+          "gpu": 88.73466491699219,
+          "gpu_mhz": 1574.541659392362,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 211.7,
+          "temp": 108.6875,
+          "rpm": 2949.0,
+          "pcore": 3667,
+          "gpu": 89.27433776855469,
+          "gpu_mhz": 1574.5636008280921,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 216.7,
+          "temp": 107.53125,
+          "rpm": 2950.0,
+          "pcore": 3634,
+          "gpu": 88.86019897460938,
+          "gpu_mhz": 1574.993622042049,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 221.8,
+          "temp": 107.296875,
+          "rpm": 2954.0,
+          "pcore": 3635,
+          "gpu": 88.88984680175781,
+          "gpu_mhz": 1574.5818940629078,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 226.8,
+          "temp": 108.46875,
+          "rpm": 2949.0,
+          "pcore": 3657,
+          "gpu": 88.94208526611328,
+          "gpu_mhz": 1574.329898582199,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 231.8,
+          "temp": 105.21875,
+          "rpm": 2948.0,
+          "pcore": 3645,
+          "gpu": 88.37970733642578,
+          "gpu_mhz": 1574.094740684287,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 236.9,
+          "temp": 107.078125,
+          "rpm": 2951.0,
+          "pcore": 3609,
+          "gpu": 88.81510162353516,
+          "gpu_mhz": 1574.6516316511104,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 242.0,
+          "temp": 106.84375,
+          "rpm": 2949.0,
+          "pcore": 3668,
+          "gpu": 89.08757781982422,
+          "gpu_mhz": 1575.2271859263763,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 247.0,
+          "temp": 106.609375,
+          "rpm": 2948.0,
+          "pcore": 3650,
+          "gpu": 88.81466674804688,
+          "gpu_mhz": 1574.0867190397162,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 252.0,
+          "temp": 109.625,
+          "rpm": 2951.0,
+          "pcore": 3664,
+          "gpu": 89.38629150390625,
+          "gpu_mhz": 1574.919043265636,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 257.1,
+          "temp": 107.296875,
+          "rpm": 2949.0,
+          "pcore": 3672,
+          "gpu": 88.9989242553711,
+          "gpu_mhz": 1574.1001462135064,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 262.1,
+          "temp": 107.078125,
+          "rpm": 2950.0,
+          "pcore": 3659,
+          "gpu": 88.65206146240234,
+          "gpu_mhz": 1573.7411786558062,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 267.2,
+          "temp": 108.921875,
+          "rpm": 2948.0,
+          "pcore": 3657,
+          "gpu": 88.60536193847656,
+          "gpu_mhz": 1573.8695496173477,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 272.2,
+          "temp": 107.765625,
+          "rpm": 2948.0,
+          "pcore": 3652,
+          "gpu": 88.94131469726562,
+          "gpu_mhz": 1573.9308714231297,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 277.2,
+          "temp": 110.546875,
+          "rpm": 2952.0,
+          "pcore": 3638,
+          "gpu": 89.20555877685547,
+          "gpu_mhz": 1574.673339995581,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 282.2,
+          "temp": 106.84375,
+          "rpm": 2951.0,
+          "pcore": 3638,
+          "gpu": 88.71096801757812,
+          "gpu_mhz": 1574.673339995581,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 287.3,
+          "temp": 108.921875,
+          "rpm": 2949.0,
+          "pcore": 3654,
+          "gpu": 88.97913360595703,
+          "gpu_mhz": 1573.984297190552,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 292.3,
+          "temp": 105.21875,
+          "rpm": 2948.0,
+          "pcore": 3659,
+          "gpu": 88.4129409790039,
+          "gpu_mhz": 1574.6344090224104,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 297.3,
+          "temp": 111.46875,
+          "rpm": 2951.0,
+          "pcore": 3661,
+          "gpu": 90.08716583251953,
+          "gpu_mhz": 1574.8329651811478,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 302.4,
+          "temp": 106.609375,
+          "rpm": 2946.0,
+          "pcore": 3599,
+          "gpu": 88.73274993896484,
+          "gpu_mhz": 1574.8485362334832,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 307.4,
+          "temp": 106.609375,
+          "rpm": 2950.0,
+          "pcore": 3688,
+          "gpu": 89.03813934326172,
+          "gpu_mhz": 1573.9995424096392,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 312.5,
+          "temp": 108.921875,
+          "rpm": 2950.0,
+          "pcore": 3655,
+          "gpu": 89.28034973144531,
+          "gpu_mhz": 1575.3077916364484,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 317.5,
+          "temp": 106.84375,
+          "rpm": 2947.0,
+          "pcore": 3658,
+          "gpu": 88.62712860107422,
+          "gpu_mhz": 1574.199236765067,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 322.6,
+          "temp": 104.984375,
+          "rpm": 2950.0,
+          "pcore": 3655,
+          "gpu": 88.58290100097656,
+          "gpu_mhz": 1573.835011139648,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 327.6,
+          "temp": 107.53125,
+          "rpm": 2950.0,
+          "pcore": 3666,
+          "gpu": 89.24980163574219,
+          "gpu_mhz": 1574.5336957169877,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 332.6,
+          "temp": 105.453125,
+          "rpm": 2948.0,
+          "pcore": 3641,
+          "gpu": 88.4639892578125,
+          "gpu_mhz": 1575.2609310884322,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 337.7,
+          "temp": 108.921875,
+          "rpm": 2949.0,
+          "pcore": 3660,
+          "gpu": 89.4270248413086,
+          "gpu_mhz": 1574.484176937745,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 342.7,
+          "temp": 108.46875,
+          "rpm": 2950.0,
+          "pcore": 3670,
+          "gpu": 89.27330017089844,
+          "gpu_mhz": 1574.2188477192453,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 347.8,
+          "temp": 108.234375,
+          "rpm": 2947.0,
+          "pcore": 3670,
+          "gpu": 89.29944610595703,
+          "gpu_mhz": 1573.7640877923768,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 352.8,
+          "temp": 106.609375,
+          "rpm": 2948.0,
+          "pcore": 3648,
+          "gpu": 88.9022445678711,
+          "gpu_mhz": 1573.876221089857,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 357.9,
+          "temp": 106.609375,
+          "rpm": 2948.0,
+          "pcore": 3629,
+          "gpu": 88.91860961914062,
+          "gpu_mhz": 1574.374416583513,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 362.9,
+          "temp": 106.140625,
+          "rpm": 2949.0,
+          "pcore": 3629,
+          "gpu": 88.98365783691406,
+          "gpu_mhz": 1574.0150873893338,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 368.0,
+          "temp": 106.140625,
+          "rpm": 2951.0,
+          "pcore": 3651,
+          "gpu": 89.0738525390625,
+          "gpu_mhz": 1574.725891561192,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 373.0,
+          "temp": 106.84375,
+          "rpm": 2950.0,
+          "pcore": 3642,
+          "gpu": 88.89448547363281,
+          "gpu_mhz": 1574.4750965267435,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 378.0,
+          "temp": 108.6875,
+          "rpm": 2953.0,
+          "pcore": 3642,
+          "gpu": 89.18692779541016,
+          "gpu_mhz": 1574.487420373485,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 383.1,
+          "temp": 107.296875,
+          "rpm": 2949.0,
+          "pcore": 3648,
+          "gpu": 89.21688842773438,
+          "gpu_mhz": 1573.8031230494628,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 388.1,
+          "temp": 106.84375,
+          "rpm": 2951.0,
+          "pcore": 3643,
+          "gpu": 88.92601776123047,
+          "gpu_mhz": 1574.200266211458,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 393.2,
+          "temp": 107.765625,
+          "rpm": 2950.0,
+          "pcore": 3650,
+          "gpu": 89.3662338256836,
+          "gpu_mhz": 1574.7724754314097,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "temp_c": 106.83799342105263,
+      "temp_max_c": 108.921875,
+      "cpu_max_c": 106.83799342105263,
+      "gpu_max_c": 89.19161425138775,
+      "pcore_min_poll": 3610,
+      "pressure_seq": [
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal",
+        "Nominal"
+      ],
+      "rpm_actual": 2950.5263157894738,
+      "rpm_min": 2947.0,
+      "rpm_max": 2955.0,
+      "pcore_mhz": 3643.7555555555555,
+      "ecore_mhz": 2808.0,
+      "cpu_w": 20.3364,
+      "gpu_w": 12.646155555555556,
+      "pressure": "Nominal",
+      "ops": 1632221,
+      "sample_s": 95.6,
+      "pm_samples": 90,
+      "boost_seen": false,
+      "powermetrics_file": "04-auto-r2.txt",
+      "ops_per_s": 17066.236238126014,
+      "ops_per_j": 839.1965263333733,
+      "mhz_per_w": 179.17406992169487,
+      "measured": true
+    }
+  ]
+}

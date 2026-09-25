@@ -1,0 +1,5 @@
+step,rep,mode,rpm_set,state,measured,settle_s,temp_c,temp_max_c,cpu_max_c,gpu_max_c,rpm_actual,rpm_min,rpm_max,pcore_mhz,ecore_mhz,cpu_w,gpu_w,ops,sample_s,ops_per_s,ops_per_j,mhz_per_w,pressure,boost_seen,reason,started_at
+1,1,curve,,converged,True,177.6,93.08,93.58,93.08,67.55,4022,4019,4026,3936,2808,23.64,0.0533,1713235,95.8,1.789e+04,757,166.5,Nominal,False,穩態（60s 內 ΔT 1.4°C、Δrpm 6）,10:43:24
+2,1,auto,,aborted,False,59.6,108.5,,,,1780,,,3936,,,,,,,,,Nominal,,溫度 108.5°C ≥ 108，中止（t+56s，期間風扇最高 4817 rpm）,10:47:59
+3,2,curve,,converged,True,201,92.76,93.34,92.76,67.29,3997,3758,4067,3936,2808,23.51,0.05261,1709852,95.8,1.785e+04,759,167.4,Nominal,False,穩態（60s 內 ΔT 1.4°C、Δrpm 11）,10:49:03
+4,2,auto,,aborted,False,51.6,108,,,,1439,,,3936,,,,,,,,,Nominal,,溫度 108.0°C ≥ 108，中止（t+46s，期間風扇最高 3404 rpm）,10:54:07

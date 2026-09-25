@@ -1,0 +1,144 @@
+== cool42 perf-vs-temp  2026-09-25 11:06:40 ==
+Apple M4（Mac16,10），macOS 27.0，10 核，起始 57.4°C，load avg 2.90 3.82 7.14，原設定 mode=curve
+計畫 4 檔：cool42 曲線#1 → macOS 原廠自動#1 → cool42 曲線#2 → macOS 原廠自動#2
+預估 14 分（全部最快收斂）～ 1 小時 8 分（上限）
+負載已啟動：10 個 sha256 worker ＋ Metal GPU 滿載（gpu_burn）
+
+-- [1/4] cool42 曲線（第 1 輪）  已過 5 秒，剩餘預估 14 分～1 小時 8 分 --
+   guard 已切到 curve（2s，目標 1733 rpm）
+   降溫完成：53.3°C（0s）
+   guard 已切到 curve（2s，目標 1733 rpm）
+    t+   0s   82.8°C   1734rpm  P=3906MHz  Nominal
+    t+   5s   88.2°C   2378rpm  P=3738MHz  Nominal
+    t+  10s   91.2°C   2891rpm  P=3936MHz  Nominal
+    t+  15s   94.5°C   3488rpm  P=3936MHz  Nominal
+    t+  20s   96.4°C   4258rpm  P=3936MHz  Nominal
+    t+  25s   97.8°C   4741rpm  P=3936MHz  Nominal
+    t+  30s   98.2°C   4781rpm  P=3936MHz  Nominal
+    t+  35s   99.4°C   4775rpm  P=3936MHz  Nominal
+    t+  40s   98.9°C   4778rpm  P=3936MHz  Nominal
+    t+  45s  100.8°C   4777rpm  P=3936MHz  Nominal
+    t+  50s  100.8°C   4781rpm  P=3936MHz  Nominal
+    t+  55s  101.0°C   4774rpm  P=3936MHz  Nominal
+    t+  60s  101.0°C   4777rpm  P=3936MHz  Nominal
+    t+  66s  101.3°C   4786rpm  P=3936MHz  Nominal
+    t+  70s  101.7°C   4778rpm  P=3936MHz  Nominal
+    t+  76s  101.5°C   4778rpm  P=3936MHz  Nominal
+    t+  81s  102.7°C   4781rpm  P=3936MHz  Nominal
+    t+  86s  101.7°C   4779rpm  P=3936MHz  Nominal
+    t+  91s  102.7°C   4777rpm  P=3936MHz  Nominal
+    t+  96s  103.1°C   4776rpm  P=3936MHz  Nominal
+   溫度 103.1°C ≥ 103，中止（t+96s，期間風扇最高 4786 rpm）
+
+-- [2/4] macOS 原廠自動（第 1 輪）  已過 1 分 44 秒，剩餘預估 10 分～51 分 --
+   guard 已切到 curve（2s，目標 4776 rpm）
+   降溫完成：69.8°C（0s）
+   guard 已切到 auto（4s，目標 交還 SMC）
+    t+   0s  100.1°C   1811rpm  P=3695MHz  Nominal
+    t+   5s  104.0°C   1000rpm  P=3936MHz  Nominal
+    t+  10s  107.8°C   1003rpm  P=3936MHz  Nominal
+    t+  15s  111.5°C   1171rpm  P=3936MHz  Nominal
+    t+  20s  112.2°C   1374rpm  P=3863MHz  Nominal
+   溫度 112.2°C ≥ 112，中止（t+20s，期間風扇最高 1811 rpm）
+
+-- [3/4] cool42 曲線（第 2 輪）  已過 2 分 11 秒，剩餘預估 7 分～34 分 --
+   guard 已切到 curve（6s，目標 4900 rpm）
+   降溫完成：67.7°C（5s）
+   guard 已切到 curve（2s，目標 4900 rpm）
+    t+   0s  101.0°C   4902rpm  P=   0MHz  Nominal
+    t+   5s  100.1°C   4907rpm  P=   0MHz  Nominal
+    t+  10s  102.0°C   4895rpm  P=3936MHz  Nominal
+    t+  15s  102.7°C   4900rpm  P=3936MHz  Nominal
+    t+  20s  103.6°C   4899rpm  P=3936MHz  Nominal
+   溫度 103.6°C ≥ 103，中止（t+20s，期間風扇最高 4907 rpm）
+
+-- [4/4] macOS 原廠自動（第 2 輪）  已過 2 分 44 秒，剩餘預估 3 分 30 秒～17 分 --
+   guard 已切到 curve（2s，目標 4784 rpm）
+   降溫完成：69.3°C（0s）
+   guard 已切到 auto（6s，目標 交還 SMC）
+    t+   0s  100.8°C   2627rpm  P=3670MHz  Nominal
+    t+   5s  103.4°C   2310rpm  P=3936MHz  Nominal
+    t+  10s  106.1°C   2315rpm  P=3936MHz  Nominal
+    t+  15s  108.7°C   2337rpm  P=3936MHz  Nominal
+    t+  20s  110.8°C   2429rpm  P=3936MHz  Nominal
+    t+  25s  111.5°C   2533rpm  P=3936MHz  Nominal
+    t+  30s  111.9°C   2649rpm  P=3918MHz  Nominal
+    t+  35s  111.7°C   2761rpm  P=3918MHz  Nominal
+    t+  40s  111.0°C   2899rpm  P=3880MHz  Nominal
+    t+  45s  111.5°C   2952rpm  P=3800MHz  Nominal
+    t+  50s  108.9°C   2949rpm  P=3761MHz  Nominal
+    t+  56s  109.8°C   2950rpm  P=3771MHz  Nominal
+    t+  60s  107.8°C   2950rpm  P=3750MHz  Nominal
+    t+  66s  108.9°C   2950rpm  P=3773MHz  Nominal
+    t+  71s  107.1°C   2949rpm  P=3756MHz  Nominal
+    t+  76s  108.5°C   2951rpm  P=3752MHz  Nominal
+    t+  81s  108.9°C   2949rpm  P=3744MHz  Nominal
+    t+  86s  108.9°C   2950rpm  P=3723MHz  Nominal
+    t+  91s  108.7°C   2949rpm  P=3729MHz  Nominal
+    t+  96s  108.9°C   2947rpm  P=3736MHz  Nominal
+    t+ 101s  108.5°C   2951rpm  P=3729MHz  Nominal
+    t+ 106s  108.5°C   2950rpm  P=3707MHz  Nominal
+    t+ 111s  109.4°C   2949rpm  P=3705MHz  Nominal
+    t+ 116s  108.5°C   2950rpm  P=3705MHz  Nominal
+    t+ 121s  107.8°C   2950rpm  P=3714MHz  Nominal
+    t+ 126s  107.5°C   2951rpm  P=3698MHz  Nominal
+    t+ 131s  108.9°C   2953rpm  P=3706MHz  Nominal
+    t+ 136s  108.5°C   2951rpm  P=3715MHz  Nominal
+    t+ 141s  109.4°C   2951rpm  P=3717MHz  Nominal
+    t+ 146s  108.9°C   2948rpm  P=3684MHz  Nominal
+    t+ 151s  107.1°C   2950rpm  P=3689MHz  Nominal
+    t+ 156s  107.1°C   2950rpm  P=3693MHz  Nominal
+    t+ 161s  107.8°C   2947rpm  P=3694MHz  Nominal
+    t+ 166s  106.8°C   2953rpm  P=3694MHz  Nominal
+    t+ 171s  106.4°C   2949rpm  P=3700MHz  Nominal
+    t+ 176s  108.0°C   2951rpm  P=3669MHz  Nominal
+    t+ 181s  108.9°C   2949rpm  P=3682MHz  Nominal
+    t+ 186s  108.2°C   2949rpm  P=3652MHz  Nominal
+    t+ 192s  106.6°C   2949rpm  P=3680MHz  Nominal
+    t+ 197s  108.5°C   2950rpm  P=3668MHz  Nominal
+    t+ 202s  110.3°C   2949rpm  P=3653MHz  Nominal
+    t+ 207s  105.7°C   2948rpm  P=3657MHz  Nominal
+    t+ 212s  108.7°C   2949rpm  P=3667MHz  Nominal
+    t+ 217s  107.5°C   2950rpm  P=3634MHz  Nominal
+    t+ 222s  107.3°C   2954rpm  P=3635MHz  Nominal
+    t+ 227s  108.5°C   2949rpm  P=3657MHz  Nominal
+    t+ 232s  105.2°C   2948rpm  P=3645MHz  Nominal
+    t+ 237s  107.1°C   2951rpm  P=3609MHz  Nominal
+    t+ 242s  106.8°C   2949rpm  P=3668MHz  Nominal
+    t+ 247s  106.6°C   2948rpm  P=3650MHz  Nominal
+    t+ 252s  109.6°C   2951rpm  P=3664MHz  Nominal
+    t+ 257s  107.3°C   2949rpm  P=3672MHz  Nominal
+    t+ 262s  107.1°C   2950rpm  P=3659MHz  Nominal
+    t+ 267s  108.9°C   2948rpm  P=3657MHz  Nominal
+    t+ 272s  107.8°C   2948rpm  P=3652MHz  Nominal
+    t+ 277s  110.5°C   2952rpm  P=3638MHz  Nominal
+    t+ 282s  106.8°C   2951rpm  P=3638MHz  Nominal
+    t+ 287s  108.9°C   2949rpm  P=3654MHz  Nominal
+    t+ 292s  105.2°C   2948rpm  P=3659MHz  Nominal
+    t+ 297s  111.5°C   2951rpm  P=3661MHz  Nominal
+    t+ 302s  106.6°C   2946rpm  P=3599MHz  Nominal
+    t+ 307s  106.6°C   2950rpm  P=3688MHz  Nominal
+    t+ 312s  108.9°C   2950rpm  P=3655MHz  Nominal
+    t+ 318s  106.8°C   2947rpm  P=3658MHz  Nominal
+    t+ 323s  105.0°C   2950rpm  P=3655MHz  Nominal
+    t+ 328s  107.5°C   2950rpm  P=3666MHz  Nominal
+    t+ 333s  105.5°C   2948rpm  P=3641MHz  Nominal
+    t+ 338s  108.9°C   2949rpm  P=3660MHz  Nominal
+    t+ 343s  108.5°C   2950rpm  P=3670MHz  Nominal
+    t+ 348s  108.2°C   2947rpm  P=3670MHz  Nominal
+    t+ 353s  106.6°C   2948rpm  P=3648MHz  Nominal
+    t+ 358s  106.6°C   2948rpm  P=3629MHz  Nominal
+    t+ 363s  106.1°C   2949rpm  P=3629MHz  Nominal
+    t+ 368s  106.1°C   2951rpm  P=3651MHz  Nominal
+    t+ 373s  106.8°C   2950rpm  P=3642MHz  Nominal
+    t+ 378s  108.7°C   2953rpm  P=3642MHz  Nominal
+    t+ 383s  107.3°C   2949rpm  P=3648MHz  Nominal
+    t+ 388s  106.8°C   2951rpm  P=3643MHz  Nominal
+    t+ 393s  107.8°C   2950rpm  P=3650MHz  Nominal
+   超過 390s 未收斂，以現況取樣
+   取樣 90s ...
+   => 106.8°C  2951rpm  P=3644MHz  CPU 20.34W  ops/s=17066.2  ops/J=839.20  Nominal
+已寫回原設定（量測完成）
+guard 已回到原模式 curve
+
+總耗時 11 分

@@ -1,0 +1,966 @@
+{
+  "meta": {
+    "chip": "Apple M4",
+    "model": "Mac16,10",
+    "macos": "27.0",
+    "ncpu": 10,
+    "python": "3.9.6",
+    "started_at": "2026-09-25 10:43:24",
+    "finished_at": "2026-09-25 10:55:05",
+    "plan": [
+      "cool42 曲線#1",
+      "macOS 原廠自動#1",
+      "cool42 曲線#2",
+      "macOS 原廠自動#2"
+    ],
+    "curve": [
+      {
+        "rpm": 1000,
+        "temp": 60
+      },
+      {
+        "rpm": 1800,
+        "temp": 75
+      },
+      {
+        "rpm": 2600,
+        "temp": 85
+      },
+      {
+        "rpm": 3600,
+        "temp": 92
+      },
+      {
+        "rpm": 4900,
+        "temp": 97
+      }
+    ],
+    "original_mode": "curve",
+    "args": {
+      "modes": [
+        "curve",
+        "auto"
+      ],
+      "rpm": [],
+      "repeat": 2,
+      "workers": 10,
+      "load_cmd": null,
+      "sample": 90,
+      "poll": 5,
+      "settle_window": 60,
+      "settle_delta": 1.5,
+      "settle_rpm_delta": 200,
+      "min_settle": 120,
+      "settle_max": 480,
+      "confirm_timeout": 25,
+      "abort_temp": 103,
+      "auto_abort_temp": 108,
+      "auto_observe_max": 300,
+      "cooldown_to": 75,
+      "cooldown_rpm": 4900,
+      "cooldown_max": 300,
+      "config": "/etc/cool42/config.json",
+      "out_dir": "~/cool42-perf-20260925-1043",
+      "dry_run": false
+    },
+    "load": "10 個 sha256 worker",
+    "start_loadavg": "1.57 3.99 4.48",
+    "interrupted": null,
+    "start_temp": 46.53125,
+    "elapsed_s": 701.1
+  },
+  "results": [
+    {
+      "step": 1,
+      "rep": 1,
+      "mode": "curve",
+      "title": "cool42 曲線",
+      "rpm_set": null,
+      "started_at": "10:43:24",
+      "cooldown_s": 0.0,
+      "cooldown_end_c": 47.265625,
+      "cooldown_ok": true,
+      "state": "converged",
+      "reason": "穩態（60s 內 ΔT 1.4°C、Δrpm 6）",
+      "settle_s": 177.6,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 79.75,
+          "rpm": 4664.0,
+          "pcore": 0,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.1,
+          "temp": 82.796875,
+          "rpm": 4603.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 83.96875,
+          "rpm": 4603.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.1,
+          "temp": 84.671875,
+          "rpm": 4600.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 86.5625,
+          "rpm": 4596.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 25.2,
+          "temp": 86.328125,
+          "rpm": 4602.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 30.3,
+          "temp": 87.734375,
+          "rpm": 4600.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 35.3,
+          "temp": 88.203125,
+          "rpm": 4445.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 40.4,
+          "temp": 88.203125,
+          "rpm": 4197.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 45.4,
+          "temp": 89.828125,
+          "rpm": 4004.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 50.4,
+          "temp": 90.296875,
+          "rpm": 3703.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 55.5,
+          "temp": 90.765625,
+          "rpm": 3400.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 60.5,
+          "temp": 91.234375,
+          "rpm": 3401.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 65.5,
+          "temp": 92.40625,
+          "rpm": 3399.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 70.6,
+          "temp": 92.875,
+          "rpm": 3598.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 75.6,
+          "temp": 93.109375,
+          "rpm": 3800.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 80.7,
+          "temp": 92.875,
+          "rpm": 3801.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 85.7,
+          "temp": 92.640625,
+          "rpm": 3806.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 90.8,
+          "temp": 93.109375,
+          "rpm": 3797.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 95.8,
+          "temp": 93.34375,
+          "rpm": 3803.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 100.9,
+          "temp": 93.8125,
+          "rpm": 4022.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 105.9,
+          "temp": 93.578125,
+          "rpm": 4025.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 110.9,
+          "temp": 93.578125,
+          "rpm": 4015.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 116.0,
+          "temp": 93.34375,
+          "rpm": 4020.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 121.0,
+          "temp": 91.9375,
+          "rpm": 4018.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 126.0,
+          "temp": 93.109375,
+          "rpm": 4023.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 131.1,
+          "temp": 93.34375,
+          "rpm": 4020.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 136.1,
+          "temp": 92.875,
+          "rpm": 4017.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 141.2,
+          "temp": 93.34375,
+          "rpm": 4021.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 146.2,
+          "temp": 92.640625,
+          "rpm": 4022.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 151.3,
+          "temp": 92.40625,
+          "rpm": 4023.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 156.3,
+          "temp": 93.109375,
+          "rpm": 4021.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 161.4,
+          "temp": 92.875,
+          "rpm": 4022.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 166.4,
+          "temp": 92.875,
+          "rpm": 4020.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 171.5,
+          "temp": 93.34375,
+          "rpm": 4021.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "temp_c": 93.08470394736842,
+      "temp_max_c": 93.578125,
+      "cpu_max_c": 93.08470394736842,
+      "gpu_max_c": 67.54966053209807,
+      "rpm_actual": 4022.0526315789475,
+      "rpm_min": 4019.0,
+      "rpm_max": 4026.0,
+      "pcore_mhz": 3936.0,
+      "ecore_mhz": 2807.8777777777777,
+      "cpu_w": 23.63618888888889,
+      "gpu_w": 0.0533,
+      "pressure": "Nominal",
+      "ops": 1713235,
+      "sample_s": 95.8,
+      "pm_samples": 90,
+      "boost_seen": false,
+      "powermetrics_file": "01-curve-r1.txt",
+      "ops_per_s": 17892.162302638928,
+      "ops_per_j": 756.981693907931,
+      "mhz_per_w": 166.52430806432886,
+      "measured": true
+    },
+    {
+      "step": 2,
+      "rep": 1,
+      "mode": "auto",
+      "title": "macOS 原廠自動",
+      "rpm_set": null,
+      "started_at": "10:47:59",
+      "cooldown_s": 0.0,
+      "cooldown_end_c": 60.25,
+      "cooldown_ok": true,
+      "state": "aborted",
+      "reason": "溫度 108.5°C ≥ 108，中止（t+56s，期間風扇最高 4817 rpm）",
+      "settle_s": 59.6,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 89.828125,
+          "rpm": 4817.0,
+          "pcore": 3800,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.1,
+          "temp": 91.46875,
+          "rpm": 1005.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 94.96875,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.2,
+          "temp": 97.3125,
+          "rpm": 1001.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 99.875,
+          "rpm": 1001.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 25.3,
+          "temp": 101.5,
+          "rpm": 1001.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 30.3,
+          "temp": 103.125,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 35.3,
+          "temp": 105.21875,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 40.4,
+          "temp": 106.609375,
+          "rpm": 1152.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 45.4,
+          "temp": 107.765625,
+          "rpm": 1356.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 50.4,
+          "temp": 107.296875,
+          "rpm": 1558.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 55.5,
+          "temp": 108.46875,
+          "rpm": 1780.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "measured": false,
+      "temp_c": 108.46875,
+      "rpm_actual": 1780.0,
+      "pcore_mhz": 3936,
+      "pressure": "Nominal"
+    },
+    {
+      "step": 3,
+      "rep": 2,
+      "mode": "curve",
+      "title": "cool42 曲線",
+      "rpm_set": null,
+      "started_at": "10:49:03",
+      "cooldown_s": 5.1,
+      "cooldown_end_c": 67.421875,
+      "cooldown_ok": true,
+      "state": "converged",
+      "reason": "穩態（60s 內 ΔT 1.4°C、Δrpm 11）",
+      "settle_s": 201.0,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 95.671875,
+          "rpm": 4897.0,
+          "pcore": 3771,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.1,
+          "temp": 95.203125,
+          "rpm": 4898.0,
+          "pcore": 3771,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 94.046875,
+          "rpm": 4903.0,
+          "pcore": 3923,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.1,
+          "temp": 94.046875,
+          "rpm": 4897.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 93.34375,
+          "rpm": 4900.0,
+          "pcore": 3919,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 25.2,
+          "temp": 92.875,
+          "rpm": 4900.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 30.3,
+          "temp": 93.578125,
+          "rpm": 4899.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 35.3,
+          "temp": 92.875,
+          "rpm": 4903.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 40.4,
+          "temp": 92.171875,
+          "rpm": 4900.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 45.4,
+          "temp": 91.9375,
+          "rpm": 4906.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 50.4,
+          "temp": 91.703125,
+          "rpm": 4906.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 55.5,
+          "temp": 92.171875,
+          "rpm": 4639.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 60.6,
+          "temp": 91.46875,
+          "rpm": 4341.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 65.6,
+          "temp": 91.9375,
+          "rpm": 4038.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 70.7,
+          "temp": 91.46875,
+          "rpm": 3837.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 75.7,
+          "temp": 92.875,
+          "rpm": 3799.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 80.8,
+          "temp": 92.875,
+          "rpm": 3797.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 85.8,
+          "temp": 93.34375,
+          "rpm": 3796.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 90.8,
+          "temp": 94.046875,
+          "rpm": 3946.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 95.8,
+          "temp": 93.8125,
+          "rpm": 4059.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 100.9,
+          "temp": 93.34375,
+          "rpm": 4063.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 105.9,
+          "temp": 93.578125,
+          "rpm": 4059.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 111.0,
+          "temp": 93.8125,
+          "rpm": 4059.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 116.1,
+          "temp": 92.875,
+          "rpm": 4058.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 121.1,
+          "temp": 92.875,
+          "rpm": 4058.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 126.2,
+          "temp": 92.875,
+          "rpm": 4067.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 131.2,
+          "temp": 93.109375,
+          "rpm": 4060.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 136.3,
+          "temp": 92.171875,
+          "rpm": 4063.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 141.3,
+          "temp": 93.34375,
+          "rpm": 4063.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 146.4,
+          "temp": 93.34375,
+          "rpm": 4066.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 151.4,
+          "temp": 93.578125,
+          "rpm": 4062.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 156.5,
+          "temp": 93.34375,
+          "rpm": 4063.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 161.5,
+          "temp": 93.8125,
+          "rpm": 4057.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 166.6,
+          "temp": 93.109375,
+          "rpm": 4067.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 171.6,
+          "temp": 93.34375,
+          "rpm": 4061.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 176.7,
+          "temp": 93.109375,
+          "rpm": 4056.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 181.7,
+          "temp": 93.34375,
+          "rpm": 4063.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 186.7,
+          "temp": 93.109375,
+          "rpm": 4062.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 191.8,
+          "temp": 92.40625,
+          "rpm": 4065.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 196.9,
+          "temp": 93.109375,
+          "rpm": 4058.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "temp_c": 92.76398026315789,
+      "temp_max_c": 93.34375,
+      "cpu_max_c": 92.76398026315789,
+      "gpu_max_c": 67.29074136834396,
+      "rpm_actual": 3997.4736842105262,
+      "rpm_min": 3758.0,
+      "rpm_max": 4067.0,
+      "pcore_mhz": 3936.0,
+      "ecore_mhz": 2807.9222222222224,
+      "cpu_w": 23.51368888888889,
+      "gpu_w": 0.052611111111111115,
+      "pressure": "Nominal",
+      "ops": 1709852,
+      "sample_s": 95.8,
+      "pm_samples": 90,
+      "boost_seen": false,
+      "powermetrics_file": "03-curve-r2.txt",
+      "ops_per_s": 17845.84607712177,
+      "ops_per_j": 758.9556092814772,
+      "mhz_per_w": 167.39185495730146,
+      "measured": true
+    },
+    {
+      "step": 4,
+      "rep": 2,
+      "mode": "auto",
+      "title": "macOS 原廠自動",
+      "rpm_set": null,
+      "started_at": "10:54:07",
+      "cooldown_s": 0.0,
+      "cooldown_end_c": 61.21875,
+      "cooldown_ok": true,
+      "state": "aborted",
+      "reason": "溫度 108.0°C ≥ 108，中止（t+46s，期間風扇最高 3404 rpm）",
+      "settle_s": 51.6,
+      "trace": [
+        {
+          "t": 0.0,
+          "temp": 90.53125,
+          "rpm": 3404.0,
+          "pcore": 0,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 5.0,
+          "temp": 93.109375,
+          "rpm": 1001.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 10.1,
+          "temp": 95.90625,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 15.1,
+          "temp": 98.9375,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 20.2,
+          "temp": 100.796875,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 25.2,
+          "temp": 102.421875,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 30.3,
+          "temp": 104.046875,
+          "rpm": 1000.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 35.3,
+          "temp": 106.375,
+          "rpm": 1067.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 40.4,
+          "temp": 106.375,
+          "rpm": 1245.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        },
+        {
+          "t": 45.5,
+          "temp": 108.0,
+          "rpm": 1439.0,
+          "pcore": 3936,
+          "pressure": "Nominal",
+          "boost": false
+        }
+      ],
+      "measured": false,
+      "temp_c": 108.0,
+      "rpm_actual": 1439.0,
+      "pcore_mhz": 3936,
+      "pressure": "Nominal"
+    }
+  ]
+}
