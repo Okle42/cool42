@@ -145,6 +145,9 @@ struct SettingsPage: View {
             }
             .formStyle(.grouped)
             .modifier(MeasureFormHeight(height: $natural))
+            // 內容放得下就不捲、錨在頂端：內容高度變了（開關增減列）時，grouped Form 的捲動原點不會留在舊位置把上面的區塊推出去
+            .scrollDisabled(natural > 0 && natural <= formCap)
+            .defaultScrollAnchor(.top)
             .frame(height: natural > 0 ? min(natural, formCap) : Self.fallbackHeight(tab))
             if hasApplyBar { SettingsApplyBar(monitor: monitor) }
         }
@@ -433,7 +436,8 @@ struct DisplaySettings: View {
                 .pickerStyle(.segmented)
                 Toggle(L("模糊背景"), isOn: Binding(get: { look.blur }, set: { look.blur = $0; GlassStyle.blur = $0 }))
                     .toggleStyle(.switch).controlSize(.mini)
-                if !look.blur {
+                // 一直顯示、模糊背景開著時變灰：不讓開關增減列（Form 內容高度一變，視窗跟著重算時上面的區塊會被推出可視區）
+                do {
                     LabeledContent(L("模糊度")) {
                         HStack(spacing: 8) {
                             Image(systemName: "circle.grid.3x3").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
@@ -445,7 +449,7 @@ struct DisplaySettings: View {
                             Image(systemName: "aqi.medium").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
                         }
                     }
-                    .disabled(!WindowBlur.available)
+                    .disabled(look.blur || !WindowBlur.available)
                 }
                 LabeledContent(L("透明度")) {
                     HStack(spacing: 8) {
