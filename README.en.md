@@ -279,6 +279,51 @@ tail -f /var/log/cool42.log
 
 **Config** `/etc/cool42/config.json` (see `config.example.json`): curve, thresholds, smoothing, ramp limits, GPU inclusion, allow-list, pre-warm keywords, sensor prefixes, chimes. Hot-reloaded; a parse failure keeps the previous config.
 
+**Quiet-first keys** (an older config without them gets the defaults below; set a number to 0 / `false` to get the old behaviour back):
+
+| Key | Default | What it does |
+|---|---|---|
+| `takeoverHoldSeconds` | `10` | After handing the fan back to macOS, the raw control temperature must stay at or above the curve start −5°C for this many **consecutive** seconds before cool42 takes over again, so a single-round spike no longer makes the fan "breathe". At or above `hotTemp` (or while the level is still hot), while throttling, or when frequency data is stale (throttling unknown), it takes over immediately; pre-warm and a fresh config reload don't wait either. `0` = no wait (old behaviour), max 60. The takeover / hand-back thresholds follow the current profile's curve start (`quiet` starts at 65°C, `performance` at 55°C) |
+| `boostStartRPM` | `2000` | Pre-warm starts at this speed and only steps up to `boostRPM` once the temperature actually climbs. `0` or ≥ `boostRPM` = no ramp (old behaviour) |
+| `boostEscalateTemp` | `70` | Step up to `boostRPM` when the control temperature reaches this during a pre-warm |
+| `boostEscalateRise` | `10` | Also step up if it rises this many degrees within 10 seconds |
+| `boostLearn` | `true` | If the same pre-warm keyword (the `boostCommands` entry that matched) turns out "not heavy" 30 seconds in three times in a row (control temperature still below the **base** curve's start, so the result doesn't drift with the active profile), stop pre-warming for it for 24 hours; the log says `學到：X 不再預熱` ("learned: no more pre-warm for X") and `恢復預熱` when it resumes. State lives in `/var/db/cool42/boost-learn.json` (written by the root guard; delete it to start over; read without following symlinks, only as a small root-owned file, and pauses longer than 24 hours are clamped and logged). Any local account can drop events, so only the keyword of the event that **opened** a wave is learned (extensions don't count), only events dropped by the **console user** are learned, and each keyword records at most 6 results per hour. `false` = neither learn nor skip |
+
+Compare before / after a change with `python3 extras/ux_metrics.py --since "YYYY-MM-DD HH:MM"` (per day: takeovers, hand-backs, pre-warm events and **waves**, early-end ratio per wave, fan-target changes per hour). An extended pre-warm logs one line per event, so the ratio must use waves as the denominator: on 09-20 to 25, 91 of 111 waves ended early (82%); counting event lines would understate it as 44%.
+
+**Upgrading changes behaviour**: an old config file without these keys gets takeover debouncing (10 s), gradual pre-warm (2000 rpm first) and pre-warm learning by default. For the old behaviour set `"takeoverHoldSeconds": 0, "boostStartRPM": 0, "boostLearn": false`.
+
+**Context profiles and noise cap** (an old config without these keys = no cap, no profiles, same behaviour as before; `config.example.json` leaves both off too):
+
+| Key | Default | What it does |
+|---|---|---|
+| `maxRPM` | unset (`null`) | Noise cap: **every** fan target the guard sets (curve, fixed, pre-warm) is clamped below this. **Safety exception**: at `hotTemp` (or while the level is still hot / critical), or while throttling (pressure / clock / GPU CLTM), the cap is ignored; the log records "噪音上限 … 暫停" (suspended). The suspension has hysteresis: it "恢復" (resumes) only after the temperature drops below `hotTemp` − `levelHysteresis` with no trigger for `rampDownHoldRounds` consecutive rounds, and then the fan comes down to the cap at the normal pace (a few cool rounds, at most `maxRampDown` per round), so under heavy load it doesn't flip between cap and full speed every minute. A cap below the fan's minimum speed means the minimum speed |
+| `profiles` | `[]` | Rules, **first match wins** in array order; if none matches the base settings apply. Every condition written in `when` must hold. Actions: `curve` (built-in `quiet` / `balanced` / `performance`) and/or `maxRPM` (replaces the base cap). Up to 16 rules; profiles never change `mode`, so the emergency hand-back (auto) is unaffected |
+
+Three kinds of condition in `when`:
+
+- **Time window** `{"from": "23:00", "to": "07:00"}`: local time HH:mm, start inclusive, end exclusive; `from` later than `to` means it crosses midnight
+- **App running** `{"apps": ["Xcode", "Blender", "ffmpeg"]}`: true if any of them is running. The guard (root) lists the processes **of the user logged in at the console** (BSD name, i.e. the executable name: Visual Studio Code is `Code`, DaVinci Resolve is `Resolve`; case-insensitive, `Xcode.app` is fine; names truncated at ~15 characters are matched by prefix; the panel has "Pick from Running Apps" next to the field). At the login window app rules never match; with no app rules nothing is listed. Anyone can name a process anything, so use app rules to make the fan **more** aggressive, not to set a very low cap
+- **Focus** `{"focus": true}`: macOS only tells apps *whether* a Focus is on, not which one. The guard is a root daemon and can't get it — Apple's only public API (`INFocusStatusCenter`) must run inside an app in the user's session, with the user's permission; the files in `~/Library/DoNotDisturb/DB` are undocumented and a scheduled Focus isn't necessarily recorded there, so cool42 doesn't guess from them. The **panel** reads it and writes `~/.config/cool42/focus.json` (every 60 s or on change); the guard reads that file for the user logged in at the console (no symlinks, must be owned by that user, treated as unknown after 180 s without an update). **The panel asks for permission only when it's first needed**: after you add a Focus rule, a note and a "Continue…" button appear under it, and macOS asks only when you press it; if you decline, turn it on later in System Settings › Privacy & Security › Focus. If the panel isn't running, isn't allowed, or the flag is stale, Focus rules **don't match**. (Not yet verified on a real .app: Apple's docs also require the Communication Notifications capability, and it's unclear whether an ad-hoc-signed panel gets Focus status; if it can't, the panel says under the rule that it won't apply.) The flag is user-level input: at most it activates a Focus rule you wrote yourself, and caps never apply when hot, critical or throttling
+
+<!-- profiles-example -->
+```json
+{
+  "maxRPM": 3200,
+  "profiles": [
+    {"name": "Editing", "when": {"apps": ["Final Cut Pro", "Blender", "ffmpeg"]}, "curve": "performance", "maxRPM": 4900},
+    {"name": "Quiet night", "when": {"from": "23:00", "to": "07:00"}, "curve": "quiet", "maxRPM": 2200},
+    {"name": "Focus", "when": {"focus": true}, "maxRPM": 2400}
+  ]
+}
+```
+
+Above: normally at most 3200 rpm; while an editing app runs, the performance curve with no effective cap (listed first, so it wins at midnight too); 23:00–07:00 the quiet curve, max 2200; with Focus on, max 2400. The log records "情境「Quiet night」生效：…" (active) and "…結束，回到基本設定" (ended, back to base settings); `cool42 status` and the panel show the active profile.
+
+**A lower cap is quieter and more likely to throttle.** The only same-machine data is from 09-25: under full CPU+GPU load macOS's own control held the fan at about 2,950 rpm and the P-cores dropped from 3936 to an average 3644 MHz (−7.4%); the same load on cool42's curve ran at 4,877 rpm and held 3936. That is not a "cap X rpm costs Y%" table — different caps haven't been measured, and load and room temperature change the result. In the panel, the "Profiles & noise cap" card (collapsed by default; its title row shows the active profile) turns the cap on/off with a slider, shows the active profile, and adds/removes time, app and Focus rules (written back with "Apply"; rule names must be unique). When the fan mode is "auto" (for example after Hand Back to macOS) the guard doesn't control the fan, so profiles and the cap are paused; "fixed" mode doesn't use curves, only the cap applies.
+
+**Upgrade note**: an old panel that hasn't been rebuilt doesn't know `maxRPM` or `profiles`, and pressing "Apply" in it deletes both. The guard logs a warning when a reload finds them gone; update the guard and the panel together (`./install.sh` rebuilds both).
+
 **Log** `/var/log/cool42.log`: timestamped, records only SMC writes, level changes, throttling start / end, config reloads, pre-warms, sensor faults. Rotated by newsyslog at 1 MB.
 
 **Claude Code MCP** (`claude mcp list` should show `cool42: ✔ Connected`). The hook is a passive gate; MCP lets the AI look and act:

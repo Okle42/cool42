@@ -12,6 +12,43 @@
 - **perf 對照腳本**：`extras/perf_vs_temp.py`（每檔切 cool42 設定、等穩態、取樣 powermetrics，記溫度 / 轉速 / P-core 硬體頻率 / 功率 / sha256 工作量 / pressure）、`extras/run_perf_overnight.sh`（空閒檢查、防睡、備份還原設定、完成通知）、`extras/gpu_burn.swift`（`--gpu` 的 Metal 滿載）。四次實跑修掉的坑：換檔前要停負載並降溫（至少 120 秒、維持 30 秒 ≤ 55°C，只看晶片溫度會熱機起跑）；原廠自動檔與曲線檔共用 112°C 安全上限；報表加 P-core 硬體頻率與「比全速 3936」百分比。用法見 [`docs/perf-vs-temp.md`](docs/perf-vs-temp.md)
 - 數據圖新增兩張（CPU＋GPU 時間軸、CPU-only 原廠接手前 60 秒），共 11 張；README 的「數據」改以同機對照為主
 
+### 安靜優先（風扇「呼吸」與預熱過度）
+
+09-20～25 的 log（`extras/ux_metrics.py` 量）：一天交還自動 59～212 次、每小時風扇目標變更 14～48 次，典型是單輪尖峰 73°C 接管 → 1340 rpm → 36 秒後 49°C 交還；預熱 111 波裡 91 波（82%，按波次算；事件行 206 行）30 秒後仍只有 44–52°C，但那 30 秒一律轟 3000 rpm。
+
+- **接管去抖** `takeoverHoldSeconds`（預設 10 秒 = 2 輪）：從交還自動重新接管，要原始控制溫度連續在曲線起點 −5°C 以上；用「連續」不用「30 秒平均」，因為單輪 90°C 就能把平均拉過門檻，而 EMA 降溫慢、一輪尖峰後平滑值會在門檻上停 15～20 秒，所以看原始值。≥ `hotTemp` 或降頻中立刻接管，預熱與設定重載不等
+- **預熱漸進** `boostStartRPM`（2000）、`boostEscalateTemp`（70°C）、`boostEscalateRise`（10 秒內 +10°C）：先用 2000，溫度真的起來才加碼到 `boostRPM`，log「預熱加碼」；30 秒不像重工作就提早結束照舊
+- **預熱學習** `boostLearn`（預設開）：同一關鍵字連續 3 次預熱都不像重工作，暫停替它預熱 24 小時（log「學到：X 不再預熱」「略過預熱」「恢復預熱」），狀態在 `/var/db/cool42/boost-learn.json`，和 `stats.json` 同樣 O_EXCL|O_NOFOLLOW 原子寫入。只學 `boostCommands` 裡的關鍵字、最多 64 個（事件備註是本機任何程式都能寫的）
+- `extras/ux_metrics.py`：按日列接管、交還、預熱、提早結束比例、每小時目標變更，`--since` 比較改版前後、`--json`
+- 16 條新測試（`QuietTests`，共 59 項）；**還沒實機跑過**，裝上後跑 `ux_metrics.py --since` 對照
+
+### 情境自動切換與噪音上限
+
+- **`maxRPM` 噪音上限**（預設不設＝不限）：guard 所有目標轉速（曲線、固定、預熱）夾在上限以下；**critical 或降頻中忽略上限**（安全例外），log「噪音上限 … 暫停／恢復」。上限生效時高於上限的目標不等「連續 N 輪偏冷」就往下降（仍受 `maxRampDown` 限制）；比風扇最低轉速還低時以最低轉速為準
+- **`profiles` 情境規則**（預設 `[]`）：依序第一條符合的生效，都不符合用基本設定；`when` 有寫的條件全部成立才算。條件：時段 `{from, to}`（HH:mm、跨午夜）、App 在跑 `{apps: [...]}`（guard 以 root 列舉程序名稱，沒有 apps 規則就不列舉）、專注模式 `{focus: true}`。動作：內建預設曲線 `curve`（quiet／balanced／performance，也收「安靜／均衡／強力」）和／或 `maxRPM`。最多 16 條，名稱不能換行（會進 log）。情境不改 `mode`，緊急交還原廠不受影響。log「情境「X」生效：…」「情境「X」結束，回到基本設定」；快照新增 `profile`、`maxRPM`、`maxRPMSuspended`，`cool42 status` 也會顯示
+- **專注模式**：guard（root 常駐程式）拿不到 —— 唯一公開 API `INFocusStatusCenter` 要在使用者 session 的 app 裡經授權，`~/Library/DoNotDisturb/DB` 格式沒公開、排程開啟的也不一定記在裡面。改由面板讀、寫 `~/.config/cool42/focus.json`（每 60 秒或狀態改變），guard 讀主控台使用者那份（不 follow symlink、要是該使用者的檔、180 秒沒更新當作不知道；不知道＝規則不成立）。授權只在使用者按規則下方的「繼續⋯」時才請求；`make-app.sh` 的 Info.plist 加 `NSFocusStatusUsageDescription`（中英 `InfoPlist.strings`）。**沒在正式 .app 上驗證過**：ad-hoc 簽名的 app 能不能拿到專注模式狀態還不確定（Apple 文件另要求 Communication Notifications capability，這裡沒加 entitlement），拿不到時面板會說這條規則不會生效
+- **面板「情境與噪音上限」卡**：目前生效的情境（例如「「夜間安靜」生效中 · 23:00–07:00 · 安靜 · 上限 2200 rpm」）、上限因降頻暫停的提示、平常上限的開關與滑桿（附取捨說明：只引用 09-25 原廠 ~2,950 rpm 時 P-core −7.4% 這一個實測，不給換算）、規則清單（新增時段／App／專注模式規則、展開編輯名稱／時段／App／曲線／上限、上移、刪除），走同一個「套用」；面板先擋掉 guard 會拒絕的規則，寫檔前再跑一次 `validate()`。預設曲線搬到 `Cool42Core`（`Config.presetCurves`），面板與規則共用
+- 20 條新測試（`ProfileTests`，共 79 項）：跨午夜與同日時段、App 名稱比對（大小寫、`.app`、截斷）、專注條件、條件 AND、規則順序、套用後的有效設定、上限夾限與兩個安全例外、舊設定相容、驗證、README 範例 JSON 可解析、專注旗標讀寫／過期／擁有者／symlink。**guard 的整合行為還沒實機跑過**
+
+### 升級注意（安靜優先、情境與噪音上限、面板改版）
+
+- **升級會改變行為**：舊設定檔沒有新鍵時，預設就啟用接管去抖（`takeoverHoldSeconds` 10）、預熱漸進（`boostStartRPM` 2000）與預熱學習（`boostLearn` true）。要回到舊行為：`"takeoverHoldSeconds": 0, "boostStartRPM": 0, "boostLearn": false`。`maxRPM`／`profiles` 沒設就和以前一樣不限轉速
+- **guard 與面板要一起更新**：舊版面板不認得 `maxRPM`、`profiles`，在它上面按「套用」會把兩段整個刪掉、沒有提示。guard 重載時發現它們不見了會記「⚠️ 設定檔裡的 … 不見了」；`./install.sh` 會同時重建 guard 與面板
+- 通知與專注模式的授權都在第一次用到時才請求（通知：第一次真的要發；專注模式：按規則下方的「繼續⋯」）
+
+### 審查修正
+
+- **噪音上限的安全例外加上 hot**（blocker）：原本只有 critical（108°C）與降頻會解除上限，95–107°C 之間風扇仍被夾在上限以下；降頻偵測在晶片不在表內或 powermetrics 過期時也看不到。現在 `hotTemp` 或等級仍在 hot 以上就解除
+- **上限暫停改成閂鎖**：hot／critical／降頻任一成立就暫停；要降到 `hotTemp` − `levelHysteresis` 以下、連續 `rampDownHoldRounds` 輪沒再觸發才恢復，恢復後照一般降速節奏降回上限（「直接往上限降」只留給剛進情境、剛改設定）。避免重載下「上限 → 降頻 → 全速 → 45 秒降回上限 → 再降頻」的一分鐘循環。純邏輯在 `CapLatch`
+- **預熱學習防下毒**：只記每一波開頭那個事件的關鍵字（延長事件不算）、只學主控台使用者自己丟的事件（`Event` 新增 `ownerUID`，由 drain 的 lstat 填），每個關鍵字每小時最多記 6 次；「不像重工作」的門檻改用**基本設定**曲線起點，不隨情境漂移
+- **學習狀態檔安全讀取**：`O_NOFOLLOW`、只收 root 擁有、≤ 64 KB 的普通檔；暫停時間超過 24 小時（時鐘跳過或檔案被改）就清掉並記 log
+- **接管去抖的 hot 例外看等級遲滯**，頻率資料過期時當作可能在降頻、立刻接管
+- **apps 規則只看主控台使用者的程序**（`cp_uid`＋`ProcList.runningNames(owner:)`），別的本機帳號跑同名程序不會觸發；規則名稱不能重複
+- `ux_metrics.py` **按波次**算預熱：新欄位 `boost_waves`、`early_end_ratio_per_wave`，事件行改名 `boost_events`。09-20～25 是 111 波裡 91 波提早結束（**82%**）；先前回報的 43%（81/190）是拿事件行當分母、低估
+- 面板：首次導覽不再保證「不必降頻」、檔案清單分成「安裝時放的」與「執行時會寫的」並補齊 `boost-learn.json`、`focus.json` 等；健康檢查在風扇卡手動時不再說「由macOS控制」、紅燈依處理順序排、「查看」會捲到健康卡、提示移到標題列下；選單列降頻角標改成烏龜（和面板一致，⚡ 只表示全速）、hot 多一個點、溫度字固定三位數寬；通知以「一段過熱」為單位（穩定正常 2.5 分鐘才算恢復、30 分鐘內接續不重發、恢復時收掉先前的警告）、文案拆成「原因／目前溫度」、沒裝 hook 不提 hook；時間軸接上預熱加碼、學到／略過／恢復預熱、情境生效／結束、噪音上限暫停／恢復，預熱併行不看轉速、顯示時間區間、次數從完整清單算；情境卡在交還原廠／固定模式時說明不作用、預設收合、時間跟系統 12／24 小時制、App 欄可從執行中的 App 挑選、每列只剩一個刪除鈕；提示音與面板偏好併成可收合的「偏好」卡；右鍵選單加「交還原廠控制⋯」；英文統一彎引號、critical、Clock
+- `scripts/check-l10n.py` 改成遞迴掃子目錄，檔頭 `// l10n:ignore-file` 才豁免中文字串檢查（`GuardLogPatterns.swift` 搬回面板目錄並加標記）；`uninstall.sh` 移除 `~/.config/cool42/focus.json`
+- 測試共 85 項（新增 hot 例外、閂鎖遲滯、學習速率上限、遠未來暫停夾限、symlink／擁有者、重名規則）；面板自我檢查 26 項。**guard 的整合行為仍未實機跑過**
+
 ## 1.0.3 — 2026-09-20
 
 一個安靜的把關漏洞：`includeGPU` 開著，但 GPU 溫度從來沒被算進去。

@@ -70,6 +70,13 @@
   ],
   "boostRPM": 3000,
   "boostSeconds": 120,
+  "boostStartRPM": 2000,
+  "boostEscalateTemp": 70,
+  "boostEscalateRise": 10,
+  "boostLearn": true,
+  "takeoverHoldSeconds": 10,
+  "maxRPM": null,
+  "profiles": [],
   "cpuPrefixes": [
     "Tp",
     "Te"
