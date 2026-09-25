@@ -71,6 +71,8 @@ func runGuard(config initial: Config, dryRun: Bool, interval: Double) throws {
     var smoothed: Double? = nil  // 控制溫度 EMA（升溫快、降溫慢）
     var lastLevel: Level? = nil
     var wasThrottling = false
+    var clockThrottled = false   // 時脈降頻（無聲降頻）狀態，進出有遲滯
+    let chip = chipName()
     var lastFreqError: String? = nil
     var coolRounds = 0           // 連續幾輪目標低於現在（降速前的等待計數）
     var faultStreak = 0          // 連續感測器故障輪數
@@ -233,10 +235,24 @@ func runGuard(config initial: Config, dryRun: Bool, interval: Double) throws {
         if let e = freq.lastError, e != lastFreqError { log("⚠️ \(e)"); lastFreqError = e }
         if freq.fresh {
             s.pcoreMHz = freq.pcoreMHz; s.ecoreMHz = freq.ecoreMHz; s.thermalPressure = freq.pressure
+            // 無聲降頻：高溫且 P-core 掉到全核滿載頻率以下（pressure 可能仍 Nominal）。
+            // 進：≥ clockThrottleTemp 且 < full×ratio；出：頻率回到 full×(ratio+0.02) 以上，或溫度低於門檻 − levelHysteresis
+            if let full = config.clockFullLoadMHz ?? Config.fullLoadMHz(chip: chip), let p = freq.pcoreMHz, p >= 100 {
+                if clockThrottled {
+                    if p >= full * (config.clockThrottleRatio + 0.02) || s.controlTemp < config.clockThrottleTemp - config.levelHysteresis {
+                        clockThrottled = false
+                    }
+                } else if s.controlTemp >= config.clockThrottleTemp && p < full * config.clockThrottleRatio {
+                    clockThrottled = true
+                }
+            } else {
+                clockThrottled = false
+            }
+            s.clockThrottled = clockThrottled
             let throttlingNow = s.throttling || s.gpuThrottling
             if throttlingNow {
                 stats.throttleSeconds += interval
-                if !wasThrottling { log("⚠️ 熱降頻開始：pressure \(freq.pressure ?? "?")，P-core \(Int(freq.pcoreMHz ?? 0)) MHz，GPU CLTM \(Int(s.gpuThrottlePercent ?? 0))%（\(s.short)）") }
+                if !wasThrottling { log("⚠️ 熱降頻開始：\(clockThrottled && !(freq.pressure.map { $0 != "Nominal" } ?? false) ? "時脈（pressure 仍 Nominal）" : "pressure \(freq.pressure ?? "?")")，P-core \(Int(freq.pcoreMHz ?? 0)) MHz，GPU CLTM \(Int(s.gpuThrottlePercent ?? 0))%（\(s.short)）") }
             } else if wasThrottling {
                 log("熱降頻結束：P-core \(Int(freq.pcoreMHz ?? 0)) MHz（\(s.short)）")
             }

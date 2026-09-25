@@ -23,6 +23,8 @@ public struct Snapshot: Codable {
     public var ecoreMHz: Double? = nil
     /// powermetrics 的 thermal pressure：Nominal / Moderate / Heavy / Trapping / Sleeping
     public var thermalPressure: String? = nil
+    /// guard 判定的時脈降頻（無聲降頻）：高溫且 P-core 掉到全核滿載頻率以下，pressure 可能仍是 Nominal（見 Config.clockThrottleTemp）
+    public var clockThrottled: Bool? = nil
     /// 今日統計（guard 累計）
     public var stats: Stats? = nil
     /// guard 掃描到的感測器 key，讓其他 process（CLI、面板）不用再列舉 1375 個 key
@@ -59,7 +61,7 @@ public struct Snapshot: Codable {
         public var hookDenies: Int = 0    // hook 因 critical 擋下的次數
         public var boosts: Int = 0        // 預熱觸發次數
         public var sensorFaults: Int = 0  // 感測器讀取失敗的輪數
-        public var throttleSeconds: Double = 0  // thermal pressure 非 Nominal 的累計秒數
+        public var throttleSeconds: Double = 0  // 降頻累計秒數：thermal pressure 非 Nominal，或時脈降頻（clockThrottled），或 GPU CLTM
 
         public init(date: String) { self.date = date }
         public static func today() -> String {
@@ -85,7 +87,7 @@ public struct Snapshot: Codable {
     /// 手動解碼：新加的欄位缺席時用預設值，舊版 guard 寫的快照也讀得懂
     enum CodingKeys: String, CodingKey {
         case time, cpuMax, cpuAvg, gpuMax, controlTemp, ssd, fans, level, sensorOK, guardRunning, guardTargetRPM, guardMode, boostUntil, stats,
-             pcoreMHz, ecoreMHz, thermalPressure, cpuKeys, gpuKeys, gpuActive, gpuMHz, gpuThrottlePercent, topProcesses
+             pcoreMHz, ecoreMHz, thermalPressure, cpuKeys, gpuKeys, gpuActive, gpuMHz, gpuThrottlePercent, topProcesses, clockThrottled
     }
     public init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -106,6 +108,7 @@ public struct Snapshot: Codable {
         pcoreMHz = try c.decodeIfPresent(Double.self, forKey: .pcoreMHz)
         ecoreMHz = try c.decodeIfPresent(Double.self, forKey: .ecoreMHz)
         thermalPressure = try c.decodeIfPresent(String.self, forKey: .thermalPressure)
+        clockThrottled = try c.decodeIfPresent(Bool.self, forKey: .clockThrottled)
         cpuKeys = try c.decodeIfPresent([String].self, forKey: .cpuKeys)
         gpuKeys = try c.decodeIfPresent([String].self, forKey: .gpuKeys)
         gpuActive = try c.decodeIfPresent(Double.self, forKey: .gpuActive)
@@ -192,6 +195,7 @@ public struct Snapshot: Codable {
         snap.pcoreMHz = alive ? saved?.pcoreMHz : nil
         snap.ecoreMHz = alive ? saved?.ecoreMHz : nil
         snap.thermalPressure = alive ? saved?.thermalPressure : nil
+        snap.clockThrottled = alive ? saved?.clockThrottled : nil
         return snap
     }
 
@@ -257,11 +261,12 @@ public struct Snapshot: Codable {
         var s = String(format: "%@ %.0f°C 🌀%@rpm", level.emoji, controlTemp, fan)
         if let p = pcoreMHz, p >= 100 { s += String(format: " ⚡%.2fGHz", p / 1000) }
         if let t = thermalPressure, t != "Nominal" { s += " 降頻(\(t))" }
+        else if clockThrottled == true { s += " 降頻(時脈)" }
         if gpuThrottling { s += " GPU降頻" }
         return s
     }
-    /// 是否正被熱降頻（powermetrics 的 pressure 非 Nominal）
-    public var throttling: Bool { thermalPressure.map { $0 != "Nominal" } ?? false }
+    /// 是否正被熱降頻：powermetrics 的 pressure 非 Nominal，或 guard 判定時脈降頻（pressure 仍 Nominal 的無聲降頻）
+    public var throttling: Bool { (thermalPressure.map { $0 != "Nominal" } ?? false) || clockThrottled == true }
     /// GPU 是否正被熱管理限制（CLTM 介入超過 5% 時間）
     public var gpuThrottling: Bool { (gpuThrottlePercent ?? 0) > 5 }
 

@@ -85,6 +85,25 @@ final class PolicyTests: XCTestCase {
         XCTAssertTrue(t.wait); XCTAssertTrue(t.block)
     }
 
+    func testVerdictWaitsOnSilentClockThrottle() {
+        // 2026-09-25 實測：原廠自動 pressure 全程 Nominal、P-core 掉到 ~3640 MHz —— guard 判 clockThrottled，hook 要等
+        let c = Config()
+        var s = snap(level: .critical, pressure: "Nominal"); s.level = .hot; s.clockThrottled = true
+        let v = Policy.verdict(s, config: c)
+        XCTAssertTrue(v.wait); XCTAssertFalse(v.block)
+        XCTAssertTrue(s.throttling)
+        XCTAssertTrue(s.short.contains("降頻(時脈)"))
+        s.clockThrottled = false
+        XCTAssertFalse(Policy.verdict(s, config: c).wait)
+        XCTAssertFalse(s.throttling)
+    }
+
+    func testFullLoadTableOnlyHasMeasuredChips() {
+        XCTAssertEqual(Config.fullLoadMHz(chip: "Apple M4"), 3936)
+        XCTAssertNil(Config.fullLoadMHz(chip: "Apple M1"))   // 沒量過的不猜
+        XCTAssertNil(Config.fullLoadMHz(chip: "Apple M4 Pro"))
+    }
+
     func testVerdictCriticalTemperatureIsSafetyFloor() {
         let c = Config()
         let v = Policy.verdict(snap(level: .critical, pressure: "Nominal"), config: c)

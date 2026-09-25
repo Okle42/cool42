@@ -38,6 +38,12 @@ public struct Config: Codable {
     public var warmTemp: Double = 80
     public var hotTemp: Double = 95
     public var criticalTemp: Double = 100
+    /// 時脈降頻（無聲降頻）：控制溫度 ≥ clockThrottleTemp 且 P-core 硬體頻率 < 全核滿載頻率 × clockThrottleRatio 就算降頻，
+    /// 不管 thermal pressure。2026-09-25 實測 M4 原廠自動：pressure 全程 Nominal，P-core 3936 → ~3640 MHz（−7.5%）
+    public var clockThrottleTemp: Double = 100
+    public var clockThrottleRatio: Double = 0.95
+    /// 全核滿載頻率（MHz）。缺席時用 Config.fullLoadMHz(chip:) 的實測表；表裡沒有的晶片不做時脈降頻判斷
+    public var clockFullLoadMHz: Double? = nil
     /// hook 在 hot 時最多等待幾秒降溫（程式內再夾在 hookWaitCap 以下，避免超過 Claude Code 的 hook timeout）
     public var hookWaitSeconds: Double = 90
     public static let hookWaitCap: Double = 120
@@ -82,7 +88,8 @@ public struct Config: Codable {
     enum CodingKeys: String, CodingKey {
         case curve, mode, fixedRPM, interval, deadband, smoothingUp, smoothingDown, maxRampDown, maxRampUp, rampDownHoldRounds, levelHysteresis, includeGPU,
              warmTemp, hotTemp, criticalTemp, hookWaitSeconds, hookBlockOnCritical, hookAllowCommands,
-             boostCommands, boostRPM, boostSeconds, cpuPrefixes, gpuPrefixes, sounds
+             boostCommands, boostRPM, boostSeconds, cpuPrefixes, gpuPrefixes, sounds,
+             clockThrottleTemp, clockThrottleRatio, clockFullLoadMHz
     }
 
     public init(from d: Decoder) throws {
@@ -111,6 +118,9 @@ public struct Config: Codable {
         cpuPrefixes = try c.decodeIfPresent([String].self, forKey: .cpuPrefixes) ?? cpuPrefixes
         gpuPrefixes = try c.decodeIfPresent([String].self, forKey: .gpuPrefixes) ?? gpuPrefixes
         sounds = try c.decodeIfPresent(Sounds.self, forKey: .sounds)
+        clockThrottleTemp = try c.decodeIfPresent(Double.self, forKey: .clockThrottleTemp) ?? clockThrottleTemp
+        clockThrottleRatio = try c.decodeIfPresent(Double.self, forKey: .clockThrottleRatio) ?? clockThrottleRatio
+        clockFullLoadMHz = try c.decodeIfPresent(Double.self, forKey: .clockFullLoadMHz)
         try validate()
     }
 
@@ -121,7 +131,15 @@ public struct Config: Codable {
         guard interval >= 1 else { throw Cool42Error.usage("interval 至少 1 秒") }
         guard (0...1).contains(smoothingUp), (0...1).contains(smoothingDown) else { throw Cool42Error.usage("smoothingUp/Down 必須在 0–1") }
         guard warmTemp < hotTemp, hotTemp < criticalTemp else { throw Cool42Error.usage("門檻必須 warm < hot < critical") }
+        guard (0.5..<1).contains(clockThrottleRatio) else { throw Cool42Error.usage("clockThrottleRatio 必須在 0.5–1 之間") }
         guard cooldownBelow < overheatAbove else { throw Cool42Error.usage("提示音門檻必須 cooldownBelow < overheatAbove") }
+    }
+
+    /// 實測過的全核滿載 P-core 硬體頻率（powermetrics「P-Cluster HW active frequency」，pressure Nominal、溫度夠低時）。
+    /// 只收自己量過的：猜錯會把正常頻率當降頻、讓 hook 白等。其他晶片請用 clockFullLoadMHz 或回報 issue
+    public static func fullLoadMHz(chip: String) -> Double? {
+        let table: [String: Double] = ["Apple M4": 3936]
+        return table[chip.trimmingCharacters(in: .whitespaces)]
     }
 
     /// 讀取指定/預設路徑；全部失敗回預設值。要區分「檔案壞了」和「沒有檔案」請用 loadOrError

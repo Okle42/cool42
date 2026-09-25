@@ -102,4 +102,13 @@ final class ConfigSoundsTests: XCTestCase {
     func testSoundThresholdOrderRejected() {
         XCTAssertThrowsError(try JSONDecoder().decode(Config.self, from: Data(#"{"sounds":{"overheatAbove":85,"cooldownBelow":90}}"#.utf8)))
     }
+
+    func testClockThrottleKeysDecodeAndValidate() throws {
+        let d = try JSONDecoder().decode(Config.self, from: #"{"clockThrottleTemp": 98, "clockFullLoadMHz": 3200}"#.data(using: .utf8)!)
+        XCTAssertEqual(d.clockThrottleTemp, 98)
+        XCTAssertEqual(d.clockThrottleRatio, 0.95)
+        XCTAssertEqual(d.clockFullLoadMHz, 3200)
+        XCTAssertNil(Config().clockFullLoadMHz)
+        XCTAssertThrowsError(try JSONDecoder().decode(Config.self, from: #"{"clockThrottleRatio": 1.2}"#.data(using: .utf8)!))
+    }
 }
