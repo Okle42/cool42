@@ -391,3 +391,14 @@
 "打開設定⋯" = "Open Settings…";
 "在設定視窗按「套用」才會寫入設定檔" = "Changes are written to the config file only when you click Apply in Settings";
 "模式按了就生效；曲線與轉速按「套用」才寫入。" = "Mode changes take effect right away; curve and speed changes are written when you click Apply.";
+
+/* 提示音換檔（設定視窗 → 提示音） */
+"提示音已換成「%@」" = "Alert sound changed to “%@”";
+"提示音已還原成內建音效" = "Alert sound reset to the built-in sound";
+"點一下選擇其他音檔" = "Click to choose another sound file";
+"「%@」提示音檔案" = "“%@” sound file";
+"選擇其他音檔⋯" = "Choose Another Sound…";
+"在 Finder 中顯示" = "Show in Finder";
+"還原成內建音效" = "Reset to Built-in Sound";
+"選擇「%@」提示音" = "Choose “%@” Sound";
+"選擇" = "Choose";

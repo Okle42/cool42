@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import Cool42Core
 
 // 設定視窗（⌘,、選單列右鍵「設定⋯」、面板頁尾「設定⋯」）。
@@ -350,8 +351,30 @@ struct SoundSettings: View {
             .disabled(!isOn.wrappedValue)
             LabeledContent(L("聲音")) {
                 HStack(spacing: 8) {
-                    Text(verbatim: file.map { ($0 as NSString).lastPathComponent } ?? L("系統音%@", hot ? Monitor.hotSound : Monitor.coldSound))
-                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    // 檔名本身就是選檔按鈕（像 Finder 的路徑選擇器）：點了開檔案選擇視窗換音檔
+                    Button { chooseSound(hot: hot, title: title) } label: {
+                        HStack(spacing: 4) {
+                            Text(verbatim: file.map { ($0 as NSString).lastPathComponent } ?? L("系統音%@", hot ? Monitor.hotSound : Monitor.coldSound))
+                                .lineLimit(1).truncationMode(.middle)
+                            Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+                        }
+                        .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(file ?? L("點一下選擇其他音檔"))
+                    .accessibilityLabel(L("「%@」提示音檔案", title))
+                    .accessibilityHint(L("點一下選擇其他音檔"))
+                    .contextMenu {
+                        Button(L("選擇其他音檔⋯")) { chooseSound(hot: hot, title: title) }
+                        if let file {
+                            Button(L("在 Finder 中顯示")) { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file)]) }
+                        }
+                        if monitor.hasCustomSound(hot: hot) {
+                            Divider()
+                            Button(L("還原成內建音效")) { monitor.setSoundFileNow(hot: hot, path: nil) }
+                        }
+                    }
                     Button(L("試聽")) { monitor.play(hot: hot) }
                         .accessibilityLabel(L("試聽「%@」提示音", title))
                 }
@@ -359,6 +382,25 @@ struct SoundSettings: View {
         } header: { Text(verbatim: title) } footer: {
             if let footer { SettingsFooter(footer) }
         }
+    }
+}
+
+extension SoundSettings {
+    /// NSOpenPanel 選音檔；選好直接寫設定並試聽一次，讓使用者馬上知道換成什麼聲音
+    func chooseSound(hot: Bool, title: String) {
+        let p = NSOpenPanel()
+        p.title = L("選擇「%@」提示音", title)
+        p.prompt = L("選擇")
+        p.allowedContentTypes = [.audio]
+        p.allowsMultipleSelection = false
+        p.canChooseDirectories = false
+        if let cur = monitor.soundPath(hot: hot) {
+            p.directoryURL = URL(fileURLWithPath: cur).deletingLastPathComponent()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        guard p.runModal() == .OK, let url = p.url else { return }
+        monitor.setSoundFileNow(hot: hot, path: url.path)
+        monitor.play(hot: hot)
     }
 }
 

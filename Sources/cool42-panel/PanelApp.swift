@@ -786,6 +786,33 @@ final class Monitor {
         }
     }
 
+    /// 換提示音檔：跟模式切換一樣直接寫設定檔（選檔本身就是確認，不走「套用」）；path = nil 還原成 app 內建音效。
+    /// 只動 sounds.overheat / cooldown，未套用的其他編輯（門檻、曲線…）疊回新設定檔上保留
+    func setSoundFileNow(hot: Bool, path: String?) {
+        do {
+            var c = try Config.loadOrError(path: nil)
+            var s = c.sounds ?? .init()
+            let stored = path.map { NSString(string: $0).abbreviatingWithTildeInPath }
+            if hot { s.overheat = stored } else { s.cooldown = stored }
+            c.sounds = s
+            try c.validate()
+            try c.save()
+            config = Config.load(path: nil)
+            rebaseDraft(onto: config)
+            configMtime = Config.mtime(config.loadedFrom)
+            saveMessage = path.map { L("提示音已換成「%@」", ($0 as NSString).lastPathComponent) } ?? L("提示音已還原成內建音效")
+            saveFailed = false
+        } catch {
+            saveMessage = L("寫入失敗：%@", error.localizedDescription); saveFailed = true
+        }
+    }
+
+    /// 設定檔有沒有自訂這個提示音（決定要不要顯示「還原成內建音效」）
+    func hasCustomSound(hot: Bool) -> Bool {
+        let s = Config.load(path: nil).sounds
+        return !((hot ? s?.overheat : s?.cooldown) ?? "").isEmpty
+    }
+
     private func afterEmergencyWrite(_ msg: String) {
         config = Config.load(path: nil)
         // 其他未套用的編輯保留（疊到新的設定檔上），模式跟著設定檔走
