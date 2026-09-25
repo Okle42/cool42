@@ -2,18 +2,20 @@
 
 [繁體中文](README.md)
 
-**In one line: your AI coding agent checks for throttling before heavy work — full speed while macOS reports thermal pressure `Nominal`, and it waits only when macOS reports throttling (pressure above Nominal).**
+**In one line: your AI coding agent checks for throttling before heavy work — full speed while the Mac isn't throttling, hot or not (except at the ≥ 100 °C safety floor), and it waits only when it actually is.** "Throttling" means any of three signals: macOS thermal pressure above `Nominal`, the GPU capped by CLTM, or the P-core hardware clock dropping below its all-core full-load value. The third was added after a same-machine test on 2026-09-25 found **the P-cores 7.4% down while macOS still reported `Nominal`**, and it isn't in any release yet (see [Data](#data) and [What counts as throttling](#what-counts-as-throttling)).
 
 <p align="center"><img src="docs/img/demo-en.gif" width="880" alt="cool42 panel demo: idle → heavy load → throttling → Claude Code hook waits → allowed"></p>
 <p align="center"><sub>18-second demo. The idle and heavy-load hold frames are real captures; the ~1.4 s transition between them is linearly interpolated (labelled "Transition · interpolated" — those numbers are not real readings); the "throttling" segment is a staged scenario (not a recorded event), and the terminal frames reproduce the source code's output format. The panel is shown in its English UI; cool42's own CLI / hook status strings inside the terminal frames are still Chinese, as in the product.</sub></p>
 
-![cool42: your AI agent waits on thermal pressure, not temperature. Peak control temperature 95°C over 4 days, 0 s of non-Nominal thermal pressure, the hook made the AI wait 0 times](docs/img/screens/hero-en.png)
+![cool42: your AI agent checks for throttling before it builds. Stock P-core clock −7.4% while macOS still reported Nominal; stock parks the fan at 2,951 rpm (max 4,900); the cool42 curve on the same load reads 3.94 GHz in the sample window (180/180 samples)](docs/img/screens/hero-en.png)
+
+<sub>The hero's three numbers are from the 2026-09-25 same-machine test (CPU + GPU load; the stock steady state is a single run, see [Data](#data)); the panel on its right is a real capture from a different scenario (an ffmpeg 4K encode).</sub>
 
 <sub>The panel in the GIF and hero above is rendered off-screen on a **solid background** (what you see with Reduce Transparency on). On macOS 26 and later the real panel uses Liquid Glass by default: cards are near-opaque and text outside the cards uses the system's vibrant colours. The two shots below are real screen captures (`scripts/snapshot/capture-glass.sh`, live data, controlled gradient behind the panel; Traditional Chinese UI):</sub>
 
 <p align="center"><img src="docs/img/screens/panel-glass-light.png" width="300" alt="Real capture: Liquid Glass panel, light appearance on a bright background"> <img src="docs/img/screens/panel-glass-dark.png" width="300" alt="Real capture: Liquid Glass panel, dark appearance on a dark background"></p>
 
-> A menu-bar panel that shows CPU / GPU temperature, every core's own sensor (73 CPU/GPU temperature sensors on an M4, as a heat grid), fan RPM, the P-cores' **hardware** clock (from `powermetrics`) and whether macOS reports thermal pressure (throttling). Custom fan curves, overheat / cooled-down chimes with adjustable thresholds. The panel UI follows the system language: Traditional Chinese on a Traditional Chinese system, English everywhere else.
+> A menu-bar panel that shows CPU / GPU temperature, every core's own sensor (73 CPU/GPU temperature sensors on an M4, as a heat grid), fan RPM, the P-cores' **hardware** clock (from `powermetrics`) and whether it's throttling (macOS thermal pressure, GPU CLTM, and — in the new version — the clock itself). Custom fan curves, overheat / cooled-down chimes with adjustable thresholds. The panel UI follows the system language: Traditional Chinese on a Traditional Chinese system, English everywhere else.
 > Then the part no other monitor has: **when an AI agent like Claude Code runs heavy work on your Mac, let the machine go full speed, let the fan prevent throttling, and only make the work wait when throttling actually happens.**
 > Resident cost (long-run `ps` average on 2026-09-23, cumulative CPU time ÷ uptime): guard + its `powermetrics` child **≈ 0.5% of one core** (0.27% + 0.22%), guard RSS ≈ 12–14 MB; the panel left open ≈ 1% (57 MB), closed-panel figure to be re-measured.
 
@@ -22,9 +24,9 @@
 | | What you get |
 |---|---|
 | **Just a monitor + fan controller** (no Claude Code needed) | Things Apple doesn't tell you: what the P-cores are really clocked at right now, when throttling starts, which core is hottest, whether the GPU is being capped. Fan modes Curve / Fixed / Automatic, edited live from the panel, with Quiet / Balanced / Performance presets |
-| **A gatekeeper for AI agents** | Claude Code asks before launching heavy commands (hook + MCP), waits only when macOS reports thermal pressure above Nominal, spins the fan up *before* `swift build` / `blender` / `ffmpeg`, and daily stats tell you whether your curve is right |
+| **A gatekeeper for AI agents** | Claude Code asks before launching heavy commands (hook + MCP), waits only when the Mac is actually throttling (pressure above Nominal, GPU CLTM, and in the new version a clock drop), spins the fan up *before* `swift build` / `blender` / `ffmpeg`, and daily stats tell you whether your curve is right |
 
-**In plain words**: Apple's fan policy is silence-first — right before cool42 first took over, this machine was at 105 °C with the fan at 1774 rpm under macOS auto control; external reports say that after 10–15 minutes of load like that the P-cores quietly slow down 15–25% and you never know. cool42 first makes that **visible** (the panel's first line says "Full speed · not throttled" or "Throttling", based on macOS thermal pressure), then flips the policy: run the fan 25% slower than the old curve (A/B, same load: 86.8 °C mean / 3150 rpm), and have Claude Code wait only when macOS reports throttling. It also survives the moments the machine is busiest — learned the hard way, see problem 15 below.
+**In plain words**: Apple's fan policy is silence-first. On 2026-09-25 I measured it on this Mac mini M4, same machine and same load: with CPU + GPU fully loaded, macOS auto held the fan at about 2,950 rpm (the firmware maximum of 4,900 went unused) at 106.8 °C, and the P-core hardware clock fell from the full 3936 to an average of 3644 MHz (−7.4%) — while macOS thermal pressure read `Nominal` the whole time. The clock dropped and the system didn't say so (the drop is measured; blaming heat is an inference, see [Data](#data)). The same load on cool42's default curve: fan 4,877 rpm, 104.4 °C, P-cores at the full 3936, 4.7% more work per second. The price is fan noise (≈ +10.9 dB estimated from rpm, not measured) and 17.5% more CPU power. The stock steady state is a single run; limits are under [Data](#data). cool42 first makes this **visible** (the panel's first line says "Full speed · not throttled" or "Throttling"), then has Claude Code wait only when the Mac is actually throttling. It also survives the moments the machine is busiest — learned the hard way, see problem 15 below.
 
 ![Mac mini M4](https://img.shields.io/badge/tested-Mac%20mini%20M4-blue) ![macOS](https://img.shields.io/badge/macOS-14%2B-lightgrey) ![Swift](https://img.shields.io/badge/Swift-6-orange) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen) ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -38,7 +40,7 @@ It started with wanting to *see*. I hand a lot of engineering work to Claude Cod
 CPU 105°C   fan 1774 rpm (macOS auto)
 ```
 
-The Mac mini M4's stock fan policy is extremely conservative — **CPU already at 105 °C, fan at 1774 rpm**. External reports (other people's machines) say that after 10–15 minutes of load like that the P-cores drop from 4.46 GHz to 3.3–3.8 GHz with no indication. Existing monitors and fan tools can show temperature and raise the curve, but:
+The Mac mini M4's stock fan policy is extremely conservative — **CPU already at 105 °C, fan at 1774 rpm**. External reports (other people's machines) say that after 10–15 minutes of load like that the P-cores drop from 4.46 GHz to 3.3–3.8 GHz with no indication. Later I measured it on this machine (2026-09-25, CPU + GPU load): macOS auto let the P-cores fall from the all-core full-load 3936 to 3644 MHz (−7.4%) with thermal pressure `Nominal` throughout — a smaller drop than the external reports (their baseline is the 4464 single-core peak), but just as silent. Existing monitors and fan tools can show temperature and raise the curve, but:
 
 1. **They don't know whether you're throttled** — they watch temperature, not hardware clocks; many of them read the PMU temperature on M4, which sits 15–20 °C below the cores (problem 14)
 2. **GUI only, no CLI, no API** — an AI agent can't ask "is it OK to start now?"
@@ -54,7 +56,7 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 |---|---|---|
 | Menu bar | ✅ `🟡 82°`; click for temperature / fan / clock cards with 5-minute charts | ✅ |
 | **Per-core temperature** | ✅ heat grid: P-core / E-core / GPU groups, 73 CPU/GPU temperature sensors (SMC) on M4, hover for value | partial (usually averages or PMU) |
-| **Hardware clock / thermal throttling detection** | ✅ shows the P-core hardware GHz from `powermetrics`; throttling is detected from macOS thermal pressure (anything above Nominal), panel / statusline turn red, logged | ❌ |
+| **Hardware clock / thermal throttling detection** | ✅ shows the P-core hardware GHz from `powermetrics`; throttling = thermal pressure above Nominal or GPU CLTM, and the unreleased new version adds a **clock check** — a hot P-cluster below 95% of its all-core full-load clock counts too, because pressure was measured reading `Nominal` while already throttled; panel / statusline turn red, logged | ❌ |
 | **GPU utilisation / GPU throttling** | ✅ IOReport utilisation and clock, `GPU_CLTM` detection | ❌ |
 | Custom fan curve | ✅ Curve / Fixed / Automatic, live edit from the panel, hot-reload on save | ✅ |
 | CPU + GPU together | ✅ max of both drives the fan | ✅ |
@@ -71,7 +73,7 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 
 | | |
 |---|---|
-| **Gate hook** | Claude Code PreToolUse hook: **waits only when actually throttled**; hot-but-not-throttled runs; denies only on Trapping or ≥ critical |
+| **Gate hook** | Claude Code PreToolUse hook: **waits only when actually throttled** (pressure above Nominal, GPU CLTM, clock drop in the new version); hot-but-not-throttled runs; denies only on Trapping or ≥ critical |
 | **MCP server** | 7 tools so the AI can check status, decide whether to start, wait for cool-down, see who's eating CPU, switch fan mode |
 | **Pre-warm for heavy commands** | fan ramps before `swift build` / `blender` / `ffmpeg`… |
 | CLI for scripts | `cool42 check` returns exit code 0 / 1 / 2 |
@@ -80,21 +82,54 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 
 ## Data
 
-Everything below comes from this Mac mini M4's guard log and the A/B run — nothing simulated. The generator [`extras/viz/build_charts.py`](extras/viz/build_charts.py) reads a frozen log snapshot in the repo, so the numbers can be recomputed.
+Everything below was measured on this Mac mini M4 — nothing simulated — and the raw files are in the repo, so the numbers can be recomputed: the same-machine comparison lives in [`docs/perf-2026-09-25/`](docs/perf-2026-09-25/) (`python3 docs/perf-2026-09-25/recompute.py`, notes in Chinese), and the other charts come from [`extras/viz/build_charts.py`](extras/viz/build_charts.py) reading a frozen log snapshot.
+
+### macOS auto vs the cool42 curve: same machine, same load (2026-09-25)
+
+The load is 10 sha256 workers plus a full Metal GPU load (`extras/gpu_burn.swift`); each mode waits for steady state, then samples `powermetrics` for 90 s. "macOS auto" is cool42 `mode=auto` (guard keeps running but hands the fan back to the SMC); "cool42 curve" is the current default, 60→1000 75→1800 85→2600 92→3600 97→4900.
+
+| | macOS auto | cool42 default curve | Δ |
+|---|---|---|---|
+| control temp (sample-window mean) | 106.8 °C (max 108.9) | **104.4 °C** (runs: 104.2 / 104.7) | −2.4 °C |
+| fan | 2,951 rpm (firmware max 4,900 unused) | 4,877 rpm | +65% |
+| P-core hardware clock (`powermetrics`) | mean 3,644 MHz, **−7.4%** vs the full 3936 (P5–P95 3603–3686) | **3936 MHz** (180/180 samples) | +8.0% |
+| work (sha256 ops/s) | 17,066 | **17,875** | **+4.7%** |
+| thermal pressure | **Nominal** (polls 79/79, `powermetrics` 90/90) | Nominal (180/180) | — |
+| CPU power | 20.34 W | 23.89 W | +17.5% |
+| work per joule | 839 ops/J | 748 ops/J | stock 12% better |
+| noise | — | — | ≈ +10.9 dB (**estimate**: 50·log10 of the rpm ratio, not measured) |
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/perf-cpugpu-en-dark.svg"><img src="docs/img/charts/perf-cpugpu-en-light.svg" alt="CPU + GPU full load over time: macOS auto holds the fan at 2,951 rpm and the P-cores drop to 3,644 MHz with pressure Nominal throughout; the cool42 curve runs 4,854 rpm with the P-cores at 3936 MHz"></picture>
+
+- **`Nominal` pressure does not mean "not throttled".** In the stock run the P-core clock slid down from t+30 s, and from t ≥ 150 s it stayed at 3599–3700 MHz; thermal pressure never left `Nominal`. The old guard installed at the time did log "throttling", but only because the GPU was being capped by CLTM (13–18%), and the two times it logged "throttling ended" the P-cores were still at 3761 / 3729 MHz ([`guard-log-2026-09-25-1110.txt`](docs/perf-2026-09-25/guard-log-2026-09-25-1110.txt)). With a CPU-only load and no GPU capping, a pressure-only check would have recorded the whole stretch as "not throttled" — hence the new [clock check](#what-counts-as-throttling). (At these temperatures the hook would already deny new work because of the ≥ 100 °C safety floor; what's missed is mainly the throttling verdict itself — stats, log, panel; see [below](#what-counts-as-throttling).) The 7.4% P-core drop is measured; attributing it to heat (the GPU was CLTM-capped 13–18% at the same time) is an inference — a power limit hasn't been ruled out directly.
+- **Full speed, paid for in fan and power.** The cool42 curve spins the fan 65% faster and gets P-cores that don't slow down, +4.7% work per second and −2.4 °C. The throttled stock run is more efficient — 12% more work per joule — it's just slower. +4.7% is steady-state throughput, not "the same job finishes 4.7% sooner"; total job time wasn't measured.
+- **The gap is bigger from a cold start.** In the same session (run4) every mode began after at least 120 s with the load stopped and the chip at 55 °C: the cool42 curve peaked at 105.2 / 105.7 °C over its two runs; macOS auto reached 112.6 °C within 35–40 s both times and was cut off by the script's safety limit, with the fan having reached only 1,437 / 1,714 rpm. 112.6 °C is the reading at the moment of the cut; the stock peak itself wasn't measured.
+- **CPU only (no GPU load)**: within 5 s of taking over, macOS auto dropped the fan to 1000 rpm and left it there while the temperature climbed from 91.5 to 105.2 °C; it only started ramping at 104–106.6 °C (+67 to +222 rpm per 5 s). Until the script cut it off at 108 °C the P-cores stayed at 3936 and pressure `Nominal` — **it was cut before any throttling showed**, so this says nothing either way about whether stock throttles on a CPU-only load. The cool42 curve on the same load: steady state 93.1 / 92.8 °C, 4,022 / 3,997 rpm, 3936 MHz.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/perf-cpu-auto60-en-dark.svg"><img src="docs/img/charts/perf-cpu-auto60-en-light.svg" alt="CPU only, first 60 s of macOS auto: the fan stays at 1000 rpm while the temperature climbs from 91.5 to 105.2 °C; it starts ramping only at 106.6 °C"></picture>
+
+**Limits — how far this comparison goes:**
+
+- The stock steady state is **one run (n = 1)**, and it was a **warm start**: a bug in that run's cool-down check (69.3 °C, "done" after 0 s) meant it began at 100.8 °C. Both cold-start stock runs hit the 112 °C cut-off, so there is no cold-start stock steady state.
+- The stock run (run3) and the two curve runs (run4) are from two sessions about 40 minutes apart with different script versions (the differences are cool-down, limits and reporting; the load and the work counter are unchanged). Room temperature was not controlled.
+- One Mac mini M4 (macOS 27.0). Noise is an estimate, not a measurement.
+- Full conditions, the known bugs in all four sessions, line-by-line sources and the recomputation table: [`docs/perf-2026-09-25/README.md`](docs/perf-2026-09-25/README.md) (Chinese).
+
+### Daily use: the 94-hour log (2026-09-20 to 09-23)
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/hook-timeline-en-dark.svg"><img src="docs/img/charts/hook-timeline-en-light.svg" alt="Over 94 hours, 5 hot periods (31 SMC writes at or above 90°C); the hook waited 0 times, denied 0 times, 0 s of non-Nominal pressure"></picture>
 
-**Over 94 hours (2,184 SMC writes) there were 5 hot periods (a gap of more than 5 minutes starts a new one; 31 fan-guard writes at ≥ 90 °C in total, peaking at 95 °C), and during them the hook never waited or denied anything; 0 s of non-Nominal thermal pressure.** The log records hook waits and denials, not every allowed call, so it doesn't show how many Bash calls actually went through the hook in those periods. (Inference: if heavy commands had run then, the first version's wait-at-90 °C rule would have made them wait.)
+**Over 94 hours (2,184 SMC writes) there were 5 hot periods (a gap of more than 5 minutes starts a new one; 31 fan-guard writes at ≥ 90 °C in total, peaking at 95 °C), and during them the hook never waited or denied anything; 0 s of non-Nominal thermal pressure and 0 s of GPU CLTM capping.** That is the old guard's definition, which **doesn't look at clocks**, so the zero only says macOS reported nothing and the GPU wasn't capped — not that there was no silent throttling; the 09-25 test above is exactly a case of `Nominal` pressure while throttled. (Inference from the rule, not measured: the new clock check only engages at a control temperature ≥ 100 °C, and this log peaks at 95 °C, so by the rule it wouldn't have fired either.) The log records hook waits and denials, not every allowed call, so it doesn't show how many Bash calls actually went through the hook in those periods. (Inference: if heavy commands had run then, the first version's wait-at-90 °C rule would have made them wait.)
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/ab-rpm-en-dark.svg"><img src="docs/img/charts/ab-rpm-en-light.svg" alt="A/B on the same load: the current default averages 3,150 rpm, 25% less than the old curve's 4,216 rpm"></picture>
 
-**Same load, 5 minutes per curve (first 60 s dropped): the current default averages 3,150 rpm vs the old curve's 4,216 (−25%) for only 3.8 °C more (83.0 → 86.8 °C).** (The ≈ −6 dB figure is a fan-law estimate, not a measurement.)
+**Same load, 5 minutes per curve (first 60 s dropped): the current default averages 3,150 rpm vs the old curve's 4,216 (−25%) for only 3.8 °C more (83.0 → 86.8 °C).** (The ≈ −6 dB figure is a fan-law estimate, not a measurement.) There was no `powermetrics` sample inside the B window; on 09-25 the same curve held the P-cores at the full 3936 under a heavier CPU + GPU load, which is indirect support, but it's a different load.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/charts/daily-max-en-dark.svg"><img src="docs/img/charts/daily-max-en-light.svg" alt="Daily peak 93–95°C (log values; 78°C on 09-23 up to 23:42), 0 s of non-Nominal pressure and 0 hook waits over 4 days"></picture>
 
-**Daily peaks of 93 / 95 / 95 °C (log values; 09-23 only up to 23:42, 78 °C), 0 s throttled in total over 4 days.** "Seconds throttled" = cumulative seconds with thermal pressure other than Nominal (not a clock-based measure); the daily summary truncates the peak to an integer and reports 93 / 94 / 94.
+**Daily peaks of 93 / 95 / 95 °C (log values; 09-23 only up to 23:42, 78 °C), 0 "seconds throttled" in total over 4 days.** In that version "seconds throttled" = cumulative seconds with thermal pressure above Nominal or GPU CLTM above 5%, with no clock check; the daily summary truncates the peak to an integer and reports 93 / 94 / 94.
 
-Limits, stated plainly: one Mac mini M4 only; this 94-hour log ran on macOS 27.0 (the A/B and sensor comparisons were on macOS 26); in these 4 days macOS never reported throttling, so the charts prove "doesn't get in the way when hot" — the wait path has not yet fired in real use and is covered only by unit tests and the staged segment of the demo above. All 9 charts with table views: [`docs/viz/index.html`](docs/viz/index.html) (download and open in a browser; it has a 中文 / English switch, and `?lang=en` opens it in English).
+Limits, stated plainly: one Mac mini M4 only; the 94-hour log and the 09-25 comparison ran on macOS 27.0 (the A/B and sensor comparisons were on macOS 26). In daily use, "throttled → hook waits" never happened in these 94 hours. In the 09-25 stock run, where the fan was deliberately handed to macOS, the old guard did flag throttling via GPU CLTM; by the rules the hook would then have denied new work because the control temperature was ≥ 100 °C (it waits only with `hookBlockOnCritical` off), not because it recognised throttling — and the log shows no hook waits or denials in that stretch. That was a test, not a daily-use record. The wait path is otherwise covered by unit tests, the staged segment of the demo above, and the guard's verdicts logged during that test. All 11 charts with table views: [`docs/viz/index.html`](docs/viz/index.html) (download and open in a browser; it has a 中文 / English switch, and `?lang=en` opens it in English).
 
 ## Architecture
 
@@ -131,18 +166,42 @@ What a local process can reach through the root daemon, and the worst it can do:
 
 Principle: **let the machine go full speed, let the fan prevent throttling, and only make work wait when throttling really happens.** Heat is not the problem; throttling is.
 
-guard reads thermal pressure from `powermetrics` as root; the hook, `cool42 check` and `cool42 wait` share one verdict:
+guard reads thermal pressure and the P-core hardware clock from `powermetrics` as root, and GPU CLTM from IOReport; the hook, `cool42 check` and `cool42 wait` share one verdict:
 
-| thermal pressure | hook | `check` exit |
+| state | hook | `check` exit |
 |---|---|---|
-| Nominal | allow regardless of temperature; if the command starts with `swift build` / `xcodebuild` / `blender` / `ffmpeg`… post a pre-warm event | 0 |
-| Moderate / Heavy, or GPU capped by CLTM > 5% | **wait for recovery (up to 90 s) then allow**, with an explanation | 1 |
+| not throttling (pressure Nominal, GPU not capped, clock not down) | allow regardless of temperature; if the command starts with `swift build` / `xcodebuild` / `blender` / `ffmpeg`… post a pre-warm event | 0 |
+| **throttling**: pressure Moderate / Heavy, or GPU capped by CLTM > 5%, or a clock drop (new version, below) | **wait for recovery (up to 90 s) then allow**, with an explanation | 1 |
 | Trapping / Sleeping | **deny**; can be disabled in config | 2 |
 | temperature ≥ critical (100 °C) | deny regardless of pressure (safety floor) | 2 |
 
 Without guard (no pressure available) it falls back to temperature: ≥ 95 °C wait, ≥ 100 °C deny.
 
 **Allow-listed commands are never gated**: `cool42`, `kill`, `pkill`, `killall`, `ps`, `top`, `sleep`… — otherwise Claude couldn't even run the commands that cool things down. See `hookAllowCommands` in config.
+
+### What counts as throttling
+
+In guard's log, the daily "seconds throttled", the panel verdict, `status --short` and the hook, "throttling" means any of:
+
+1. **thermal pressure above Nominal** (`powermetrics`)
+2. **GPU capped by CLTM**: IOReport `CLTM-induced GPU Performance States` outside `NO_CLTM` for more than 5% of the time
+3. **clock throttling** (**unreleased**: in the repo source, not in any release yet): control temperature ≥ `clockThrottleTemp` (default 100 °C) and the P-core hardware clock < the all-core full-load clock × `clockThrottleRatio` (default 0.95; on M4, 3936 × 0.95 ≈ 3739 MHz). It clears once the clock is back above × 0.97, or the temperature falls below `clockThrottleTemp` − `levelHysteresis` (default 3 °C). `status --short` shows it as "降頻(時脈)" (clock throttling)
+
+Rule 3 was added after the 2026-09-25 test, where macOS auto let the P-cores drop 7.4% under a CPU + GPU load with pressure `Nominal` from start to finish (see [Data](#data)). Applying the rule to that data: the stock run at 106.8 °C and 3644 MHz ⇒ throttling; the cool42 curve at 104.4 °C and 3936 MHz ⇒ not. That is the rule applied after the fact — **the new guard hasn't run on real hardware yet**.
+
+The all-core full-load clock comes from a table of measured values, currently only **Apple M4 = 3936 MHz** (all 450/450 `powermetrics` samples from the 09-25 curve runs read 3936). **Chips other than the M4 get no clock check by default.** To enable it, run an all-core load while the machine is cool and not throttling, read `P-Cluster HW active frequency` from `sudo powermetrics --samplers cpu_power`, and put it in the config:
+
+```json
+"clockThrottleTemp": 100,
+"clockThrottleRatio": 0.95,
+"clockFullLoadMHz": 3936
+```
+
+**How this relates to the critical safety floor (from the rules, not measured)**: the default `criticalTemp` is also 100 °C, and the hook checks critical first — at a control temperature ≥ 100 °C it denies (or waits, with `hookBlockOnCritical` off). So with default settings, silent throttling at 105–111 °C like on 09-25 already gets new work denied because of the temperature; what the pressure blind spot really affects is the throttling record: daily seconds throttled, the log, the panel and `status`. The clock check changes hook behaviour directly only if `criticalTemp` is set above `clockThrottleTemp`. And to be straight about it: under the same CPU + GPU load the default cool42 curve also sits at 104.4 °C, above critical, so by the rules the hook denies new Bash calls there too — the default curve can't hold this extreme load below 100 °C.
+
+A wrong value turns a normal clock into "throttling" and makes the hook wait for nothing, which is also why guard doesn't learn the peak by itself: when hot, a single core boosts to 4464, and once that's taken as the peak, the all-core 3936 looks throttled. `clockThrottleRatio` must be between 0.5 and 1 or the config is rejected (the previous one stays in effect).
+
+The first version gated on temperature (wait at 90 °C). With the fan-saving curve, heavy-load temperatures sat at 77–93 °C (the A/B's B run, mean 86.8 °C), so above 90 °C every Bash call waited — trading progress for a meaningless number (from the first version's log, no longer on disk). The second version looked only at pressure: 90 °C with `Nominal` pressure runs straight through (the P-cores were around 3.6 GHz then; why that's below the all-core 3.94 GHz is only an inference — partial load or the power limit). The 09-25 test showed pressure alone isn't enough, which is where the three-signal definition above comes from.
 
 ## Threat model
 
@@ -240,7 +299,7 @@ tail -f /var/log/cool42.log
 
 ## Is this good for the machine? Will the fan wear out?
 
-**The stock policy first (the "stock" numbers here are external reports or a single data point, not a same-machine, same-load baseline).** Apple's fan strategy is silence-first: right before cool42 first took over, this machine was at 105 °C with the fan at 1774 rpm under macOS auto control (early guard log). Nothing in Apple's documentation mentions a target temperature or lifetime. External reports (other people's M4 minis) say that after 10–15 minutes of heavy load the SoC sits at 105–107 °C with the fan around 2100 rpm, and the P-cores drop from 4464 MHz to 3300–3800 (−15 to −25%), silently.
+**The stock policy first.** Apple's fan strategy is silence-first. The same-machine, same-load measurement on this Mac (2026-09-25, see [Data](#data) above): on a CPU-only load macOS auto first drops the fan to 1000 rpm and starts ramping only at 104–106.6 °C; on a CPU + GPU load the fan settles around 2,950 rpm at 106.8 °C (sample-window mean) and the P-cores fall from 3936 to 3644 MHz (−7.4%) with thermal pressure `Nominal` throughout — slower, silently. The stock steady state is a single run: the most direct data so far, not a verdict. Nothing in Apple's documentation mentions a target temperature or lifetime. External reports (other people's M4 minis) say that after 10–15 minutes of heavy load the SoC sits at 105–107 °C with the fan around 2100 rpm and the P-cores drop from 4464 MHz to 3300–3800 (about −15 to −26%); that baseline is the 4464 single-core peak, so it can't be compared directly with the −7.4% against the all-core 3936 here.
 
 **cool42's default curve came out of an A/B test: 25% less fan than the old curve on the same load.** Same load (load 22–42), 5 minutes each (raw data in [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/)):
 
@@ -251,17 +310,17 @@ tail -f /var/log/cool42.log
 | fan (mean) | 4216 rpm | **3150 rpm** (−25%, ≈ −6 dB by the fan law) | ~2100 rpm |
 | P-core / pressure | not sampled in the window | **not sampled in the window** | 3300–3800 MHz, throttled |
 
-`powermetrics` was only sampled while the old curve was active: 3 samples before the A run and 6 samples starting ~3 minutes after the B run ended and the config was restored to A — 3936 MHz (one at 3950) and pressure Nominal. **There is no `powermetrics` sample inside the 5-minute B window**, so this A/B supports "25% less fan for 3.8 °C", not "B doesn't throttle"; whether B throttles is tracked by the daily stats in normal use since then (see Data above: 0 s of non-Nominal pressure over 94 hours). Total job time has not been measured either. The old curve's extra 1000 rpm buys 3.8 °C; it is still there as the "Performance" preset.
+`powermetrics` was only sampled while the old curve was active: 3 samples before the A run and 6 samples starting ~3 minutes after the B run ended and the config was restored to A — 3936 MHz (one at 3950) and pressure Nominal. **There is no `powermetrics` sample inside the 5-minute B window**, so this A/B supports "25% less fan for 3.8 °C", not "B doesn't throttle". The 94 hours of daily stats since then show 0 s of non-Nominal pressure, but 09-25 showed pressure can miss silent throttling, so that isn't evidence either; the closest thing is the 09-25 comparison, where the same curve held 3936 MHz (180/180 samples, 104.4 °C) under a heavier CPU + GPU load. Different load, so still not a direct measurement under the A/B load. Total job time has not been measured either. The old curve's extra 1000 rpm buys 3.8 °C; it is still there as the "Performance" preset.
 
-**Lifetime (inference)**: "every 10 °C halves the life" holds for electromigration-type mechanisms ([Electronics Cooling](https://www.electronics-cooling.com/2017/08/10c-increase-temperature-really-reduce-life-electronics-half/) notes it is not a general rule), and Apple's baseline life is long, so a cooler chip is at most a statistical failure-rate difference, not "breaks vs doesn't". Also often missed: **thermal cycling hurts more than steady heat**. In this machine's log cool42 swings 45 ↔ 95 °C; external reports put stock heavy load at 105–107 °C, but we have no same-machine stock swing data, so no ratio is given.
+**Lifetime (inference)**: "every 10 °C halves the life" holds for electromigration-type mechanisms ([Electronics Cooling](https://www.electronics-cooling.com/2017/08/10c-increase-temperature-really-reduce-life-electronics-half/) notes it is not a general rule), and Apple's baseline life is long, so a cooler chip is at most a statistical failure-rate difference, not "breaks vs doesn't". Also often missed: **thermal cycling hurts more than steady heat**. In this machine's log cool42 swings 45 ↔ 95 °C; on 09-25 the same machine under macOS auto held 106.8 °C at CPU + GPU steady state and reached 112.6 °C within 35–40 s of a cold start (cut off by the script, true peak not measured), but there is no long-run stock swing data, so no ratio is given.
 
 **The fan**: industrial L10 = 70,000 h @ 40 °C, life ∝ (rated ÷ actual rpm)^1.5; even 8 h/day at full speed is 24 years. The real cost is noise and dust. The ceiling is the firmware's own `F0Mx` (4900 on the M4 mini), which Apple uses itself in hot rooms. What actually hurts fans is **frequent start/stop and violent speed changes** — exactly what the asymmetric EMA + ramp limit + deadband prevent: cooling down is capped at −300 rpm per 5 s, so 4900 → 1000 takes at least 65 s. Idle sits at the firmware minimum 1000, same as Apple auto.
 
-**How to know the curve is right**: `cool42 status` daily stats, one number — **seconds throttled should be 0**. If it is, the fan did its job whatever the temperature; if not, raise the hot end of the curve.
+**How to know the curve is right**: `cool42 status` daily stats, one number — **seconds throttled should be 0**; if not, raise the hot end of the curve. Note that up to 1.0.3 this counts only pressure and GPU CLTM, so 0 s doesn't rule out silent throttling; the unreleased new version adds the clock check (chips other than the M4 need `clockFullLoadMHz` set), and only then does 0 really mean the fan did its job. To check directly, watch the P-core clock in the panel or `cool42 status` under heavy load and see whether it drops below the all-core full-load value.
 
 **Worst case**: guard dies → launchd `KeepAlive` restarts it in seconds. On exit, SIGINT (Ctrl-C) / SIGHUP hand the fan back to auto; **SIGTERM (launchd stop / restart, including a manual `launchctl bootout`) keeps the current fan speed** so the restarted guard can take over (handing back to auto under heavy load hits 100 °C in 30 s) — so after stopping guard by hand the fan stays at its last manual speed; run `sudo cool42 fan auto` or `uninstall.sh`, both of which hand it back explicitly. Even with no one in control the SoC has its own hardware protection (throttle, then shutdown). Blow the dust out once a year.
 
-## Measurements (Mac mini M4; sensor comparisons and A/B on macOS 26, the 94-hour runtime log on macOS 27.0)
+## Measurements (Mac mini M4; sensor comparisons and A/B on macOS 26, the 94-hour runtime log and the 09-25 stock comparison on macOS 27.0)
 
 The log the first time it took over (old curve; early log, the raw file has since been rotated):
 
@@ -277,7 +336,7 @@ Resources (`ps` on 2026-09-23, cumulative CPU time ÷ 3 days 22 hours of uptime)
 
 ## Problems worth knowing about
 
-The Chinese README has the full list of 18; the ones that matter most if you build on this:
+The Chinese README has the full list of 19; the ones that matter most if you build on this:
 
 **Apple Silicon SMC is undocumented.** IOKit `AppleSMC`, `IOConnectCallStructMethod` selector 2, an 80-byte `SMCKeyData_t` that must match byte for byte. Written in C; Swift only decodes types (`flt`, `sp78`, `fpe2`, `ui8/16/32`…).
 
@@ -290,6 +349,8 @@ The Chinese README has the full list of 18; the ones that matter most if you bui
 **guard starved under load — dead exactly when needed.** The first LaunchDaemon used `ProcessType Background` + `Nice 10`. At load 35 it took three minutes to finish its first round: 1375 SMC calls queued in `mach_msg2_trap` while a normal process scanned the same keys in 0.2 s. Background QoS gets no CPU when the system is busy, and a fan guard is needed precisely then. Now `Standard` + `Nice -5` (actual usage ≈ 0.27% of one core), the scanned key list is cached in the snapshot, and a watchdog thread `_exit`s after 6 missed heartbeats so launchd restarts it (a process stuck in a kernel call can't even receive SIGTERM).
 
 **Overwriting the binary in place gets you killed by the kernel.** `cp` onto `/usr/local/bin/cool42` → every new process dies with `OS_REASON_CODESIGNING` (signature cache on the old inode). `cp` to `.new` then `mv`.
+
+**Thermal pressure says `Nominal` while the P-cores are 7.4% down.** cool42 first defined throttling as pressure above Nominal (plus GPU CLTM). On 2026-09-25, a same-machine stock-vs-curve run (`extras/perf_vs_temp.py`) handed a CPU + GPU load to macOS auto: the fan sat at 2,951 rpm and the P-cores slid from 3936 to an average of 3644 MHz, with pressure `Nominal` in 79/79 polls and 90/90 `powermetrics` samples. The guard of the day only logged throttling because the GPU happened to be CLTM-capped 13–18% (the hook would have denied work then because the temperature was past the 100 °C safety floor, not because it recognised throttling), and twice declared it over while the P-cores were still at 3761 / 3729. The fix is the clock check ([What counts as throttling](#what-counts-as-throttling)), using a measured full-load table instead of letting guard learn the peak, since what it would learn is the 4464 single-core boost. The measurement had its own traps: a cool-down that watched only the chip (it drops below 70 °C in seconds while the heatsink is still hot, so the next mode starts warm), and a stock cold start that reaches 112.6 °C in 35–40 s and hits the script's safety limit, so there's no cold-start stock steady state ([`docs/perf-2026-09-25/README.md`](docs/perf-2026-09-25/README.md), Chinese).
 
 **"Who's computing" without powermetrics.** `powermetrics --samplers tasks` costs +2.7% resident and its per-process GPU time is always 0 on Apple Silicon. CPU: `libproc` deltas of per-process CPU time — note `pti_total_user/system` are Mach ticks (125/3 ns) on Apple Silicon, not ns; forget the conversion and you undercount 41×. GPU: IOReport `GPU Performance States` (non-OFF share = utilisation) and `CLTM-induced GPU Performance States` for thermal capping (> 5% non-`NO_CLTM` = GPU throttled).
 
@@ -326,17 +387,19 @@ install/                LaunchDaemon plist, newsyslog config, Claude Code hook s
 scripts/                install-root.sh (root steps), install-hook.py, install-mcp.sh, make-app.sh (panel bundle)
 mcp/                    cool42_mcp.py: MCP server (PEP 723 single file, uv run --script)
 Sounds/                 bundled chimes overheat.m4a / cooldown.m4a (synthesised, packed into the panel app)
-extras/                 statusline snippet, perf_vs_temp.py (efficiency vs temperature), make_sounds.py (chime synthesis)
-docs/                   A/B test data, findings, articles, charts
+extras/                 statusline snippet, perf_vs_temp.py + run_perf_overnight.sh (stock vs curve, same machine), gpu_burn.swift (GPU load), make_sounds.py (chime synthesis)
+docs/                   A/B and stock-comparison data, findings, articles, charts
 ```
 
 `swift test` runs the unit tests; `./install.sh` installs everything.
 
 ## Docs
 
-- [`docs/findings-m4-sensors.md`](docs/findings-m4-sensors.md) — **technical findings (zh / en)**: IOReport clocks vs IOHID temperatures vs SMC vs powermetrics on M4, second-by-second comparison, which ones are real; stock fan policy numbers; what an agent should use to self-throttle
+- [`docs/findings-m4-sensors.md`](docs/findings-m4-sensors.md) — **technical findings (zh / en)**: IOReport clocks vs IOHID temperatures vs SMC vs powermetrics on M4, second-by-second comparison, which ones are real; stock fan policy numbers (including the 09-25 same-machine comparison); what an agent should use to self-throttle
+- [`docs/perf-2026-09-25/`](docs/perf-2026-09-25/) — four same-machine sessions of macOS auto vs the cool42 curve: raw logs, `powermetrics` output, known bugs, recomputation script (Chinese)
+- [`docs/perf-vs-temp.md`](docs/perf-vs-temp.md) — how to run the comparison script `extras/perf_vs_temp.py` (Chinese)
 - [`docs/ab-test-2026-09-16/`](docs/ab-test-2026-09-16/) — raw A/B curve data, powermetrics output, external references
-- [`docs/viz/index.html`](docs/viz/index.html) — interactive view of all 9 data charts (light / dark, table view, Chinese / English), generated by [`extras/viz/build_charts.py`](extras/viz/build_charts.py)
+- [`docs/viz/index.html`](docs/viz/index.html) — interactive view of all 11 data charts (light / dark, table view, Chinese / English), generated by [`extras/viz/build_charts.py`](extras/viz/build_charts.py)
 - [`docs/RELEASING.md`](docs/RELEASING.md) — release zip, signing / notarization, Homebrew tap (Chinese)
 - [`CHANGELOG.md`](CHANGELOG.md)
 
