@@ -415,4 +415,7 @@
 "系統的「減少透明度」開著，面板用實色底，透明度設定暫時不作用" = "Reduce Transparency is on in System Settings, so the panel uses a solid background and this setting has no effect for now.";
 "模糊背景" = "Blur Background";
 "模糊背景開著是 Apple 的玻璃材質：背景一定會被模糊，透明度只調深淺，看不到後面的東西。要看得到桌布與後面的視窗，把「模糊背景」關掉" = "With Blur Background on, the panel uses Apple’s glass material: the background is always blurred, so transparency only changes how dark it is. To see the desktop and windows behind, turn Blur Background off.";
-"模糊背景關著：後面的桌布與視窗清楚可見，透明度調疊層濃淡。背景越花字越難讀，底下是白色網頁時建議把透明度調低" = "With Blur Background off, the desktop and windows behind stay sharp; transparency sets how dense the overlay is. Busy backgrounds make text harder to read — over white web pages, turn transparency down.";
+"模糊度" = "Blur";
+"背景模糊度" = "Background blur";
+"模糊背景關著：模糊度 0 是完全不模糊的真透明，往右越模糊；透明度調疊層濃淡。背景越花字越難讀，可以把模糊度調高一點" = "With Blur Background off, blur 0 is fully sharp transparency and moving right blurs more; transparency sets how dense the overlay is. Busy backgrounds make text harder to read — try a little more blur.";
+"這台 macOS 不支援自訂模糊度，面板維持不模糊的真透明；透明度調疊層濃淡" = "This version of macOS doesn’t support custom blur, so the panel stays sharp and transparent; transparency sets how dense the overlay is.";

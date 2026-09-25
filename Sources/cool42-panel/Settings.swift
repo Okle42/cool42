@@ -409,6 +409,7 @@ extension SoundSettings {
     var appearance = GlassStyle.appearance
     var transparency = GlassStyle.transparency
     var blur = GlassStyle.blur
+    var blurRadius = GlassStyle.blurRadius
 }
 
 struct DisplaySettings: View {
@@ -432,6 +433,20 @@ struct DisplaySettings: View {
                 .pickerStyle(.segmented)
                 Toggle(L("模糊背景"), isOn: Binding(get: { look.blur }, set: { look.blur = $0; GlassStyle.blur = $0 }))
                     .toggleStyle(.switch).controlSize(.mini)
+                if !look.blur {
+                    LabeledContent(L("模糊度")) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "circle.grid.3x3").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
+                            Slider(value: Binding(get: { look.blurRadius }, set: { look.blurRadius = $0; GlassStyle.blurRadius = $0 }),
+                                   in: 0...GlassStyle.maxBlurRadius, step: 1)
+                                .frame(width: 180)
+                                .accessibilityLabel(L("背景模糊度"))
+                                .accessibilityValue(Text(verbatim: "\(Int(look.blurRadius))"))
+                            Image(systemName: "aqi.medium").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
+                        }
+                    }
+                    .disabled(!WindowBlur.available)
+                }
                 LabeledContent(L("透明度")) {
                     HStack(spacing: 8) {
                         Image(systemName: "circle.fill").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
@@ -450,7 +465,9 @@ struct DisplaySettings: View {
                     ? L("系統的「減少透明度」開著，面板用實色底，透明度設定暫時不作用")
                     : look.blur
                         ? L("模糊背景開著是 Apple 的玻璃材質：背景一定會被模糊，透明度只調深淺，看不到後面的東西。要看得到桌布與後面的視窗，把「模糊背景」關掉")
-                        : L("模糊背景關著：後面的桌布與視窗清楚可見，透明度調疊層濃淡。背景越花字越難讀，底下是白色網頁時建議把透明度調低"))
+                        : WindowBlur.available
+                            ? L("模糊背景關著：模糊度 0 是完全不模糊的真透明，往右越模糊；透明度調疊層濃淡。背景越花字越難讀，可以把模糊度調高一點")
+                            : L("這台 macOS 不支援自訂模糊度，面板維持不模糊的真透明；透明度調疊層濃淡"))
             }
             Section {
                 Toggle(L("降頻、過熱與恢復正常時發通知"), isOn: Binding(get: { monitor.notifyOn }, set: { monitor.notifyOn = $0 }))

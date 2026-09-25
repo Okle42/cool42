@@ -174,9 +174,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let root = p.contentView?.subviews.first
             if !GlassStyle.blur, let s = root as? ScrimPanelBackground {
                 s.needsDisplay = true
+                WindowBlur.set(p, radius: GlassStyle.blurRadius)
             } else if #available(macOS 26.0, *), GlassStyle.blur, let g = root as? TintedGlassView {
                 g.applyStyle()
             } else {
+                if GlassStyle.blur { WindowBlur.set(p, radius: 0) }   // 切回 Apple 玻璃：拿掉自訂的視窗模糊
                 self.applyBackground()
             }
             p.invalidateShadow()
@@ -216,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             host.frame = solid.bounds
             solid.addSubview(host)
         } else if !GlassStyle.blur {
+            WindowBlur.set(p, radius: GlassStyle.blurRadius)
             let scrim = ScrimPanelBackground()
             scrim.radius = r
             root = scrim
@@ -331,6 +334,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func togglePanel() { panel.isVisible ? hidePanel() : showPanel() }
     func showPanel() {
         panel.orderFront(nil)
+        // 視窗第一次上螢幕才有 windowNumber，建背景時設的模糊半徑可能沒生效，顯示時再套一次
+        if !GlassStyle.blur { WindowBlur.set(panel, radius: GlassStyle.blurRadius) }
         fitHeight(to: monitor.contentHeight)
         UserDefaults.standard.set(true, forKey: "panel.open")
         monitor.tick()
@@ -401,6 +406,13 @@ enum GlassStyle {
         get { UserDefaults.standard.object(forKey: blurKey) == nil ? true : UserDefaults.standard.bool(forKey: blurKey) }
         set { UserDefaults.standard.set(newValue, forKey: blurKey); NotificationCenter.default.post(name: changed, object: nil) }
     }
+    /// 自訂模糊度（模糊背景關掉時）：0＝完全不模糊的真透明，最大 40（視窗背景模糊半徑，單位約為 pt）
+    static let blurRadiusKey = "panel.blurRadius"
+    static let maxBlurRadius = 40.0
+    static var blurRadius: Double {
+        get { min(max(num(blurRadiusKey) ?? 0, 0), maxBlurRadius) }
+        set { UserDefaults.standard.set(newValue, forKey: blurRadiusKey); NotificationCenter.default.post(name: changed, object: nil) }
+    }
     /// 疊層濃度：t=0 → 0.85（最清楚），t=1 → 0.10（幾乎全透）；預設 t=0.2 → 0.70，和玻璃深色預設同濃度
     static var scrimAlpha: Double { 0.85 - 0.75 * transparency }
     static let changed = Notification.Name("cool42.panelLookChanged")
@@ -454,6 +466,22 @@ final class SolidPanelBackground: NSView {
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = Neon.panelSolidColor.cgColor }
+    }
+}
+
+/// 視窗背景模糊半徑。AppKit 沒有公開 API（NSGlassEffectView／NSVisualEffectView 都不能調半徑），
+/// 只能用 CoreGraphics 私有的 CGSSetWindowBackgroundBlurRadius（iTerm2、Alacritty 的背景模糊也是用它）。
+/// 執行時用 dlsym 找：找不到（未來 macOS 拿掉）就什麼都不做，面板退回不模糊的真透明，不會當掉
+enum WindowBlur {
+    private typealias MainConn = @convention(c) () -> Int32
+    private typealias SetRadius = @convention(c) (Int32, Int32, Int32) -> Int32
+    private static let handle = dlopen(nil, RTLD_NOW)
+    private static let mainConn: MainConn? = dlsym(handle, "CGSMainConnectionID").map { unsafeBitCast($0, to: MainConn.self) }
+    private static let setRadius: SetRadius? = dlsym(handle, "CGSSetWindowBackgroundBlurRadius").map { unsafeBitCast($0, to: SetRadius.self) }
+    static var available: Bool { mainConn != nil && setRadius != nil }
+    static func set(_ w: NSWindow, radius: Double) {
+        guard let mainConn, let setRadius, w.windowNumber > 0 else { return }
+        _ = setRadius(mainConn(), Int32(w.windowNumber), Int32(radius.rounded()))
     }
 }
 
