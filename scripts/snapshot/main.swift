@@ -379,9 +379,13 @@ struct PanelCrop: View {
 @MainActor func renderHero(panelPNG: String, lang: String, out: String) {
     guard let img = NSImage(contentsOfFile: panelPNG) else { fatalError("讀不到 \(panelPNG)") }
     let zh = lang != "en"
+    // 三個數字出自 docs/perf-2026-09-25/（CPU＋GPU 滿載、同一台 Mac mini M4；原廠穩態只有 1 輪，限制寫在頁尾與該 README）：
+    //   −7.4% ＝ 原廠自動 P-core 3,643.8 / 3936 MHz（run3 pm/04-auto-r2.txt 90 筆），pressure 79/79＋90/90 Nominal
+    //   2,951 rpm ＝ 原廠自動取樣窗風扇（run3 results.csv 第 5 行）；4,900 是韌體上限，cool42 曲線同負載跑到 4,854–4,910
+    //   3.94 GHz ＝ cool42 曲線兩輪 powermetrics 180/180 筆 3936 MHz（run4 pm/01、03）
     let stats: [(String, String)] = zh
-        ? [("95°C", "4 天最高控制溫度"), ("0 秒", "熱壓力非 Nominal"), ("0 次", "hook 讓 AI 等待")]
-        : [("95°C", "peak control temp"), ("0 s", "non-Nominal pressure"), ("0×", "times the AI had to wait")]
+        ? [("−7.4%", "原廠 P-core 時脈\nmacOS 仍回報 Nominal"), ("2,951 rpm", "原廠風扇停在這\n上限是 4,900"), ("3.94 GHz", "cool42 曲線同負載\n取樣窗全速（180/180 筆）")]
+        : [("−7.4%", "stock P-core clock,\nstill reported Nominal"), ("2,951 rpm", "where stock parks the fan\n(max 4,900)"), ("3.94 GHz", "cool42 curve, same load,\n180/180 at full speed")]
     // 面板只取到風扇卡為止：風扇卡下緣在 535.5pt（352pt 寬時；中英文相同），裁在 536，
     // 下面再補 16pt 面板底色（和左右留白一樣寬），框的下緣就是收好的面板底邊，不會切到下一張卡
     let cropH: CGFloat = 536, tail: CGFloat = 16
@@ -394,21 +398,25 @@ struct PanelCrop: View {
                     .font(.system(size: 17, weight: .semibold)).foregroundStyle(Color(red: 0.16, green: 0.87, blue: 0.96))
                 Text(zh ? "AI 寫程式時，\n自己看降頻排隊。" : "Your AI agent checks for\nthrottling before it builds.")
                     .font(.system(size: zh ? 52 : 48, weight: .bold)).foregroundStyle(.white).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-                Text(zh ? "Claude Code 跑重指令前先問 cool42。\nmacOS 回報 Nominal 就全速放行，回報降頻才等。\n判斷看 thermal pressure，不看溫度。"
-                        : "A Claude Code hook asks cool42 before every shell command.\nNominal thermal pressure means full speed; it waits only\nwhen macOS reports throttling — pressure, not temperature.")
+                Text(zh ? "Claude Code 跑重指令前先問 cool42，真的降頻才等。\n這次實測原廠讓 P-core 掉 7.4%、風扇停在 2,951 rpm，\nmacOS 還回報「沒降頻」；\n所以 cool42 同時看熱壓力、GPU 限頻和 P-core 時脈。"
+                        : "A Claude Code hook asks cool42 before every shell command\nand waits only when the Mac is really throttling. In this test stock\nmacOS let the P-cores drop 7.4% rather than spin the fan\npast ~2,950 rpm, and still reported Nominal — so cool42\nchecks the clock, too.")
                     .font(.system(size: 19)).foregroundStyle(Color.white.opacity(0.72)).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
-                HStack(alignment: .top, spacing: 32) {
+                HStack(alignment: .top, spacing: 24) {
                     ForEach(stats, id: \.0) { v, k in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(v).font(.system(size: 34, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
-                            Text(k).font(.system(size: 14)).foregroundStyle(Color.white.opacity(0.6))
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                            Text(k).font(.system(size: 14)).foregroundStyle(Color.white.opacity(0.66)).lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        .frame(width: 184, alignment: .leading)
                     }
                 }
                 .padding(.top, 8)
-                Text(zh ? "Mac mini M4 實機 log · 2026-09-20 → 09-23（94 小時，macOS 27）· MIT · by Okle42"
-                        : "Mac mini M4 guard logs · Sep 20–23, 2026 (94 h, macOS 27) · MIT · by Okle42")
-                    .font(.system(size: 13)).foregroundStyle(Color.white.opacity(0.4))
+                Text(zh ? "同一台 Mac mini M4 · 2026-09-25 · CPU＋GPU 滿載 · 原廠穩態 n=1\n資料與限制：docs/perf-2026-09-25 · MIT · by Okle42"
+                        : "One Mac mini M4 · Sep 25, 2026 · CPU+GPU load · stock steady state n=1\nData and caveats: docs/perf-2026-09-25 · MIT · by Okle42")
+                    .font(.system(size: 13)).foregroundStyle(Color.white.opacity(0.55)).lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(width: 600, alignment: .leading)
             VStack(alignment: .leading, spacing: 10) {
@@ -421,7 +429,7 @@ struct PanelCrop: View {
                     .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
                     .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
                 Text(zh ? "面板上半部 · 實機取樣（ffmpeg 4K 編碼）" : "Top of the panel · real capture (ffmpeg 4K encode)")
-                    .font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.45))
+                    .font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.55))
             }
         }
         .padding(.horizontal, 88).frame(maxHeight: .infinity)
