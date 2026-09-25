@@ -402,3 +402,15 @@
 "還原成內建音效" = "Reset to Built-in Sound";
 "選擇「%@」提示音" = "Choose “%@” Sound";
 "選擇" = "Choose";
+
+/* 面板外觀（設定視窗 → 通知與顯示） */
+"面板外觀" = "Panel Appearance";
+"外觀" = "Appearance";
+"跟隨系統" = "System";
+"淺色" = "Light";
+"深色" = "Dark";
+"透明度" = "Transparency";
+"面板透明度" = "Panel transparency";
+"還原預設透明度" = "Reset Transparency";
+"系統的「減少透明度」開著，面板用實色底，透明度設定暫時不作用" = "Reduce Transparency is on in System Settings, so the panel uses a solid background and this setting has no effect for now.";
+"越透明越看得到桌布，但底下是白色網頁或亮色視窗時字會變難讀；預設值是和 Dock 並排調出來的" = "More transparent shows more of the desktop, but text gets harder to read over white web pages or bright windows. The default was tuned side by side with the Dock.";

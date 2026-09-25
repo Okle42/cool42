@@ -404,9 +404,16 @@ extension SoundSettings {
     }
 }
 
+/// 面板外觀的本地狀態（UserDefaults；SwiftUI 需要一個可觀察的來源才會跟著重畫）
+@Observable final class PanelLook {
+    var appearance = GlassStyle.appearance
+    var transparency = GlassStyle.transparency
+}
+
 struct DisplaySettings: View {
     var monitor: Monitor
     let panel: PanelView
+    @State private var look = PanelLook()
     var body: some View {
         Form {
             Section {
@@ -414,6 +421,31 @@ struct DisplaySettings: View {
                     .toggleStyle(.switch).controlSize(.mini)
             } header: { Text(L("選單列")) } footer: {
                 SettingsFooter(L("關掉就只顯示圖示：溫度計刻度分正常／偏溫，過熱時右下角多一個點，危險換成三角形，降頻時改成右上角一隻烏龜"))
+            }
+            Section {
+                Picker(L("外觀"), selection: Binding(get: { look.appearance }, set: { look.appearance = $0; GlassStyle.appearance = $0 })) {
+                    Text(L("跟隨系統")).tag("system")
+                    Text(L("淺色")).tag("light")
+                    Text(L("深色")).tag("dark")
+                }
+                .pickerStyle(.segmented)
+                LabeledContent(L("透明度")) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "circle.fill").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
+                        Slider(value: Binding(get: { look.transparency }, set: { look.transparency = $0; GlassStyle.transparency = $0 }), in: 0...1)
+                            .frame(width: 180)
+                            .accessibilityLabel(L("面板透明度"))
+                            .accessibilityValue(Text(verbatim: "\(Int(look.transparency * 100))%"))
+                        Image(systemName: "circle.dashed").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
+                    }
+                }
+                if abs(look.transparency - GlassStyle.defaultTransparency) > 0.001 {
+                    Button(L("還原預設透明度")) { look.transparency = GlassStyle.defaultTransparency; GlassStyle.transparency = GlassStyle.defaultTransparency }
+                }
+            } header: { Text(L("面板外觀")) } footer: {
+                SettingsFooter(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+                    ? L("系統的「減少透明度」開著，面板用實色底，透明度設定暫時不作用")
+                    : L("越透明越看得到桌布，但底下是白色網頁或亮色視窗時字會變難讀；預設值是和 Dock 並排調出來的"))
             }
             Section {
                 Toggle(L("降頻、過熱與恢復正常時發通知"), isOn: Binding(get: { monitor.notifyOn }, set: { monitor.notifyOn = $0 }))

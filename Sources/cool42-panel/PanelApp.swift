@@ -165,7 +165,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         p.delegate = self
         p.setAccessibilityLabel(L("cool42面板"))
         panel = p
+        p.appearance = GlassStyle.nsAppearance
         applyBackground()
+        // 設定視窗調外觀／透明度：外觀換 NSAppearance（玻璃在 viewDidChangeEffectiveAppearance 自己重算），透明度重套玻璃色調
+        NotificationCenter.default.addObserver(forName: GlassStyle.changed, object: nil, queue: .main) { [weak self] _ in
+            guard let self, let p = self.panel else { return }
+            p.appearance = GlassStyle.nsAppearance
+            if #available(macOS 26.0, *), let g = p.contentView as? TintedGlassView { g.applyStyle() } else { self.applyBackground() }
+            p.invalidateShadow()
+        }
         // 使用者切「減少透明度」「增加對比」時即時換底。這個通知發在 NSWorkspace 自己的 notificationCenter，
         // 掛在 NotificationCenter.default 永遠收不到（原本就是這樣：切了設定要重開面板才換）
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
@@ -352,8 +360,27 @@ enum GlassStyle {
         return UserDefaults.standard.string(forKey: key).flatMap(Double.init)
     }
     static var clear: Bool { UserDefaults.standard.string(forKey: "glass.style") != "regular" }
-    static var darkTint: Double { num("glass.tint") ?? 0.70 }
-    static var lightTint: Double { num("glass.lightTint") ?? 0.62 }
+    /// 使用者在設定視窗調的透明度 0…1（預設 0.2 ＝ 上面實測選定的 0.70／0.62）。
+    /// 色調 = 預設值 × (1.2 − t)：t=0 → ×1.2（最清楚），t=1 → ×0.2（最通透，字在亮背景上會難讀）
+    static let transparencyKey = "panel.transparency"
+    static let defaultTransparency = 0.2
+    static var transparency: Double {
+        get { min(max(num(transparencyKey) ?? defaultTransparency, 0), 1) }
+        set { UserDefaults.standard.set(newValue, forKey: transparencyKey); NotificationCenter.default.post(name: changed, object: nil) }
+    }
+    static var factor: Double { 1.2 - transparency }
+    static var darkTint: Double { min((num("glass.tint") ?? 0.70) * factor, 0.95) }
+    static var lightTint: Double { min((num("glass.lightTint") ?? 0.62) * factor, 0.95) }
+    /// 面板外觀：system（跟隨系統）／light／dark
+    static let appearanceKey = "panel.appearance"
+    static var appearance: String {
+        get { UserDefaults.standard.string(forKey: appearanceKey) ?? "system" }
+        set { UserDefaults.standard.set(newValue, forKey: appearanceKey); NotificationCenter.default.post(name: changed, object: nil) }
+    }
+    static var nsAppearance: NSAppearance? {
+        switch appearance { case "light": return NSAppearance(named: .aqua); case "dark": return NSAppearance(named: .darkAqua); default: return nil }
+    }
+    static let changed = Notification.Name("cool42.panelLookChanged")
     static var fallback: String? { UserDefaults.standard.string(forKey: "glass.fallback") }
 }
 
