@@ -1,0 +1,2 @@
+/* Info.plist 的用途字串（make-app.sh 會把 *.lproj 複製進 .app） */
+"NSFocusStatusUsageDescription" = "cool42 reads whether a Focus is on to apply the fan rules you set for Focus.";

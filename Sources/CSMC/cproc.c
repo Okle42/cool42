@@ -27,6 +27,13 @@ int cp_name(pid_t pid, char *buf, int len) {
     return proc_name(pid, buf, (uint32_t)len) > 0 ? 0 : -1;
 }
 
+int cp_uid(pid_t pid, uid_t *uid) {
+    struct proc_bsdinfo bi;
+    if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bi, sizeof(bi)) != (int)sizeof(bi)) return -1;
+    *uid = bi.pbi_ruid;
+    return 0;
+}
+
 int cp_cwd(pid_t pid, char *buf, int len) {
     struct proc_vnodepathinfo vi;
     if (proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vi, sizeof(vi)) <= 0) return -1;

@@ -1,0 +1,2 @@
+/* Info.plist 的用途字串（make-app.sh 會把 *.lproj 複製進 .app） */
+"NSFocusStatusUsageDescription" = "cool42會讀取專注模式是否開啟，套用你為專注模式設定的風扇規則。";

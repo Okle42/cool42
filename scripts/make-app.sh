@@ -33,6 +33,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSFocusStatusUsageDescription</key><string>cool42會讀取專注模式是否開啟，套用你為專注模式設定的風扇規則。</string>
 </dict></plist>
 PLIST
 codesign --force --sign - "$APP" 2>/dev/null || true

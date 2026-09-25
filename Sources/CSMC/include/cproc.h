@@ -9,6 +9,8 @@ int cp_list_pids(pid_t *buf, int max);
 int cp_task_cpu_ns(pid_t pid, uint64_t *ns);
 /// 執行檔名（不含路徑）
 int cp_name(pid_t pid, char *buf, int len);
+/// 程序的真實使用者 uid（proc_pidinfo PROC_PIDTBSDINFO）。失敗回 -1
+int cp_uid(pid_t pid, uid_t *uid);
 /// 工作目錄
 int cp_cwd(pid_t pid, char *buf, int len);
 /// 完整命令列（argv 以空白串接）
