@@ -68,20 +68,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updateStatusItem()
         monitor.onTick = { [weak self] in self?.updateStatusItem() }
         monitor.onHide = { [weak self] in self?.hidePanel() }
+        monitor.onShowOnboarding = { [weak self] in self?.showOnboarding() }
+        // 通知：只設 delegate、讀授權狀態（不會跳授權視窗；第一次真的要發通知時才請求）
+        Notifier.shared.onAuthChange = { [weak self] a in self?.monitor.notifyAuth = a }
+        Notifier.shared.onOpen = { [weak self] in self?.showPanel() }
+        Notifier.shared.start()
         monitor.onContentHeight = { [weak self] h in self?.fitHeight(to: h) }
         buildPanel()
         if UserDefaults.standard.object(forKey: "panel.open") as? Bool ?? true { showPanel() }
+        // 首次啟動導覽：只自動出現一次
+        if !Onboarding.shown { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.showOnboarding() } }
     }
 
+    private let onboarding = OnboardingWindow()
+    @objc func showOnboarding() { onboarding.show() }
+
     /// 選單列：template SF Symbol（系統依選單列深淺上色，狀態靠「換形狀」不靠顏色）＋等寬溫度字。
-    /// 原本是彩色 emoji 圓點，HIG 要求選單列圖示用 SF Symbol 或 template image
+    /// 原本是彩色 emoji 圓點，HIG 要求選單列圖示用 SF Symbol 或 template image。
+    /// 降頻時圖示右上角多一隻烏龜、hot 時右下角多一個點（StatusIcon 合成，仍是 template）；「只顯示圖示」時不放溫度字
     private func updateStatusItem() {
         guard let b = statusItem?.button else { return }
         let st = monitor.menuState
-        let img = NSImage(systemSymbolName: st.symbol, accessibilityDescription: nil)
-        img?.isTemplate = true
-        b.image = img
-        b.title = st.title
+        b.image = StatusIcon.image(symbol: st.symbol, throttled: st.throttled, hotDot: st.hot)
+        let showTemp = monitor.showTempInMenuBar
+        // 溫度字固定寬度（三位數的寬度，不足補 figure space）：96° → 109° 時選單列其他圖示不會被推來推去
+        b.attributedTitle = NSAttributedString(string: showTemp ? st.title : "", attributes: [.font: b.font ?? NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)])
+        b.imagePosition = showTemp ? .imageLeading : .imageOnly
         // VoiceOver 念得到目前狀態（不只「cool42 溫度」）
         b.setAccessibilityLabel(st.accessibility)
     }
@@ -208,7 +220,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // 選單項目不放圖示（macOS 27 預設隱藏選單圖示）、不顯示快捷鍵；用不到的項目隱藏而不是變暗
             menu.addItem(withTitle: panel.isVisible ? L("隱藏面板") : L("顯示面板"), action: #selector(togglePanel), keyEquivalent: "")
             if !autoHeight { menu.addItem(withTitle: L("恢復自動調整高度"), action: #selector(resumeAutoHeight), keyEquivalent: "") }
+            let temp = menu.addItem(withTitle: L("在選單列顯示溫度"), action: #selector(toggleMenuBarTemp), keyEquivalent: "")
+            temp.state = monitor.showTempInMenuBar ? .on : .off
+            // 緊急交還：面板裡在風扇控制卡最下面（常在捲動範圍外），右鍵選單也放一份；guard 沒跑時改設定檔沒人讀，不放
+            if monitor.snapshot?.guardRunning ?? false {
+                menu.addItem(.separator())
+                if monitor.config.mode == "auto", let prev = monitor.emergencyPrevMode {
+                    menu.addItem(withTitle: L("恢復「%@」", modeDisplayName(prev)), action: #selector(emergencyRestore), keyEquivalent: "")
+                } else if monitor.config.mode != "auto" {
+                    menu.addItem(withTitle: L("交還原廠控制⋯"), action: #selector(emergencyHandBack), keyEquivalent: "")
+                }
+            }
             menu.addItem(.separator())
+            menu.addItem(withTitle: L("cool42是做什麼的？"), action: #selector(showOnboarding), keyEquivalent: "")
             menu.addItem(withTitle: L("重新啟動面板"), action: #selector(relaunch), keyEquivalent: "")
             menu.addItem(withTitle: L("結束cool42面板"), action: #selector(quit), keyEquivalent: "")
             for i in menu.items { i.target = self }
@@ -232,6 +256,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         UserDefaults.standard.set(false, forKey: "panel.open")
         monitor.tick()
     }
+    @objc func toggleMenuBarTemp() { monitor.showTempInMenuBar.toggle() }
+    @objc func emergencyHandBack() { PanelView.confirmEmergency(monitor: monitor) }
+    @objc func emergencyRestore() { monitor.emergencyRestore() }
     @objc func relaunch() { monitor.relaunch() }
     @objc func quit() { NSApp.terminate(nil) }
 }
@@ -271,6 +298,32 @@ final class Monitor {
     @ObservationIgnored private var configMtime: Date? = nil
     @ObservationIgnored private var playing: NSSound? = nil   // 抓住正在播的，不然 mp3 播到一半被釋放
 
+    // 選單列：只顯示圖示／圖示＋溫度（面板本地偏好，不進 /etc 設定）
+    var showTempInMenuBar: Bool { didSet { UserDefaults.standard.set(showTempInMenuBar, forKey: "menubar.showTemp"); onTick?() } }
+    // 通知：開關存 UserDefaults；授權狀態由 Notifier 回報
+    var notifyOn: Bool { didSet { UserDefaults.standard.set(notifyOn, forKey: "notify.on") } }
+    var notifyAuth: Notifier.Auth = .unknown
+    @ObservationIgnored private var notifyState = NotifyState()
+    // 「今天」時間軸與健康檢查（面板開著才更新）
+    var showToday: Bool { didSet { UserDefaults.standard.set(showToday, forKey: "today.show"); if showToday { refreshToday(force: true) } } }
+    var todayEvents: [DayEvent] = []
+    var showHealth: Bool { didSet { UserDefaults.standard.set(showHealth, forKey: "health.show") } }
+    var health: [HealthItem] = []
+    @ObservationIgnored private var hookMarks = HookMarks()
+    @ObservationIgnored private var todayStamp: (Date, Date?, UInt64)? = nil   // 上次讀的時間、log mtime、大小
+    @ObservationIgnored private var healthTime = Date.distantPast
+    /// 緊急交還原廠前的模式（有值才顯示「恢復」）
+    var emergencyPrevMode: String? { didSet { UserDefaults.standard.set(emergencyPrevMode, forKey: "emergency.prevMode") } }
+    @ObservationIgnored var onShowOnboarding: (() -> Void)? = nil
+    // 情境與噪音上限：專注模式授權與目前狀態（面板讀、寫旗標給 guard）、展開編輯中的規則
+    var focusAuth: FocusWatcher.Auth = .unavailable
+    var focusNow: Bool? = nil
+    var editingProfile: Int? = nil { didSet { if editingProfile != nil { showProfiles = true } } }
+    /// 情境卡展開（預設收合，面板才不會長到要捲很久）
+    var showProfiles: Bool { didSet { UserDefaults.standard.set(showProfiles, forKey: "profiles.show") } }
+    /// 「偏好」卡（提示音＋面板偏好）展開；預設收合
+    var showPrefs: Bool { didSet { UserDefaults.standard.set(showPrefs, forKey: "prefs.show") } }
+
     // 各感測器明細：只有面板展開「各感測器」時才每輪讀 73 個 key，收合不花這個成本
     var showSensors: Bool { didSet { UserDefaults.standard.set(showSensors, forKey: "sensors.show"); if showSensors { readSensors() } } }
     var sensorTemps: [String: Double] = [:]
@@ -279,6 +332,13 @@ final class Monitor {
         hotSoundOn = UserDefaults.standard.object(forKey: "sound.hot") as? Bool ?? true
         coldSoundOn = UserDefaults.standard.object(forKey: "sound.cold") as? Bool ?? true
         showSensors = UserDefaults.standard.bool(forKey: "sensors.show")
+        showTempInMenuBar = UserDefaults.standard.object(forKey: "menubar.showTemp") as? Bool ?? true
+        notifyOn = UserDefaults.standard.object(forKey: "notify.on") as? Bool ?? true
+        showToday = UserDefaults.standard.bool(forKey: "today.show")
+        showHealth = UserDefaults.standard.bool(forKey: "health.show")
+        showProfiles = UserDefaults.standard.bool(forKey: "profiles.show")
+        showPrefs = UserDefaults.standard.bool(forKey: "prefs.show")
+        emergencyPrevMode = UserDefaults.standard.string(forKey: "emergency.prevMode")
         smcOpened = (try? SMC.open()) != nil
         tick()
         schedule()
@@ -303,11 +363,16 @@ final class Monitor {
         let s = Snapshot.takeFast(config: config)
         snapshot = s
         checkSound(s)
+        checkNotify(s)
+        pollFocus()
+        hookMarks.observe(s.stats)
         onTick?()
         let open = windowVisible
         if open != panelOpen { panelOpen = open; return }   // didSet 會再叫一次 tick
         guard panelOpen else { return }
         if showSensors { readSensors() }
+        refreshToday()
+        refreshHealth()
         if s.guardRunning {
             history = History.load()
         } else {
@@ -331,6 +396,124 @@ final class Monitor {
             awaitingCool = false
             if coldSoundOn, Date().timeIntervalSince(lastSound) > 20 { play(hot: false) }
         }
+    }
+
+    /// 通知三個時刻：開始降頻、進入 critical、恢復正常（以一段過熱為單位，見 NotifyState）
+    private func checkNotify(_ s: Snapshot) {
+        let kinds = notifyState.step(throttled: s.throttling || s.gpuThrottling, level: s.level)
+        guard notifyOn else { return }
+        for k in kinds {
+            switch k {
+            case .throttle:
+                // 兩句：原因＋現在溫度。hook 那句只在真的裝了 hook 時才講
+                let hook = Health.hookInstalled() ? L("AI的重工作會先等降溫。") : ""
+                Notifier.shared.post(.throttle, title: L("Mac開始降頻"),
+                                     body: L("原因：%@。目前%.0f°C。", s.throttleReason, s.controlTemp) + hook)
+            case .critical:
+                let hook = Health.hookInstalled() ? L("新的重工作會先被擋下，直到降溫。") : ""
+                Notifier.shared.post(.critical, title: L("溫度%.0f°C，已達critical", s.controlTemp),
+                                     body: hook + L("打開面板看是誰在吃CPU。"))
+            case .recovered:
+                Notifier.shared.post(.recovered, title: L("已恢復正常"), body: L("溫度回到%.0f°C，沒有降頻。", s.controlTemp))
+            }
+        }
+    }
+
+    /// 專注模式：有 focus 規則（已套用的設定）才讀、寫旗標；面板收著也照做（guard 要一直知道）
+    private func pollFocus() {
+        let a = FocusWatcher.shared.auth
+        if a != focusAuth { focusAuth = a }
+        let f = FocusWatcher.shared.poll(needed: config.profiles.contains { $0.hasFocus })
+        if f != focusNow { focusNow = f }
+    }
+
+    func requestFocusAccess() {
+        FocusWatcher.shared.request { [weak self] a in self?.focusAuth = a; self?.pollFocus() }
+    }
+
+    /// 今天的事件：log 有變才重讀，最多每 15 秒一次（force：剛展開時）
+    func refreshToday(force: Bool = false) {
+        guard showToday else { return }
+        let attrs = try? FileManager.default.attributesOfItem(atPath: DayLog.path)
+        let mtime = attrs?[.modificationDate] as? Date
+        let size = (attrs?[.size] as? NSNumber)?.uint64Value ?? 0
+        if !force, let (t, m, sz) = todayStamp, (m == mtime && sz == size) || Date().timeIntervalSince(t) < 15 {
+            // log 沒變時仍要併入新的 hook 記號
+            if m == mtime && sz == size { mergeHookMarks() }
+            return
+        }
+        todayStamp = (Date(), mtime, size)
+        logEvents = DayLog.parse(DayLog.todayLines())
+        mergeHookMarks()
+    }
+    @ObservationIgnored private var logEvents: [DayEvent] = []
+    /// 併入 hook 記號、新的在上。超過 20 件時先保住降頻／過熱／AI 等待這類重要事件，預熱補剩下的名額
+    private func mergeHookMarks() {
+        let all = (logEvents + HookMarks.todayEvents()).sorted { $0.time > $1.time }
+        var shown = all
+        if all.count > DayLog.maxShown {
+            let minor: Set<DayEvent.Kind> = [.boost, .boostSkip]
+            let important = all.filter { !minor.contains($0.kind) }.prefix(DayLog.maxShown)
+            let boosts = all.filter { minor.contains($0.kind) }.prefix(DayLog.maxShown - important.count)
+            shown = (Array(important) + boosts).sorted { $0.time > $1.time }
+        }
+        let th = all.filter { $0.kind == .throttleStart }.count
+        let bo = all.filter { $0.kind == .boost }.reduce(0) { $0 + ($1.boost?.count ?? 1) }
+        if shown != todayEvents || totalToday != all.count || th != todayThrottles || bo != todayBoosts {
+            todayEvents = shown; totalToday = all.count; todayThrottles = th; todayBoosts = bo
+        }
+    }
+    /// 今天總共幾件（todayEvents 可能只是其中 20 件）、降頻幾次、預熱幾次（併起來的預熱行各自的 count 加總）
+    var totalToday = 0
+    var todayThrottles = 0
+    var todayBoosts = 0
+
+    /// 健康檢查：面板開著時每 30 秒一次
+    func refreshHealth(force: Bool = false) {
+        guard force || Date().timeIntervalSince(healthTime) > 30 else { return }
+        healthTime = Date()
+        let h = Health.run(snapshot: snapshot, config: config)
+        if h != health { health = h }
+    }
+
+    /// 緊急交還原廠：只把設定檔的 mode 改成 auto（其他欄位照舊），走面板寫設定檔的同一條路（使用者可寫、不需要 root），
+    /// guard 偵測到 mtime 變了會熱重載並把風扇交還 SMC。原本的模式記在 UserDefaults，按「恢復」就改回去
+    func emergencyAuto() {
+        do {
+            var c = try Config.loadOrError(path: nil)
+            guard c.mode != "auto" else { return }
+            let prev = c.mode
+            c.mode = "auto"
+            try c.save()
+            emergencyPrevMode = prev
+            afterEmergencyWrite(L("已交還macOS原廠控制"))
+        } catch {
+            saveMessage = L("寫入失敗：%@", error.localizedDescription); saveFailed = true
+        }
+    }
+
+    func emergencyRestore() {
+        guard let prev = emergencyPrevMode else { return }
+        do {
+            var c = try Config.loadOrError(path: nil)
+            c.mode = prev
+            try c.save()
+            emergencyPrevMode = nil
+            afterEmergencyWrite(L("已恢復「%@」模式", modeDisplayName(prev)))
+        } catch {
+            saveMessage = L("寫入失敗：%@", error.localizedDescription); saveFailed = true
+        }
+    }
+
+    private func afterEmergencyWrite(_ msg: String) {
+        let keepDraft = dirty
+        let edited = draft
+        config = Config.load(path: nil)
+        // 其他未套用的編輯保留，只有模式跟著設定檔走
+        if keepDraft { draft = edited; draft.mode = config.mode } else { draft = config }
+        configMtime = Config.mtime(config.loadedFrom)
+        saveMessage = msg; saveFailed = false
+        tick()
     }
 
     /// config 有指定音檔就播它（現讀一次設定檔，改了不用重開面板），沒有就用 app 內建的，再沒有退回系統音
@@ -402,6 +585,8 @@ final class Monitor {
         let fresh = Config.load(path: nil)
         if !dirty { draft = fresh }
         config = fresh
+        // 模式已經不是 auto（套用了別的模式、別處改了設定檔）：「恢復」按鈕就沒有意義了
+        if fresh.mode != "auto", emergencyPrevMode != nil { emergencyPrevMode = nil }
     }
 
     var fanDirty: Bool {
@@ -409,14 +594,20 @@ final class Monitor {
         draft.curve.map { [$0.temp, $0.rpm] } != config.curve.map { [$0.temp, $0.rpm] }
     }
     var soundDirty: Bool { draft.overheatAbove != config.overheatAbove || draft.cooldownBelow != config.cooldownBelow }
-    var dirty: Bool { fanDirty || soundDirty }
+    var profileDirty: Bool { draft.maxRPM != config.maxRPM || draft.profiles != config.profiles }
+    var dirty: Bool { fanDirty || soundDirty || profileDirty }
 
     /// 寫回設定檔，guard 會偵測 mtime 自動重載
     func apply() {
         do {
+            if let (name, problem) = firstProfileProblem {
+                saveMessage = L("規則「%@」：%@", name, problem); saveFailed = true; return
+            }
+            try draft.validate()   // guard 會拒絕載入的設定不寫出去（它會保留舊設定，面板卻以為套用了）
             try draft.save()
             config = Config.load(path: nil)
             draft = config
+            if config.mode != "auto" { emergencyPrevMode = nil }
             saveMessage = L("已套用（%@）", ((config.loadedFrom ?? "") as NSString).lastPathComponent)
             saveFailed = false
         } catch {
@@ -425,24 +616,33 @@ final class Monitor {
         }
     }
 
-    func revert() { draft = config; saveMessage = nil; saveFailed = false }
+    func revert() { draft = config; saveMessage = nil; saveFailed = false; editingProfile = nil }
 
-    /// 名稱在第一次用到時就換成目前語言；它同時是 segmented 的 tag（同一次執行內一致即可）
-    static let presets: [(String, [Config.Point])] = [
-        (L("安靜"), [.init(temp: 65, rpm: 1000), .init(temp: 80, rpm: 1600), .init(temp: 90, rpm: 2400), .init(temp: 95, rpm: 3400), .init(temp: 99, rpm: 4900)]),
-        (L("均衡"), Config().curve),   // A/B 實測：重載 87°C / 3150 rpm，不降頻
-        (L("強力"), [.init(temp: 55, rpm: 1000), .init(temp: 65, rpm: 1800), .init(temp: 75, rpm: 3000), .init(temp: 85, rpm: 4200), .init(temp: 90, rpm: 4900)]),
-    ]
+    /// 名稱在第一次用到時就換成目前語言；它同時是 segmented 的 tag（同一次執行內一致即可）。
+    /// 曲線本身在 Cool42Core（Config.presetCurves），情境規則的 "curve": "quiet" 用的是同一份
+    static let presets: [(String, [Config.Point])] = Config.presetIDs.map { (presetName($0), Config.presetCurves[$0] ?? Config().curve) }
+    static func presetName(_ id: String) -> String {
+        switch Config.presetID(id) {
+        case "quiet": return L("安靜")
+        case "balanced": return L("均衡")
+        case "performance": return L("強力")
+        default: return id
+        }
+    }
 
     /// 選單列項目：符號（依狀態換形狀）、標題（等寬溫度）、VoiceOver 名稱（含狀態）
-    struct MenuState { var symbol: String; var title: String; var accessibility: String }
+    /// throttled：圖示右上角加烏龜；hot：右下角加點（等級形狀照舊，兩件事同時看得到）
+    struct MenuState { var symbol: String; var title: String; var accessibility: String; var throttled = false; var hot = false }
     var menuState: MenuState {
         guard let s = snapshot else { return MenuState(symbol: "fan", title: "", accessibility: L("cool42，讀取中")) }
         let t = Int(s.controlTemp.rounded())
         let throttled = s.throttling || s.gpuThrottling
-        let symbol = throttled ? "tortoise.fill" : s.level.symbol
-        let state = throttled ? L("降頻中") : s.level.label
-        return MenuState(symbol: symbol, title: " \(t)°", accessibility: L("cool42，控制溫度%ld度，%@", t, state))
+        let state = throttled ? L("%@，降頻中（%@）", s.level.label, s.throttleReason) : s.level.label
+        // 不足三位數前面補 figure space（U+2007，和數字同寬）
+        let digits = String(t)
+        let title = " " + String(repeating: "\u{2007}", count: max(0, 3 - digits.count)) + digits + "°"
+        return MenuState(symbol: s.level.symbol, title: title, accessibility: L("cool42，控制溫度%ld度，%@", t, state),
+                         throttled: throttled, hot: s.level == .hot)
     }
 }
 
@@ -614,13 +814,15 @@ struct PanelView: View {
     static let edgePadding: CGFloat = 16      // 視窗邊距（4pt 節奏；原本 14）
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            content
-                .background(GeometryReader { g in
-                    Color.clear
-                        .onAppear { monitor.contentHeight = g.size.height }
-                        .onChange(of: g.size.height) { _, h in monitor.contentHeight = h }
-                })
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: true) {
+                content(proxy: proxy)
+                    .background(GeometryReader { g in
+                        Color.clear
+                            .onAppear { monitor.contentHeight = g.size.height }
+                            .onChange(of: g.size.height) { _, h in monitor.contentHeight = h }
+                    })
+            }
         }
         .frame(width: AppDelegate.panelWidth)
         .onExitCommand { monitor.onHide?() }   // Esc 隱藏面板（面板拿到 key 時）
@@ -629,23 +831,37 @@ struct PanelView: View {
 
     /// 兩群：上面「看現在」（狀態 + 曲線 + 今日統計），下面「改設定」（風扇 / 提示音 / 套用）。
     /// 群組內 8、群組之間 16 —— 靠留白分群，不再加分隔線
-    var content: some View {
+    var content: some View { content(proxy: nil) }
+
+    /// proxy：頂部紅燈的「查看」要捲到面板最下面的健康檢查卡（離屏截圖沒有 ScrollView，傳 nil）
+    func content(proxy: ScrollViewProxy?) -> some View {
         VStack(alignment: .leading, spacing: Neon.groupSpacing) {
             if let s = monitor.snapshot {
                 VStack(alignment: .leading, spacing: Neon.stackSpacing) {
                     header(s)
+                    healthBanner {
+                        // 等展開的內容排好版再捲，不然捲到的是收合時的位置
+                        DispatchQueue.main.async {
+                            withAnimation(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .smooth) {
+                                proxy?.scrollTo(Self.healthAnchor, anchor: .top)
+                            }
+                        }
+                    }
                     tempCard(s)
                     sensorGrid
                     fanCard(s)
                     if s.pcoreMHz != nil { freqCard(s) }
                     timeAxis
                     statsRow(s)
+                    todayCard
                 }
                 VStack(alignment: .leading, spacing: Neon.stackSpacing) {
                     controls(s)
-                    soundCard
+                    profilesCard(s)
+                    prefsCard
                     applyBar
                 }
+                healthCard.id(Self.healthAnchor)
                 footer
             } else {
                 Label(L("讀取SMC中⋯"), systemImage: "thermometer.medium").foregroundStyle(.secondary).padding()
@@ -664,8 +880,10 @@ struct PanelView: View {
                 if let b = s.boostUntil, b > Date() {
                     chipLabel(L("預熱%ld秒", Int(b.timeIntervalSinceNow)), Neon.cyan, symbol: "wind", onGlass: true)
                 }
-                chipLabel(s.guardRunning ? L("guard執行中") : L("guard未執行"), s.guardRunning ? Color.secondary : Neon.amber,
-                          symbol: s.guardRunning ? "checkmark.shield" : "exclamationmark.shield", onGlass: true)
+                // guard 沒跑時由頂部提示與狀態列講，chip 不再重複
+                if s.guardRunning {
+                    chipLabel(L("guard執行中"), Color.secondary, symbol: "checkmark.shield", onGlass: true)
+                }
                 Button { monitor.onHide?() } label: {
                     Image(systemName: "xmark.circle.fill").font(.body).foregroundStyle(.secondary)
                         .frame(width: 24, height: 24).contentShape(Rectangle())   // macOS 可點範圍至少 20pt
@@ -706,27 +924,17 @@ struct PanelView: View {
         .background(color.opacity(onGlass ? 0.18 : 0.14), in: Capsule())
     }
 
-    /// thermal pressure 原始值（powermetrics 英文）→ 介面用語。英文介面維持原字；對不上的值原樣顯示
-    func pressureName(_ raw: String?) -> String {
-        // 英文介面直接用 macOS 的原字（Nominal / Moderate…），不經「正常」→ Normal 這種二次翻譯
-        guard L10n.language.hasPrefix("zh") else { return raw ?? "—" }
-        switch raw {
-        case "Nominal": return L("正常")
-        case "Moderate": return L("中度")
-        case "Heavy": return L("重度")
-        case "Trapping": return L("嚴重")
-        case "Sleeping": return L("休眠")
-        case let r?: return r
-        case nil: return "—"
-        }
-    }
-
     /// 一句話結論：全速 / 降頻中 / 溫度危險 / 沒有頻率資料
     func statusLine(_ s: Snapshot) -> some View {
         let (icon, text, color): (String, String, Color) = {
-            if !s.guardRunning { return ("exclamationmark.triangle.fill", L("guard沒在執行，風扇由macOS控制"), Neon.amber) }
+            if !s.guardRunning {
+                // 風扇停在手動時不能說「由macOS控制」
+                if let f = s.fans.first, f.manual { return ("exclamationmark.triangle.fill", L("guard沒在執行，風扇停在手動%.0f rpm", f.target), Neon.red) }
+                return ("exclamationmark.triangle.fill", L("guard沒在執行，風扇由macOS控制"), Neon.amber)
+            }
             if s.level == .critical { return ("flame.fill", L("溫度%.0f°C已達critical，hook會擋下工作", s.controlTemp), Neon.red) }
-            if s.throttling { return ("tortoise.fill", L("降頻中（%@）· hook會讓工作等", pressureName(s.thermalPressure)), Neon.red) }
+            // 原因用 throttleReason：時脈降頻時 pressure 仍是 Nominal，不能寫成「降頻中（正常）」
+            if s.throttling { return ("tortoise.fill", L("降頻中（%@）· hook會讓工作等", s.throttleReason), Neon.red) }
             if s.gpuThrottling { return ("tortoise.fill", L("GPU熱降頻中（CLTM %.0f%%）· hook會讓工作等", s.gpuThrottlePercent ?? 0), Neon.red) }
             if s.pcoreMHz == nil { return ("questionmark.circle", L("沒有頻率資料，改用溫度判斷（%@）", s.level.label), Neon.amber) }
             if (s.pcoreMHz ?? 0) < 100 { return ("moon.zzz.fill", L("閒置 · 未降頻"), Neon.green) }
@@ -941,7 +1149,7 @@ struct PanelView: View {
         let idle = p < 100
         return card(title: L("P-core頻率")) {
             HStack(spacing: 8) {
-                if s.throttling { chipLabel(L("降頻（%@）", pressureName(s.thermalPressure)), Neon.red) }
+                if s.throttling { chipLabel(L("降頻（%@）", s.throttleReason), Neon.red) }
                 else if !idle, let e = s.ecoreMHz { Text(String(format: "E %.1f", e / 1000)).font(.caption2).monospacedDigit().foregroundStyle(.secondary) }
                 if idle {
                     // 閒置時不用大字（視覺層級不該比其他卡的數值重），改小字＋最近一次的非閒置值
@@ -1047,9 +1255,8 @@ struct PanelView: View {
                 Image(systemName: "fan").font(.caption).foregroundStyle(.secondary)
                 Text(L("風扇控制")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
-                if !s.guardRunning {
-                    Label(L("guard未執行"), systemImage: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(Neon.amber)
-                } else if monitor.fanDirty {
+                // guard 沒跑已經在頂部提示、狀態列與下面的交還列講過，這裡不再重複
+                if s.guardRunning, monitor.fanDirty {
                     Text(L("未套用")).font(.caption2.weight(.medium)).foregroundStyle(Neon.amber)
                 }
             }
@@ -1107,6 +1314,7 @@ struct PanelView: View {
                 Text(L("GPU溫度也納入")).font(.caption).foregroundStyle(.secondary)
             }
             .toggleStyle(.checkbox).controlSize(.small)
+            emergencyRow
         }
         .neonCard()
     }
@@ -1181,13 +1389,13 @@ struct PanelView: View {
     }
 
     /// 提示音卡：熱 / 冷兩列，每列 = 開關（即時生效）+ ▶ 試聽 + 觸發門檻（走「套用」寫進 config）
-    var soundCard: some View {
+    /// 提示音（併在「偏好」卡裡；門檻走「套用」寫回設定檔，開關存面板本地）
+    var soundSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "speaker.wave.2").font(.caption).foregroundStyle(.secondary)
-                Text(L("提示音")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(L("提示音")).font(.caption.weight(.medium))
                 Spacer()
-                if monitor.soundDirty { Text(L("未套用")).font(.caption2.weight(.medium)).foregroundStyle(Neon.amber) }
             }
             soundLine(L("過熱／降頻"), Neon.red, hot: true,
                       isOn: Binding(get: { monitor.hotSoundOn }, set: { monitor.hotSoundOn = $0 }),
@@ -1200,7 +1408,6 @@ struct PanelView: View {
             Text(L("CPU／GPU一降頻就算過熱，不看溫度。門檻獨立於風扇與hook的hot線。"))
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        .neonCard()
     }
 
     func soundLine(_ title: String, _ color: Color, hot: Bool, isOn: Binding<Bool>, threshold: Binding<Double>,

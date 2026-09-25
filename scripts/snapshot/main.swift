@@ -10,7 +10,14 @@ import Cool42Core
 //         --lang en          介面語言（預設跟系統）：用 -AppleLanguages 重新執行自己；*.lproj 要在執行檔旁邊（render-panel.sh 會複製）
 //         --variant a,b,…    在情境上疊狀態，拿來檢查各種字串長度（都是示意、不是實機值）：
 //                            fixed / auto（風扇模式）、custom（曲線微調過）、dirty（有未套用的變更）、
-//                            applied / failed（套用後訊息）、guard-off、critical、gpu-throttle、nofreq、boost
+//                            applied / failed（套用後訊息）、guard-off、critical、gpu-throttle、nofreq、boost、
+//                            clock-throttle（時脈降頻：pressure 仍 Nominal）、today（「今天」卡展開＋示意事件）、
+//                            health（健康檢查卡展開）、health-bad（guard 沒跑且風扇卡手動 → 頂部紅燈）、
+//                            notify-denied / notify-unasked（通知授權狀態）、handed-back（緊急交還原廠之後）、
+//                            profiles（三條情境規則＋上限 3200，「夜間安靜」生效中）、profile-edit（展開第 2 條編輯）、
+//                            cap-suspended（降頻中上限暫停）、focus-unasked（專注模式還沒授權 → 「繼續⋯」說明）
+//   cool42-snapshot --onboarding OUT_PREFIX [--lang en]   → 首次啟動導覽三頁 OUT_PREFIX-{1,2,3}-{light,dark}.png
+//   cool42-snapshot --menubar OUT_PREFIX [--lang en]      → 選單列圖示各狀態 OUT_PREFIX-{light,dark}.png
 //
 // 情境檔（scripts/snapshot/scenarios/*.json）：
 //   snapshot   Snapshot 的 JSON（和 /var/run/cool42/state.json 同格式）
@@ -51,6 +58,19 @@ let args = CommandLine.arguments
 if args.count >= 3, args[1] == "--live" { MainActor.assumeIsolated { runLive(outDir: args[2]) } }
 if args.count >= 4, args[1] == "--terminal" { MainActor.assumeIsolated { renderTerminal(framesPath: args[2], outDir: args[3]) }; exit(0) }
 if args.count >= 5, args[1] == "--hero" { MainActor.assumeIsolated { renderHero(panelPNG: args[2], lang: args[3], out: args[4]) }; exit(0) }
+// --selftest：面板純邏輯的自我檢查（面板是 executableTarget，Cool42CoreTests 測不到）——通知三時刻狀態機、log parser；
+// 另外把本機今天的 /var/log/cool42.log 解析結果印出來（唯讀）
+if args.count >= 2, args[1] == "--selftest" { MainActor.assumeIsolated { exit(selfTest() ? 0 : 1) } }
+if args.count >= 3, args[1] == "--onboarding" || args[1] == "--menubar" {
+    if let want = opt("--lang"), !L10n.language.hasPrefix(want) {
+        FileHandle.standardError.write("要 \(want) 卻選到 \(L10n.language)\n".data(using: .utf8)!); exit(3)
+    }
+    NSApplication.shared.setActivationPolicy(.prohibited)
+    MainActor.assumeIsolated {
+        if args[1] == "--onboarding" { renderOnboarding(outPrefix: args[2]) } else { renderMenuBar(outPrefix: args[2]) }
+    }
+    exit(0)
+}
 guard args.count >= 3 else {
     FileHandle.standardError.write("用法：cool42-snapshot SCENARIO.json OUT_PREFIX [--mix B.json --t 0…1] [--only dark|light]\n".data(using: .utf8)!)
     exit(2)
@@ -63,6 +83,7 @@ let b = opt("--mix").map(loadScenario)
 let t = min(max(Double(opt("--t") ?? "1") ?? 1, 0), 1)
 let only = opt("--only")
 let variants = Set((opt("--variant") ?? "").split(separator: ",").map(String.init))
+let hasProfiles = !variants.isDisjoint(with: ["profiles", "profile-edit", "cap-suspended", "focus-unasked"])
 
 // 要求的語言真的選到了才畫（lproj 沒複製到執行檔旁邊時會默默退回繁中，截出來的「英文版」其實是中文）
 if let want = opt("--lang") {
@@ -126,6 +147,19 @@ func snapshotNow() -> Snapshot {
     if variants.contains("gpu-throttle") { s.thermalPressure = "Nominal"; s.gpuThrottlePercent = 22 }
     if variants.contains("nofreq") { s.pcoreMHz = nil; s.thermalPressure = nil }
     if variants.contains("boost") { s.boostUntil = Date().addingTimeInterval(42.5) }
+    if variants.contains("clock-throttle") {
+        s.thermalPressure = "Nominal"; s.clockThrottled = true; s.gpuThrottlePercent = 0
+        s.pcoreMHz = 3640; s.controlTemp = max(s.controlTemp, 101); s.level = .hot
+    }
+    if hasProfiles {
+        s.profile = Monitor.template(.time).name; s.maxRPM = Monitor.template(.time).maxRPM
+        s.maxRPMSuspended = variants.contains("cap-suspended")
+        if variants.contains("cap-suspended") { s.clockThrottled = true; s.controlTemp = max(s.controlTemp, 101); s.level = .hot; s.pcoreMHz = 3640 }
+    }
+    if variants.contains("health-bad") {
+        s.guardRunning = false
+        if !s.fans.isEmpty { s.fans[0].manual = true; s.fans[0].target = 3000 }
+    }
     return s
 }
 
@@ -146,6 +180,7 @@ let monitor = Monitor()
     if variants.contains("fixed") { cfg.mode = "fixed" }
     if variants.contains("auto") { cfg.mode = "auto" }
     if variants.contains("custom") { cfg.curve[2].rpm += 150 }
+    if hasProfiles { cfg.maxRPM = 3200; cfg.profiles = [Monitor.template(.apps), Monitor.template(.time), Monitor.template(.focus)] }
     monitor.config = cfg
     monitor.draft = cfg
     if variants.contains("dirty") { monitor.draft.fixedRPM += 500; monitor.draft.curve[1].rpm += 100; monitor.draftCooldownBelow -= 2 }
@@ -159,6 +194,54 @@ let monitor = Monitor()
     monitor.sensorTemps = sensorsNow()
     monitor.snapshot = snapshotNow()
     monitor.history = historyNow()
+    // 新手安心／一眼看懂的區塊：預設收合、通知已允許；variant 再疊狀態
+    monitor.showToday = variants.contains("today")
+    monitor.todayEvents = variants.contains("today") ? sampleToday() : []
+    monitor.totalToday = monitor.todayEvents.count
+    monitor.todayThrottles = monitor.todayEvents.filter { $0.kind == .throttleStart }.count
+    monitor.todayBoosts = monitor.todayEvents.filter { $0.kind == .boost }.reduce(0) { $0 + ($1.boost?.count ?? 1) }
+    // 情境卡、偏好卡預設收合；有情境示意、通知授權示意時展開
+    monitor.showProfiles = hasProfiles
+    monitor.showPrefs = variants.contains("prefs") || variants.contains("notify-denied") || variants.contains("notify-unasked")
+    monitor.showHealth = variants.contains("health") || variants.contains("health-bad")
+    monitor.health = Health.run(snapshot: monitor.snapshot, config: cfg)
+    monitor.notifyOn = true
+    monitor.notifyAuth = variants.contains("notify-denied") ? .denied : variants.contains("notify-unasked") ? .notDetermined : .allowed
+    monitor.editingProfile = variants.contains("profile-edit") ? 1 : nil
+    monitor.focusAuth = variants.contains("focus-unasked") ? .notDetermined : .allowed
+    monitor.focusNow = false
+    if variants.contains("handed-back") { monitor.config.mode = "auto"; monitor.draft.mode = "auto"; monitor.emergencyPrevMode = "curve" }
+    else { monitor.emergencyPrevMode = nil }
+}
+
+/// 「今天」卡的示意事件：拿 guard 的真實 log 格式（Sources/cool42/Guard.swift）跑面板的 parser，順便驗 parser
+func sampleToday() -> [DayEvent] {
+    let d = Snapshot.Stats.today()
+    let raw = [
+        "\(d) 09:12:03 cool42 guard 啟動（Apple M4，1 顆風扇，每 5.0s，模式 curve，GPU 納入，控制中）",
+        "\(d) 10:41:22 預熱 2000 rpm 到 \(d) 10:43:22：swift build",
+        "\(d) 10:41:32 預熱加碼 3000 rpm：72°C（10 秒內 +14°C）",
+        "\(d) 10:43:00 預熱 3000 rpm 到 \(d) 10:45:00：swift build",
+        "\(d) 10:43:31 預熱提早結束：31 秒後仍只有 46°C，不像重工作",
+        "\(d) 11:02:00 學到：pytest 不再預熱（連續 3 次預熱 30 秒後都不像重工作，暫停到 \(d) 23:59:00）",
+        "\(d) 11:05:00 略過預熱：pytest 已學到不像重工作（\(d) 23:59:00 恢復）",
+        "\(d) 11:07:10 略過預熱：pytest 已學到不像重工作（\(d) 23:59:00 恢復）",
+        "\(d) 12:00:00 情境「剪片」生效：Final Cut Pro 在跑；曲線 performance",
+        "\(d) 13:05:10 預熱 3000 rpm 到 \(d) 13:07:10：ffmpeg",
+        "\(d) 13:06:40 等級 warm → hot（🟠 96°C 🌀3400rpm ⚡3.94GHz）",
+        "\(d) 13:08:15 ⚠️ 熱降頻開始：時脈（pressure 仍 Nominal），P-core 3640 MHz，GPU CLTM 0%（🔴 101°C 🌀4900rpm ⚡3.64GHz 降頻(時脈)）",
+        "\(d) 13:08:15 噪音上限 3200 rpm 暫停：降頻中，風扇不受上限限制（🔴 101°C 🌀4900rpm）",
+        "\(d) 13:09:02 等級 hot → critical（🔴 108°C 🌀4900rpm ⚡3.60GHz）",
+        "\(d) 13:10:30 等級 critical → warm（🟡 88°C 🌀4600rpm ⚡3.90GHz）",
+        "\(d) 13:10:31 熱降頻結束：P-core 3936 MHz（🟡 88°C 🌀4600rpm ⚡3.94GHz）",
+        "\(d) 13:12:00 噪音上限 3200 rpm 恢復：已低於 92°C 連續 6 輪、沒有降頻，照一般降速節奏降回上限（🟡 88°C 🌀4600rpm）",
+        "\(d) 14:30:00 情境「剪片」結束，回到基本設定",
+        "\(d) 15:20:00 設定已重載：模式 auto，曲線 60→1000 75→1800 85→2600 92→3600 97→4900",
+    ].map { Substring($0) }
+    var ev = DayLog.parse(raw)
+    let f = DayLog.stamp
+    ev.append(DayEvent(time: f.date(from: "\(d) 13:08:40")!, kind: .hookWait, text: L("AI指令等降頻結束才執行")))
+    return ev.sorted { $0.time > $1.time }
 }
 
 /// 視窗本身的底（正式 app 由 NSPanel 畫圓角與背景，這裡照著畫）
@@ -537,4 +620,106 @@ struct PanelCrop: View {
     DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { step(0) }
     app.run()
     exit(0)
+}
+
+
+// MARK: - 首次啟動導覽、選單列圖示
+
+@MainActor func renderOnboarding(outPrefix: String) {
+    for page in 0..<Onboarding.pageCount {
+        for (name, look) in [("dark", NSAppearance.Name.darkAqua), ("light", .aqua)] {
+            let v = OnboardingView(page: page).background(Color(nsColor: .windowBackgroundColor))
+            let probe = NSHostingView(rootView: v)
+            probe.appearance = NSAppearance(named: look)
+            exportPNG(v, size: probe.fittingSize, appearance: look, to: "\(outPrefix)-\(page + 1)-\(name).png")
+        }
+    }
+}
+
+/// 選單列圖示：每個狀態一格（圖示＋溫度），最後一格是「只顯示圖示」；底色模擬淺 / 深選單列
+@MainActor func renderMenuBar(outPrefix: String) {
+    // (標籤, 符號, 降頻, hot 點, 溫度字)；溫度字和正式面板一樣補 figure space 到三位數寬
+    let pad = { (t: Int) in " " + String(repeating: "\u{2007}", count: max(0, 3 - String(t).count)) + "\(t)°" }
+    let states: [(String, String, Bool, Bool, String)] = [
+        (L("正常"), Level.ok.symbol, false, false, pad(52)),
+        (L("偏溫"), Level.warm.symbol, false, false, pad(84)),
+        (L("過熱"), Level.hot.symbol, false, true, pad(96)),
+        (L("危險"), Level.critical.symbol, false, false, pad(109)),
+        (L("時脈"), Level.hot.symbol, true, true, pad(101)),
+        (L("在選單列顯示溫度") + " ✕", Level.hot.symbol, true, true, ""),
+        (L("在選單列顯示溫度") + " ✕", Level.warm.symbol, false, false, ""),
+    ]
+    struct Strip: View {
+        let states: [(String, String, Bool, Bool, String)]
+        var body: some View {
+            HStack(alignment: .top, spacing: 18) {
+                ForEach(Array(states.enumerated()), id: \.offset) { _, st in
+                    VStack(spacing: 6) {
+                        HStack(spacing: 0) {
+                            if let img = StatusIcon.image(symbol: st.1, throttled: st.2, hotDot: st.3) {
+                                Image(nsImage: img).renderingMode(.template).foregroundStyle(.primary)
+                            }
+                            if !st.4.isEmpty { Text(verbatim: st.4).font(Font(NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular))) }
+                        }
+                        .padding(.horizontal, 6).frame(height: 24)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        Text(verbatim: st.0).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+    }
+    for (name, look) in [("dark", NSAppearance.Name.darkAqua), ("light", .aqua)] {
+        let v = Strip(states: states)
+        let probe = NSHostingView(rootView: v)
+        probe.appearance = NSAppearance(named: look)
+        exportPNG(v, size: probe.fittingSize, appearance: look, to: "\(outPrefix)-\(name).png")
+    }
+}
+
+
+@MainActor func selfTest() -> Bool {
+    var ok = true
+    func check(_ c: Bool, _ what: String) { print((c ? "✓ " : "✗ ") + what); if !c { ok = false } }
+    // 通知狀態機（以一段過熱為單位；t 是秒數）
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    func at(_ sec: Double) -> Date { t0.addingTimeInterval(sec) }
+    var n = NotifyState()
+    check(n.step(throttled: true, level: .hot, now: at(0)).isEmpty, "第一輪只記狀態、不發（啟動時已在降頻也不補發）")
+    check(n.step(throttled: false, level: .ok, now: at(5)).isEmpty, "啟動時就在降頻：沒發過警告，恢復也不發")
+    check(n.step(throttled: false, level: .warm, now: at(10)).isEmpty, "平常 warm 不發")
+    check(n.step(throttled: true, level: .hot, now: at(20)) == [.throttle], "開始降頻發一次")
+    check(n.step(throttled: true, level: .hot, now: at(25)).isEmpty, "持續降頻不重發")
+    check(n.step(throttled: true, level: .critical, now: at(30)) == [.critical], "進 critical 發一次")
+    check(n.step(throttled: false, level: .warm, now: at(40)).isEmpty, "剛退到 warm：還沒穩定 2.5 分鐘，不算恢復")
+    check(n.step(throttled: true, level: .hot, now: at(60)).isEmpty, "同一段裡又降頻：不重發")
+    check(n.step(throttled: false, level: .warm, now: at(70)).isEmpty, "又退下來：重新計時")
+    check(n.step(throttled: false, level: .warm, now: at(70 + 150)) == [.recovered], "穩定正常 2.5 分鐘 → 恢復正常（這段發過警告）")
+    check(n.step(throttled: false, level: .ok, now: at(300)).isEmpty, "恢復只發一次")
+    check(n.step(throttled: true, level: .hot, now: at(600)).isEmpty, "恢復後 30 分鐘內又降頻：同一段的延續，不再發")
+    check(n.step(throttled: false, level: .ok, now: at(610)).isEmpty && n.step(throttled: false, level: .ok, now: at(800)).isEmpty,
+          "延續段沒發過警告：恢復也不發")
+    check(n.step(throttled: true, level: .hot, now: at(800 + 1900)) == [.throttle], "上一段結束超過 30 分鐘：新的一段，照發")
+    var m = NotifyState(); _ = m.step(throttled: false, level: .ok, now: at(0))
+    check(m.step(throttled: true, level: .critical, now: at(5)) == [.throttle, .critical], "同一輪降頻＋critical 兩則都發")
+    // log parser
+    let ev = sampleToday()
+    check(ev.count == 16, "示意 log 解析出 16 件（實得 \(ev.count)）")
+    check(ev.contains { $0.kind == .throttleStart && $0.text.contains(L("時脈")) }, "時脈降頻寫成「時脈」，不是 pressure 的「正常」")
+    check(ev.filter { $0.kind == .boost }.count == 2, "預熱 2 筆：swift build 加碼後被延長仍併成一筆，提早結束併進去")
+    check(ev.contains { $0.kind == .boost && $0.boost?.rpm == 3000 && $0.boost?.count == 2 }, "預熱加碼後那一筆顯示 3000 rpm、×2")
+    check(ev.contains { $0.kind == .boostSkip && $0.boost?.count == 2 }, "略過預熱併成一筆 ×2")
+    check(ev.contains { $0.kind == .learn }, "學到：有記")
+    check(ev.filter { $0.kind == .profile }.count == 2, "情境生效／結束各一筆")
+    check(ev.filter { $0.kind == .cap }.count == 2, "噪音上限暫停／恢復各一筆")
+    check(ev.contains { $0.kind == .boost && $0.boost?.early == 1 && $0.boost?.lastEarlySecs == 31 }, "提早結束併進同一筆（次數與秒數）")
+    check(ev.contains { $0.kind == .mode }, "模式改成 auto 有記")
+    check(!DayLog.parse(["garbage", "2026-09-25 12:00:00 🟢 70°C 🌀1000rpm → 交還自動"].map { Substring($0) }).contains { _ in true }, "高頻行與壞行不收")
+    // 本機今天（唯讀）
+    let real = DayLog.parse(DayLog.todayLines()).sorted { $0.time > $1.time }
+    print("本機今天：\(real.count) 件")
+    for e in real.prefix(20) { print("  \(PanelView.hm.string(from: e.time))  \(e.kind.rawValue)  \(e.text)") }
+    return ok
 }

@@ -11,6 +11,7 @@
 #   scripts/render-panel.sh --lang en [OUT_DIR [情境…]] → 英文介面，檔名 panel-{情境}-en-{light,dark}.png
 #     （也可用環境變數 COOL42_SNAPSHOT_LANG=en；不給就跟系統語言）
 #   COOL42_SNAPSHOT_ARGS="--variant fixed,dirty"   → 疊示意狀態檢查字串長度（見 scripts/snapshot/main.swift 開頭）
+#   scripts/render-panel.sh OUT_DIR onboarding menubar → 首次啟動導覽三頁、選單列圖示各狀態（不是情境檔）
 #
 # 做法：executableTarget 無法被 import，所以在暫存目錄建一個 SwiftPM package，
 # symlink Sources/CSMC、Sources/Cool42Core，複製 PanelApp.swift 並拿掉 @main，再加上 scripts/snapshot/main.swift。
@@ -27,6 +28,15 @@ ln -sfn "$REPO/Sources/CSMC" "$WORK/Sources/CSMC"
 ln -sfn "$REPO/Sources/Cool42Core" "$WORK/Sources/Cool42Core"
 # COOL42_PANEL_SRC 可指向另一份 PanelApp.swift（例如 git show 出來的舊版），拿來做改版前後對照
 sed 's/^@main$//' "${COOL42_PANEL_SRC:-$REPO/Sources/cool42-panel/PanelApp.swift}" > "$WORK/Sources/snapshot/PanelApp.swift"
+# 面板其他原始檔（StatusIcon、Notifier、Timeline、Health、Onboarding⋯，含子目錄）一起帶進來；先清掉上次留下的，免得刪掉的檔還在
+find "$WORK/Sources/snapshot" -name '*.swift' ! -name PanelApp.swift ! -name main.swift -delete
+find "$WORK/Sources/snapshot" -mindepth 1 -type d -empty -delete
+if [ -z "${COOL42_PANEL_SRC:-}" ]; then
+  (cd "$REPO/Sources/cool42-panel" && find . -name '*.swift' ! -name PanelApp.swift) | while read -r f; do
+    mkdir -p "$WORK/Sources/snapshot/$(dirname "$f")"
+    cp "$REPO/Sources/cool42-panel/$f" "$WORK/Sources/snapshot/$f"
+  done
+fi
 cp "$REPO/scripts/snapshot/main.swift" "$WORK/Sources/snapshot/main.swift"
 # 舊版沒有 Neon.hairline：補一個同值的，main.swift 才編得過
 grep -q "static let hairline" "$WORK/Sources/snapshot/PanelApp.swift" || \
@@ -63,5 +73,9 @@ rm -rf "$BIN_DIR"/*.lproj
 cp -R "$REPO/Sources/cool42-panel/Resources/"*.lproj "$BIN_DIR/"
 if [ $# -eq 0 ]; then set -- idle load throttle; fi
 for sc in "$@"; do
-  "$BIN" "$REPO/scripts/snapshot/scenarios/$sc.json" "$OUT/panel-$sc${UI_LANG:+-$UI_LANG}" ${UI_LANG:+--lang "$UI_LANG"} ${COOL42_SNAPSHOT_ARGS:-}
+  case "$sc" in
+    # 不是情境檔：onboarding＝首次啟動導覽三頁、menubar＝選單列圖示各狀態（亮 / 暗）
+    onboarding|menubar) "$BIN" "--$sc" "$OUT/$sc${UI_LANG:+-$UI_LANG}" ${UI_LANG:+--lang "$UI_LANG"} ;;
+    *) "$BIN" "$REPO/scripts/snapshot/scenarios/$sc.json" "$OUT/panel-$sc${UI_LANG:+-$UI_LANG}" ${UI_LANG:+--lang "$UI_LANG"} ${COOL42_SNAPSHOT_ARGS:-} ;;
+  esac
 done

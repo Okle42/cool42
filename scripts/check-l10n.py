@@ -3,12 +3,15 @@
 
   python3 scripts/check-l10n.py
 
-檢查 Sources/cool42-panel/*.swift：
+檢查 Sources/cool42-panel/ 底下所有 .swift（含子目錄；Resources/ 除外）：
   1. 每個 L("…") 的 key 在 en.lproj/Localizable.strings 都有英文（漏了就是英文介面冒出中文）
   2. en 表裡沒有用不到的 key
   3. key 與英文值的 printf 格式符號（%@、%ld、%.0f…）順序、種類一樣（不一樣會印錯或當掉）
   4. 程式碼裡沒有「沒包 L()」的中文字串常值（註解不算）
 有問題就列出來並以 1 結束。
+
+豁免：檔案前 10 行內有 `// l10n:ignore-file` 的檔不做第 4 項（例如比對 guard log 用的中文協定字串）；
+L() 的 key 仍照樣收。豁免清單會印出來，別把介面字串藏進去。
 """
 import json, os, re, subprocess, sys
 
@@ -54,10 +57,23 @@ def fmts(s):
     return [m for m in FMT.findall(s) if m != "%%"]
 
 
-keys, problems = {}, []
-for name in sorted(os.listdir(SRC)):
-    if not name.endswith(".swift"): continue
-    for n, raw in enumerate(open(os.path.join(SRC, name), encoding="utf-8"), 1):
+IGNORE_MARK = "// l10n:ignore-file"
+
+
+def swift_files():
+    for root, dirs, files in os.walk(SRC):
+        dirs[:] = sorted(d for d in dirs if d != "Resources")
+        for f in sorted(files):
+            if f.endswith(".swift"):
+                yield os.path.relpath(os.path.join(root, f), SRC)
+
+
+keys, problems, ignored = {}, [], []
+for name in swift_files():
+    lines = open(os.path.join(SRC, name), encoding="utf-8").read().split("\n")
+    skip_cjk = any(IGNORE_MARK in l for l in lines[:10])
+    if skip_cjk: ignored.append(name)
+    for n, raw in enumerate(lines, 1):
         line = strip_comment(raw.rstrip("\n"))
         if line.lstrip().startswith("///"): continue
         for m in LIT.finditer(line):
@@ -65,7 +81,7 @@ for name in sorted(os.listdir(SRC)):
             wrapped = line[:m.start()].rstrip().endswith("L(")
             if wrapped:
                 keys.setdefault(unescape(lit), f"{name}:{n}")
-            elif CJK.search(lit):
+            elif CJK.search(lit) and not skip_cjk:
                 problems.append(f"{name}:{n} 中文字串沒包 L()：\"{lit}\"")
 
 en = load_strings(os.path.join(RES, "en.lproj", "Localizable.strings"))
@@ -88,6 +104,8 @@ for k, v in en.items():
         problems.append(f"en 值用了三個句點（Apple 用單一字元 …）：\"{v}\"")
 
 print(f"L() key {len(keys)} 個、en 表 {len(en)} 筆")
+if ignored:
+    print("豁免中文字串檢查（" + IGNORE_MARK + "）：" + "、".join(ignored))
 if problems:
     print("\n".join(problems))
     sys.exit(1)
