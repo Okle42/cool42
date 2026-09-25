@@ -3,7 +3,8 @@
 # 不開視窗、不需要螢幕錄製或輔助使用權限：NSHostingView 放進不顯示的 borderless NSWindow，再用 cacheDisplay 輸出。
 #
 # ⚠ 這些截圖的視窗底是實色 Neon.panelBG（＝使用者開了「減少透明度」時的外觀），不是 macOS 26+ 預設的 Liquid Glass：
-#   cacheDisplay 畫不出 behind-window 的玻璃合成。實機玻璃外觀用 scripts/snapshot/capture-glass.sh 截
+#   cacheDisplay 畫不出 behind-window 的玻璃合成。實色值取樣自實機玻璃（深色 ≈ 10/255），所以兩者看起來接近；
+#   實機玻璃外觀用 scripts/snapshot/capture-glass.sh 截
 #   （跑真的 NSPanel，面板後面墊受控背景，用 screencapture 截；需要終端機已有螢幕錄製權限）。
 #
 #   scripts/render-panel.sh                 → docs/img/screens/panel-{idle,load,throttle}-{light,dark}.png
@@ -41,6 +42,9 @@ cp "$REPO/scripts/snapshot/main.swift" "$WORK/Sources/snapshot/main.swift"
 # 舊版沒有 Neon.hairline：補一個同值的，main.swift 才編得過
 grep -q "static let hairline" "$WORK/Sources/snapshot/PanelApp.swift" || \
   printf '\nextension Neon { static let hairline = Color.white.opacity(0.08) }\n' >> "$WORK/Sources/snapshot/PanelApp.swift"
+# 舊版沒有 Neon.rim（窗緣亮邊）：補一個同值的（舊版對照只支援離屏截圖；--live 的設定視窗截圖要新版）
+grep -q "static let rim" "$WORK/Sources/snapshot/PanelApp.swift" || \
+  printf '\nextension Neon { static let rim = Color.white.opacity(0.26) }\n' >> "$WORK/Sources/snapshot/PanelApp.swift"
 cat > "$WORK/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

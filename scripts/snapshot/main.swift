@@ -12,6 +12,7 @@ import Cool42Core
 //                            fixed / auto（風扇模式）、custom（曲線微調過）、dirty（有未套用的變更）、
 //                            applied / failed（套用後訊息）、guard-off、critical、gpu-throttle、nofreq、boost、
 //                            clock-throttle（時脈降頻：pressure 仍 Nominal）、today（「今天」卡展開＋示意事件）、
+//                            sensors-off（熱度格收合；「today」也會收合它：兩個一次只展開一個）、
 //                            health（健康檢查卡展開）、health-bad（guard 沒跑且風扇卡手動 → 頂部紅燈）、
 //                            notify-denied / notify-unasked（通知授權狀態）、handed-back（緊急交還原廠之後）、
 //                            profiles（三條情境規則＋上限 3200，「夜間安靜」生效中）、profile-edit（展開第 2 條編輯）、
@@ -183,6 +184,7 @@ let monitor = Monitor()
     if hasProfiles { cfg.maxRPM = 3200; cfg.profiles = [Monitor.template(.apps), Monitor.template(.time), Monitor.template(.focus)] }
     monitor.config = cfg
     monitor.draft = cfg
+    monitor.draftBase = cfg   // dirty 比的是開始編輯時的設定（不是本機真的設定檔）
     if variants.contains("dirty") { monitor.draft.fixedRPM += 500; monitor.draft.curve[1].rpm += 100; monitor.draftCooldownBelow -= 2 }
     monitor.saveMessage = nil
     monitor.saveFailed = false
@@ -196,21 +198,18 @@ let monitor = Monitor()
     monitor.history = historyNow()
     // 新手安心／一眼看懂的區塊：預設收合、通知已允許；variant 再疊狀態
     monitor.showToday = variants.contains("today")
+    if variants.contains("sensors-off") { monitor.showSensors = false }   // 熱度格收合（量面板高度用）
     monitor.todayEvents = variants.contains("today") ? sampleToday() : []
     monitor.totalToday = monitor.todayEvents.count
     monitor.todayThrottles = monitor.todayEvents.filter { $0.kind == .throttleStart }.count
     monitor.todayBoosts = monitor.todayEvents.filter { $0.kind == .boost }.reduce(0) { $0 + ($1.boost?.count ?? 1) }
-    // 情境卡、偏好卡預設收合；有情境示意、通知授權示意時展開
-    monitor.showProfiles = hasProfiles
-    monitor.showPrefs = variants.contains("prefs") || variants.contains("notify-denied") || variants.contains("notify-unasked")
-    monitor.showHealth = variants.contains("health") || variants.contains("health-bad")
     monitor.health = Health.run(snapshot: monitor.snapshot, config: cfg)
     monitor.notifyOn = true
     monitor.notifyAuth = variants.contains("notify-denied") ? .denied : variants.contains("notify-unasked") ? .notDetermined : .allowed
     monitor.editingProfile = variants.contains("profile-edit") ? 1 : nil
     monitor.focusAuth = variants.contains("focus-unasked") ? .notDetermined : .allowed
     monitor.focusNow = false
-    if variants.contains("handed-back") { monitor.config.mode = "auto"; monitor.draft.mode = "auto"; monitor.emergencyPrevMode = "curve" }
+    if variants.contains("handed-back") { monitor.config.mode = "auto"; monitor.draft.mode = "auto"; monitor.draftBase.mode = "auto"; monitor.emergencyPrevMode = "curve" }
     else { monitor.emergencyPrevMode = nil }
 }
 
@@ -254,8 +253,12 @@ struct Shot: View {
             if let watermark { HStack { Spacer(); SimTag(text: watermark) }.padding(.top, 10).padding(.horizontal, 12) }
             PanelView(monitor: monitor).content
         }
-            .background(Neon.panelBG, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Neon.hairline, lineWidth: 1))
+            .background(Neon.panelBG, in: RoundedRectangle(cornerRadius: Neon.windowRadius, style: .continuous))
+            // 窗緣光跟實機 PanelEdgeView 一樣：上下緣亮、側邊中段淡
+            .overlay(GeometryReader { g in
+                RoundedRectangle(cornerRadius: Neon.windowRadius, style: .continuous)
+                    .strokeBorder(Neon.rimGradient(height: g.size.height), lineWidth: 1)
+            })
     }
 }
 
@@ -469,10 +472,10 @@ struct PanelCrop: View {
     let stats: [(String, String)] = zh
         ? [("−7.4%", "原廠 P-core 時脈\nmacOS 仍回報 Nominal"), ("2,951 rpm", "原廠風扇停在這\n上限是 4,900"), ("3.94 GHz", "cool42 曲線同負載\n取樣窗全速（180/180 筆）")]
         : [("−7.4%", "stock P-core clock,\nstill reported Nominal"), ("2,951 rpm", "where stock parks the fan\n(max 4,900)"), ("3.94 GHz", "cool42 curve, same load,\n180/180 at full speed")]
-    // 面板只取到風扇卡為止：風扇卡下緣在 535.5pt（352pt 寬時；中英文相同），裁在 536，
-    // 下面再補 16pt 面板底色（和左右留白一樣寬），框的下緣就是收好的面板底邊，不會切到下一張卡
-    let cropH: CGFloat = 536, tail: CGFloat = 16
-    let panelBG = Color(red: 15 / 255, green: 18 / 255, blue: 28 / 255)   // 面板深色底（取樣自 panel-*-dark.png）
+    // 面板只取到風扇區段為止：風扇圖下緣約 523pt、下一條分隔線在 534pt（352pt 寬時；中英文相同），裁在 530，
+    // 下面再補 16pt 面板底色（和左右留白一樣寬），框的下緣就是收好的面板底邊，不會切到分隔線
+    let cropH: CGFloat = 530, tail: CGFloat = 16
+    let panelBG = Color(red: 0.04, green: 0.04, blue: 0.063)   // 面板深色底（＝Neon.panelSolidColor 深色，取樣自實機玻璃）
     let v = ZStack(alignment: .topLeading) {
         Stage.bg
         HStack(alignment: .center, spacing: 56) {
@@ -508,8 +511,12 @@ struct PanelCrop: View {
                         .frame(height: cropH, alignment: .top).clipped()
                     panelBG.frame(width: 352, height: tail)
                 }
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Neon.windowRadius, style: .continuous))
+                    // ＝實機窗緣光（上下亮、側邊淡）
+                    .overlay(RoundedRectangle(cornerRadius: Neon.windowRadius, style: .continuous)
+                        .strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.26), location: 0), .init(color: .white.opacity(0.05), location: 0.08),
+                                                             .init(color: .white.opacity(0.05), location: 0.92), .init(color: .white.opacity(0.26), location: 1)],
+                                                     startPoint: .top, endPoint: .bottom), lineWidth: 1))
                     .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
                 Text(zh ? "面板上半部 · 實機取樣（ffmpeg 4K 編碼）" : "Top of the panel · real capture (ffmpeg 4K encode)")
                     .font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.55))
@@ -546,23 +553,74 @@ struct PanelCrop: View {
 /// 面板後面墊一個受控的背景視窗（模擬亮 / 暗 / 花俏桌布，不動使用者的桌布設定），
 /// 依序切 外觀 × 背景，用 /usr/sbin/screencapture -R 截合成後的螢幕區域（含面板四角與陰影）。
 /// 需要終端機已有「螢幕錄製」權限（scripts/snapshot/capture-glass.sh 會先 CGPreflightScreenCaptureAccess，沒有就不跑，不會跳視窗）。
-/// 「增加對比」是系統全域設定，這裡不去切；改用 NSAppearance 的 accessibilityHighContrast* 外觀檢查面板自己的配色
-/// （玻璃本身對「增加對比」的反應要真的打開系統設定才看得到）。
+/// 「增加對比」是系統全域設定，這裡不去切。NSAppearance(named: .accessibilityHighContrast*) 實測會退回一般外觀、觸發不到，
+/// 所以 *-hc 那幾張改設 A11y.forceHC（面板自己的高對比分支：加粗窗緣、關發光、較實的 tint、高對比色值）
+/// （NSGlassEffectView 本身對「增加對比」的反應要真的打開系統設定才看得到，這裡看不到）。
 @MainActor func runLive(outDir: String) -> Never {
     let app = NSApplication.shared
     let delegate = AppDelegate()
     app.delegate = delegate
-    DispatchQueue.main.asyncAfter(deadline: .now() + 120) { FileHandle.standardError.write("逾時\n".data(using: .utf8)!); exit(1) }
-    let backdrops: [(String, [NSColor])] = [
-        ("bright", [NSColor(srgbRed: 0.99, green: 0.98, blue: 0.93, alpha: 1), NSColor(srgbRed: 0.78, green: 0.89, blue: 1.00, alpha: 1)]),
-        ("dark", [NSColor(srgbRed: 0.03, green: 0.03, blue: 0.05, alpha: 1), NSColor(srgbRed: 0.14, green: 0.11, blue: 0.24, alpha: 1)]),
-        ("vivid", [NSColor(srgbRed: 1.00, green: 0.55, blue: 0.10, alpha: 1), NSColor(srgbRed: 0.85, green: 0.15, blue: 0.55, alpha: 1),
-                   NSColor(srgbRed: 0.10, green: 0.65, blue: 0.70, alpha: 1), NSColor(srgbRed: 0.95, green: 0.90, blue: 0.20, alpha: 1)]),
-    ]
-    var looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
-    if CommandLine.arguments.contains("--hc") { looks += [("light-hc", .accessibilityHighContrastAqua), ("dark-hc", .accessibilityHighContrastDarkAqua)] }
-    var jobs: [(String, NSAppearance.Name, String, [NSColor])] = []
-    for (ln, look) in looks { for (bn, cols) in backdrops { jobs.append((ln, look, bn, cols)) } }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 180) { FileHandle.standardError.write("逾時\n".data(using: .utf8)!); exit(1) }
+    // 背景：stars＝深色星空桌布（和 Dock 底下的桌布同一類）、web＝白色網頁（最容易把玻璃洗白的情況）、
+    //       bright／dark／vivid＝舊版的亮／暗／花俏漸層
+    let names = (opt("--backdrops") ?? "stars,web").split(separator: ",").map(String.init)
+    var looks: [(String, NSAppearance.Name)] = [("dark", .darkAqua), ("light", .aqua)]
+    if CommandLine.arguments.contains("--hc") { looks += [("dark-hc", .accessibilityHighContrastDarkAqua), ("light-hc", .accessibilityHighContrastAqua)] }
+    if let only = opt("--looks") { looks = looks.filter { only.split(separator: ",").map(String.init).contains($0.0) } }
+    var jobs: [(String, NSAppearance.Name, String)] = []
+    for (ln, look) in looks { for bn in names { jobs.append((ln, look, bn)) } }
+    // 第一張多截一次：啟動後第一輪取樣、熱度格展開會讓面板再長高一次，第一張的背景框會對不上（第二次同檔名覆蓋）
+    if let first = jobs.first { jobs.insert(first, at: 0) }
+    // 面板左上角的位置（螢幕座標，左上原點）；預設 x 400：左下角的桌面 widget 與 Dock 左半留在畫面裡當參照
+    let atX = Double(opt("--at-x") ?? "400") ?? 400
+    let full = CommandLine.arguments.contains("--full")   // 另存整個螢幕（拼 Dock／widget 並排圖用）
+
+    // --settings：改截設定視窗每個分頁（淺 / 深），screencapture -l 只截那個視窗（含系統陰影）
+    // --dirty-close：設定視窗改一個曲線點（不套用）後按關閉，截「要套用設定的變更嗎？」確認單；截完捨棄變更，不寫設定檔
+    if CommandLine.arguments.contains("--dirty-close") {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            NSApp.appearance = NSAppearance(named: looks.first?.1 ?? .darkAqua)
+            delegate.settings.show(tab: .fan)
+            delegate.monitor.draft.curve[0].rpm += 100
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                guard let w = delegate.settings.window else { exit(1) }
+                w.performClose(nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    let out = (outDir as NSString).appendingPathComponent("settings-dirty-close.png")
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                    p.arguments = ["-x", "-l\(w.windowNumber)", out]
+                    try? p.run(); p.waitUntilExit()
+                    print("\(out)  sheet=\(w.attachedSheet != nil)  dirty=\(delegate.monitor.dirty)  visible=\(w.isVisible)")
+                    delegate.monitor.revert()
+                    exit(0)
+                }
+            }
+        }
+        app.run()
+    }
+    if CommandLine.arguments.contains("--settings") {
+        var sjobs: [(String, NSAppearance.Name, SettingsTab)] = []
+        for (ln, look) in looks { for t in SettingsTab.allCases { sjobs.append((ln, look, t)) } }
+        func sstep(_ i: Int) {
+            guard i < sjobs.count else { exit(0) }
+            let (ln, look, t) = sjobs[i]
+            NSApp.appearance = NSAppearance(named: look)
+            delegate.settings.show(tab: t)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                guard let w = delegate.settings.window else { exit(1) }
+                let out = (outDir as NSString).appendingPathComponent("settings-\(t.rawValue)-\(ln).png")
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                p.arguments = ["-x", "-l\(w.windowNumber)", out]
+                try? p.run(); p.waitUntilExit()
+                print("\(out)  \(Int(w.frame.width))×\(Int(w.frame.height))  title「\(w.title)」")
+                sstep(i + 1)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { sstep(0) }
+        app.run()
+    }
 
     var backdrop: NSWindow? = nil
     func step(_ i: Int) {
@@ -570,23 +628,13 @@ struct PanelCrop: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { step(i) }; return
         }
         guard i < jobs.count else { exit(0) }
-        let (ln, look, bn, cols) = jobs[i]
+        let (ln, look, bn) = jobs[i]
         let screen = panel.screen ?? NSScreen.main!
         let vf = screen.visibleFrame
-        // 面板放左上角（不擋使用者右上角的真面板），高度由 autoHeight 跟內容
-        // 高度收在可視範圍內（四角與陰影都要截得到），內容捲回最上面（標題列、狀態句是直接壓在玻璃上的字）
         var f = panel.frame
-        f.size.height = min(f.height, vf.height - 100)
-        f.origin = NSPoint(x: vf.minX + 60, y: vf.maxY - 40 - f.size.height)
+        f.origin = NSPoint(x: vf.minX + atX, y: vf.maxY - 12 - f.size.height)
         panel.setFrame(f, display: true)
-        func scrollTop(_ v: NSView) {
-            if let sv = v as? NSScrollView, let doc = sv.documentView {
-                doc.scroll(NSPoint(x: 0, y: doc.isFlipped ? 0 : max(0, doc.bounds.height - sv.contentView.bounds.height)))
-            }
-            v.subviews.forEach(scrollTop)
-        }
-        if let cv = panel.contentView { scrollTop(cv) }
-        let area = f.insetBy(dx: -28, dy: -28)
+        let area = f.insetBy(dx: -40, dy: -40)
         if backdrop == nil {
             let w = NSWindow(contentRect: area, styleMask: .borderless, backing: .buffered, defer: false)
             w.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue - 1)
@@ -596,30 +644,101 @@ struct PanelCrop: View {
             backdrop = w
         }
         backdrop!.setFrame(area, display: true)
-        let g = CAGradientLayer()
-        g.colors = cols.map(\.cgColor)
-        g.startPoint = CGPoint(x: 0, y: 1); g.endPoint = CGPoint(x: 1, y: 0)
-        g.frame = CGRect(origin: .zero, size: area.size)
-        backdrop!.contentView!.layer = g
+        backdrop!.contentView!.layer = makeBackdrop(bn, size: area.size)
         backdrop!.orderFront(nil)
         panel.orderFront(nil)
+        let hc = ln.hasSuffix("-hc")
+        if hc != A11y.forceHC {
+            A11y.forceHC = hc
+            // 面板收到這個通知會重建底（tint、窗緣）；SwiftUI 的顏色靠下面切外觀重畫
+            NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+        }
         NSApp.appearance = NSAppearance(named: look)
         // 等玻璃重新取樣、Charts 重畫
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
             let sh = screen.frame.maxY   // screencapture 用左上原點
             let r = "\(Int(area.minX)),\(Int(sh - area.maxY)),\(Int(area.width)),\(Int(area.height))"
             let out = (outDir as NSString).appendingPathComponent("glass-\(ln)-\(bn).png")
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            p.arguments = ["-x", "-R" + r, out]
-            try? p.run(); p.waitUntilExit()
+            func cap(_ args: [String]) {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                p.arguments = ["-x"] + args
+                try? p.run(); p.waitUntilExit()
+            }
+            cap(["-R" + r, out])
+            if full { cap([(outDir as NSString).appendingPathComponent("full-\(ln)-\(bn).png")]) }
             print("\(out)  rect \(r)  panel \(Int(panel.frame.width))×\(Int(panel.frame.height))")
+            if CommandLine.arguments.contains("--debug") {
+                func dump(_ v: NSView, _ d: Int) { print(String(repeating: "  ", count: d) + "\(type(of: v)) \(v.frame) safe=\(v.safeAreaInsets)"); if d < 2 { v.subviews.forEach { dump($0, d + 1) } } }
+                print("contentHeight \(delegate.monitor.contentHeight)  visibleFrame \(screen.visibleFrame)")
+                if let cv = panel.contentView { dump(cv, 0) }
+                if let cv = panel.contentView {
+                    print("panel.frame \(panel.frame) contentLayoutRect \(panel.contentLayoutRect) tamic \(cv.translatesAutoresizingMaskIntoConstraints) fitting \(cv.fittingSize)")
+                    print("constraints on cv:", cv.constraints.count, cv.constraintsAffectingLayout(for: .vertical))
+                    print("hug", cv.contentHuggingPriority(for: .vertical), "intrinsic", cv.intrinsicContentSize)
+                }
+            }
             step(i + 1)
         }
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { step(0) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 4) { step(0) }   // 等第一輪取樣與感測器讀完
     app.run()
     exit(0)
+}
+
+/// 受控背景（固定亂數種子：每一輪截圖的背景一模一樣，前後才比得出差別）
+@MainActor func makeBackdrop(_ name: String, size: CGSize) -> CALayer {
+    let root = CALayer()
+    root.frame = CGRect(origin: .zero, size: size)
+    var seed: UInt64 = 91
+    func rnd() -> Double { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Double(seed >> 11) / Double(1 << 53) }
+    func rect(_ r: CGRect, _ c: NSColor, radius: CGFloat = 0) {
+        let l = CALayer(); l.frame = r; l.backgroundColor = c.cgColor; l.cornerRadius = radius; root.addSublayer(l)
+    }
+    switch name {
+    case "stars":
+        // 近黑、帶一點藍紫的夜空，散佈大小亮度不一的星點（像 wall42 的 starfield）
+        let g = CAGradientLayer()
+        g.frame = root.bounds
+        g.colors = [NSColor(srgbRed: 0.01, green: 0.01, blue: 0.03, alpha: 1).cgColor, NSColor(srgbRed: 0.04, green: 0.04, blue: 0.09, alpha: 1).cgColor]
+        g.startPoint = CGPoint(x: 0, y: 1); g.endPoint = CGPoint(x: 1, y: 0)
+        root.addSublayer(g)
+        for _ in 0..<Int(size.width * size.height / 900) {
+            let d = 0.8 + rnd() * rnd() * 2.6
+            let a = 0.25 + rnd() * 0.75
+            rect(CGRect(x: rnd() * size.width, y: rnd() * size.height, width: d, height: d), NSColor(white: 1, alpha: a), radius: d / 2)
+        }
+    case "web":
+        // 白色網頁：標題、藍色連結、灰色內文行、一張淺色圖片區塊
+        rect(root.bounds, .white)
+        var y = size.height - 60
+        rect(CGRect(x: 30, y: y, width: size.width * 0.6, height: 22), NSColor(white: 0.12, alpha: 1), radius: 3)
+        y -= 40
+        while y > 30 {
+            if rnd() < 0.12 {
+                rect(CGRect(x: 30, y: y - 120, width: size.width - 60, height: 120), NSColor(srgbRed: 0.86, green: 0.90, blue: 0.96, alpha: 1), radius: 8)
+                y -= 150; continue
+            }
+            let w = (size.width - 60) * (0.55 + rnd() * 0.45)
+            rect(CGRect(x: 30, y: y, width: w, height: 9), rnd() < 0.15 ? NSColor(srgbRed: 0.0, green: 0.40, blue: 0.80, alpha: 1) : NSColor(white: 0.30, alpha: 1), radius: 2)
+            y -= rnd() < 0.2 ? 34 : 18
+        }
+    default:
+        let cols: [NSColor] = {
+            switch name {
+            case "bright": return [NSColor(srgbRed: 0.99, green: 0.98, blue: 0.93, alpha: 1), NSColor(srgbRed: 0.78, green: 0.89, blue: 1.00, alpha: 1)]
+            case "vivid": return [NSColor(srgbRed: 1.00, green: 0.55, blue: 0.10, alpha: 1), NSColor(srgbRed: 0.85, green: 0.15, blue: 0.55, alpha: 1),
+                                  NSColor(srgbRed: 0.10, green: 0.65, blue: 0.70, alpha: 1), NSColor(srgbRed: 0.95, green: 0.90, blue: 0.20, alpha: 1)]
+            default: return [NSColor(srgbRed: 0.03, green: 0.03, blue: 0.05, alpha: 1), NSColor(srgbRed: 0.14, green: 0.11, blue: 0.24, alpha: 1)]
+            }
+        }()
+        let g = CAGradientLayer()
+        g.frame = root.bounds
+        g.colors = cols.map(\.cgColor)
+        g.startPoint = CGPoint(x: 0, y: 1); g.endPoint = CGPoint(x: 1, y: 0)
+        root.addSublayer(g)
+    }
+    return root
 }
 
 

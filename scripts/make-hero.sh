@@ -2,7 +2,7 @@
 # README 的 hero 圖：docs/img/screens/hero.png（中文）／hero-en.png（英文，面板也用英文介面）
 #   左邊文案＋2026-09-25 同機實測的三個數字（寫死在 scripts/snapshot/main.swift 的 renderHero，出處見 docs/perf-2026-09-25/README.md），
 #   右邊是 load 情境（實機取樣：ffmpeg 4K 編碼）的面板上半部。
-# 面板是離屏渲染的實色底（等同「減少透明度」），不是 macOS 26+ 預設的玻璃外觀，見 scripts/render-panel.sh。
+# 面板是離屏渲染的實色底（等同「減少透明度」；色值取樣自實機深色玻璃，看起來接近），實機玻璃截圖在 docs/img/screens/panel-glass-*.png。
 #
 #   scripts/make-hero.sh [zh|en]    （不給就兩種都做）
 set -euo pipefail
