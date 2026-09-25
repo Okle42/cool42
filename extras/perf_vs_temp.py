@@ -343,7 +343,7 @@ class ComboLoad:
 
 def abort_temp_for(mode: "Mode", args) -> float:
     """原廠自動本來就會跑到 105°C 以上（實測 46 秒到 108°C 仍 Nominal），另設硬上限；主要保護是 pressure（見 wait_for_steady）。"""
-    return args.auto_abort_temp if mode.kind == "auto" else args.abort_temp
+    return args.auto_abort_temp if mode.kind in ("auto", "curve") else args.abort_temp
 
 
 def settle_max_for(mode: "Mode", args) -> int:
@@ -409,12 +409,15 @@ def cooldown(load, base: dict, path: str, args, log) -> dict:
     load.pause()
     try:
         apply_mode(Mode("curve") if args.cooldown_mode == "curve" else Mode("fixed", args.cooldown_rpm), base, path, args, log)
-        t0 = time.time()
+        t0, cool_since = time.time(), None
         while True:
             s = cool42_status()
             temp, el = s_temp(s), time.time() - t0
-            if temp <= args.cooldown_to:
-                log(f"   降溫完成：{temp:.1f}°C（{el:.0f}s）")
+            # 晶片溫度一停負載一秒內就掉到 70°C 以下，但散熱片的熱還在，一恢復負載 5 秒彈回 100°C（2026-09-25 第三次實跑）。
+            # 所以要：停負載至少 --cooldown-min 秒，且連續 --cooldown-hold 秒 ≤ --cooldown-to。
+            cool_since = (cool_since or time.time()) if temp <= args.cooldown_to else None
+            if el >= args.cooldown_min and cool_since and time.time() - cool_since >= args.cooldown_hold:
+                log(f"   降溫完成：{temp:.1f}°C（{el:.0f}s，{s_rpm(s) or 0:.0f} rpm）")
                 return {"cooldown_s": round(el, 1), "cooldown_end_c": temp, "cooldown_ok": True}
             if el > args.cooldown_max:
                 log(f"   ⚠ 降溫 {args.cooldown_max}s 仍 {temp:.1f}°C，照樣開始（起點較熱，這檔要打折看）")
@@ -653,7 +656,15 @@ def render_markdown(meta: dict, results: list) -> str:
         else:
             L.append("缺轉速資料，無法推估。")
         L.append("")
-    L.append("## 降頻觀察（原廠自動檔）\n")
+    L.append("## 降頻觀察\n")
+    L.append("| 檔位 | 輪 | 結果 | 平均溫度 | 風扇 | P-core 硬體頻率 | 比全速 3936 | worst pressure |")
+    L.append("|---|---|---|---|---|---|---|---|")
+    for r in results:
+        pc = r.get("pcore_mhz") if r.get("measured") else None
+        drop = None if not pc else (pc / 3936 - 1) * 100
+        L.append(f"| {r['title']} | {r['rep']} | {r.get('state')} | {_f(r.get('temp_c'))} °C | {_f(r.get('rpm_actual'), '{:.0f}')} rpm | "
+                 f"{_f(pc, '{:.0f}')} MHz | {_f(drop, '{:+.1f}')} % | {r.get('pressure') or '—'} |")
+    L.append("")
     auto_rows = [r for r in results if r.get("mode") == "auto"]
     if not auto_rows:
         L.append("沒有原廠自動檔。\n")
@@ -673,7 +684,8 @@ def render_markdown(meta: dict, results: list) -> str:
     L.append("")
     L.append("## 讀法與限制\n")
     L.append("- ops = 每 worker 每 2000 次 sha256 記 1 次；ops/J 用 powermetrics 的 CPU Power（不含 DRAM、風扇、整機）。")
-    L.append("- 「降頻」= thermal pressure 離開 Nominal（Moderate 以上），和 cool42 hook 的判斷同一個定義。")
+    L.append("- 「pressure 降頻」= thermal pressure 離開 Nominal（cool42 hook 目前的判斷）。另看 powermetrics 的 P-core 硬體頻率："
+             "2026-09-25 實測原廠自動在 pressure 全程 Nominal 下 P-core 從 3936 掉到約 3640 MHz（無聲降頻），所以兩個都要看。")
     L.append("- 頻率與功率來自 powermetrics 硬體計數器（`P-Cluster HW active frequency`、`CPU Power`）；溫度與轉速來自 cool42 status。")
     L.append("- 「macOS 原廠自動」= cool42 設定 mode=auto：guard 仍在跑但把風扇交還 SMC，不寫任何轉速。")
     L.append("- 同一台機器、同一負載、同一天；室溫沒控制，順序效應用 A/B/A/B 重複緩解。")
@@ -748,11 +760,12 @@ def dry_run(args, modes: list[Mode], cfg_path: str) -> None:
     print(f"powermetrics：{'有' if os.path.exists(POWERMETRICS) else '沒有'}；實跑需 root：{'是（目前不是 root）' if os.geteuid() else '是（目前是 root）'}")
     print(f"\n負載：{'指令 ' + args.load_cmd if args.load_cmd else f'{args.workers} 個 sha256 worker'}")
     print(f"GPU 負載：{'有（gpu_burn，Metal 滿載）' if args.gpu else '無'}")
-    print(f"安全：控制溫度 ≥ {args.abort_temp:g}°C 中止該檔；原廠自動檔 pressure 進 Moderate 記為降頻、再取樣 {args.throttle_observe}s，"
+    print(f"安全：固定轉速檔 ≥ {args.abort_temp:g}°C、曲線與原廠自動檔 ≥ {args.auto_abort_temp:g}°C 中止；原廠自動檔 pressure 進 Moderate 記為降頻、再取樣 {args.throttle_observe}s，"
           f"進 Heavy 或 ≥ {args.auto_abort_temp:g}°C 或滿 {args.auto_observe_max}s 就停；固定轉速檔位 Heavy 也中止；結束一律寫回原設定位元組")
     if args.cooldown_to > 0:
         how = "風扇交給 cool42 曲線" if args.cooldown_mode == "curve" else f"風扇固定 {args.cooldown_rpm:g} rpm"
-        print(f"換檔：停負載、{how}，降到 ≤ {args.cooldown_to:g}°C 才開下一檔（最多 {args.cooldown_max}s）\n")
+        print(f"換檔：停負載、{how}，至少 {args.cooldown_min}s 且連續 {args.cooldown_hold}s ≤ {args.cooldown_to:g}°C 才開下一檔"
+              f"（最多 {args.cooldown_max}s）\n")
     else:
         print("換檔：不降溫（--cooldown-to 0）\n")
     lo, hi = step_bounds(args)
@@ -794,15 +807,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--confirm-timeout", type=int, default=25, help="寫設定後等 guard 熱重載確認的上限（秒）")
     ap.add_argument("--abort-temp", type=float, default=103, help="控制溫度到此值就放棄該檔（auto 以外的檔位）")
     ap.add_argument("--auto-abort-temp", type=float, default=112,
-                    help="macOS 原廠自動檔的溫度硬上限（主要保護是 pressure：Moderate 記錄降頻、Heavy 中止）")
+                    help="原廠自動與 cool42 曲線檔共用的溫度硬上限（同一把尺才公平；另外 auto 檔 Heavy 中止）")
     ap.add_argument("--auto-observe-max", type=int, default=480, help="原廠自動檔整段（等穩態＋取樣）最多幾秒")
     ap.add_argument("--throttle-observe", type=int, default=60, help="原廠自動檔抓到降頻（Moderate）後再取樣幾秒")
     ap.add_argument("--gpu", action="store_true", help="另加 Metal GPU 滿載（extras/gpu_burn.swift），CPU＋GPU 一起跑")
-    ap.add_argument("--cooldown-to", type=float, default=75, help="換檔前停負載、風扇拉滿，降到此溫度才開下一檔（0 = 不降溫）")
+    ap.add_argument("--cooldown-to", type=float, default=55, help="換檔前停負載，控制溫度要降到此值才開下一檔（0 = 不降溫）")
+    ap.add_argument("--cooldown-min", type=int, default=120, help="停負載至少幾秒（讓散熱片也涼下來，不只晶片）")
+    ap.add_argument("--cooldown-hold", type=int, default=30, help="要連續幾秒維持在 --cooldown-to 以下")
     ap.add_argument("--cooldown-mode", choices=["curve", "fixed"], default="curve",
                     help="換檔降溫時風扇交給 cool42 曲線（預設，較溫和安靜）或固定 --cooldown-rpm")
     ap.add_argument("--cooldown-rpm", type=float, default=4900, help="--cooldown-mode fixed 時的轉速")
-    ap.add_argument("--cooldown-max", type=int, default=420, help="降溫最多等幾秒")
+    ap.add_argument("--cooldown-max", type=int, default=600, help="降溫最多等幾秒")
     ap.add_argument("--config", default=GUARD_CONFIG, help=f"guard 讀的設定檔（預設 {GUARD_CONFIG}，launchd guard 只讀這份）")
     ap.add_argument("--out-dir", default=None, help="輸出資料夾（預設 ~/cool42-perf-<時間>/，sudo 下是原使用者的家目錄）")
     ap.add_argument("--dry-run", action="store_true", help="不碰 root、不寫設定、不跑負載，只印計畫與預估時間")
