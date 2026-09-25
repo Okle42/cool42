@@ -256,10 +256,93 @@ class CmdLoad:
                 os.killpg(self.proc.pid, signal.SIGKILL)
 
 
+class GpuLoad:
+    """extras/gpu_burn.swift：Metal compute 把 GPU 吃滿。以原使用者身分編譯與執行（root 不一定拿得到 Metal 裝置）。"""
+    def __init__(self, out_dir: str):
+        self.out_dir = out_dir
+        self.proc = None
+        self.bin = os.path.join(out_dir, "gpu_burn")
+
+    def describe(self) -> str:
+        return "Metal GPU 滿載（gpu_burn）"
+
+    def _as_user(self) -> dict:
+        uid, gid, home = real_user()
+        if uid is None:
+            return {}
+        return {"user": uid, "group": gid, "env": {**os.environ, "HOME": home, "USER": pwd.getpwuid(uid).pw_name}}
+
+    def start(self):
+        src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gpu_burn.swift")
+        kw = self._as_user()
+        if kw and os.stat(self.out_dir).st_uid != kw["user"]:   # 直接 sudo 跑時輸出資料夾是 root 的，先交給原使用者才編得進去
+            os.chown(self.out_dir, kw["user"], kw["group"])
+        c = subprocess.run(["/usr/bin/swiftc", "-O", "-o", self.bin, src, "-framework", "Metal"],
+                           capture_output=True, text=True, timeout=300, **kw)
+        if c.returncode != 0:
+            raise RuntimeError(f"gpu_burn 編譯失敗：{c.stderr.strip()[-300:]}")
+        self.proc = subprocess.Popen([self.bin], start_new_session=True,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **kw)
+        time.sleep(2)
+        if self.proc.poll() is not None:
+            raise RuntimeError(f"gpu_burn 啟動失敗：{self.proc.stderr.read().decode(errors='replace')[-300:]}")
+
+    def read(self) -> int:
+        return 0
+
+    def pause(self):
+        if self.proc and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGSTOP)
+
+    def resume(self):
+        if self.proc and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGCONT)
+
+    def close(self):
+        if self.proc and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGCONT)
+            os.killpg(self.proc.pid, signal.SIGTERM)
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+
+
+class ComboLoad:
+    """CPU 負載＋GPU 負載一起開；工作量計數用 CPU 那份。"""
+    def __init__(self, cpu, gpu):
+        self.parts = [cpu, gpu]
+
+    def describe(self) -> str:
+        return " ＋ ".join(p.describe() for p in self.parts)
+
+    def start(self):
+        for p in self.parts:
+            p.start()
+
+    def read(self) -> int:
+        return self.parts[0].read()
+
+    def pause(self):
+        for p in self.parts:
+            p.pause()
+
+    def resume(self):
+        for p in self.parts:
+            p.resume()
+
+    def close(self):
+        for p in self.parts:
+            try:
+                p.close()
+            except Exception:
+                pass
+
+
 # ---------- 時間估算 ----------
 
 def abort_temp_for(mode: "Mode", args) -> float:
-    """原廠自動本來就會跑到 105°C 上下（外部資料 105–107°C），用 103 會把要量的行為切掉，所以另設門檻。"""
+    """原廠自動本來就會跑到 105°C 以上（實測 46 秒到 108°C 仍 Nominal），另設硬上限；主要保護是 pressure（見 wait_for_steady）。"""
     return args.auto_abort_temp if mode.kind == "auto" else args.abort_temp
 
 
@@ -322,10 +405,10 @@ def apply_mode(mode: Mode, base: dict, path: str, args, log) -> dict:
 
 
 def cooldown(load, base: dict, path: str, args, log) -> dict:
-    """換檔前：停負載、風扇固定最高轉速，等控制溫度回到 --cooldown-to，讓每檔從同一個起點開始。"""
+    """換檔前：停負載、風扇交給 cool42 曲線（或 --cooldown-mode fixed 固定轉速），等控制溫度回到 --cooldown-to，讓每檔從同一個起點開始。"""
     load.pause()
     try:
-        apply_mode(Mode("fixed", args.cooldown_rpm), base, path, args, log)
+        apply_mode(Mode("curve") if args.cooldown_mode == "curve" else Mode("fixed", args.cooldown_rpm), base, path, args, log)
         t0 = time.time()
         while True:
             s = cool42_status()
@@ -350,7 +433,7 @@ def wait_for_steady(mode: Mode, args, log) -> tuple[str, str, list]:
         s = cool42_status()
         temp, rpm, pr = s_temp(s), s_rpm(s), s.get("thermalPressure")
         trace.append({"t": round(time.time() - t0, 1), "temp": temp, "rpm": rpm, "pcore": s.get("pcoreMHz"),
-                      "pressure": pr, "boost": boost_active(s)})
+                      "gpu": s.get("gpuMax"), "gpu_mhz": s.get("gpuMHz"), "pressure": pr, "boost": boost_active(s)})
         el = trace[-1]["t"]
         log(f"    t+{el:4.0f}s  {temp:5.1f}°C  {rpm or 0:5.0f}rpm  P={s.get('pcoreMHz') or 0:4.0f}MHz  {pr or '-'}"
             f"{'  [預熱中]' if trace[-1]['boost'] else ''}")
@@ -358,8 +441,12 @@ def wait_for_steady(mode: Mode, args, log) -> tuple[str, str, list]:
         if temp >= lim:
             top = max((w["rpm"] or 0) for w in trace)
             return "aborted", f"溫度 {temp:.1f}°C ≥ {lim:g}，中止（t+{el:.0f}s，期間風扇最高 {top:.0f} rpm）", trace
-        if mode.kind == "fixed" and PRESSURE_RANK.get(pr or "Nominal", 0) >= PRESSURE_RANK["Heavy"]:
-            return "aborted", f"thermal pressure {pr}（固定轉速檔位），中止", trace
+        rank = PRESSURE_RANK.get(pr or "Nominal", 0)
+        if mode.kind in ("fixed", "auto") and rank >= PRESSURE_RANK["Heavy"]:
+            return "aborted", f"thermal pressure {pr}（t+{el:.0f}s、{temp:.1f}°C），中止", trace
+        if mode.kind == "auto" and rank >= PRESSURE_RANK["Moderate"]:
+            # 抓到降頻：接著用 powermetrics 取樣 --throttle-observe 秒，量降頻當下的硬體頻率與功率
+            return "throttled", f"降頻開始：t+{el:.0f}s、{temp:.1f}°C、{rpm or 0:.0f} rpm、pressure {pr}", trace
         win = trace[-need:]
         if el >= args.min_settle and len(win) >= need:
             dt = max(w["temp"] for w in win) - min(w["temp"] for w in win)
@@ -373,23 +460,29 @@ def wait_for_steady(mode: Mode, args, log) -> tuple[str, str, list]:
         time.sleep(args.poll)
 
 
-def sample_mode(mode: Mode, load, args, log, pm_path: str) -> dict:
-    """powermetrics 取樣 --sample 秒，期間每 --poll 秒讀 cool42 溫度/轉速取平均。"""
+def sample_mode(mode: Mode, load, args, log, pm_path: str, seconds: int | None = None) -> dict:
+    """powermetrics 取樣 seconds（預設 --sample）秒，期間每 --poll 秒讀 cool42 溫度/轉速取平均。"""
+    seconds = seconds or args.sample
     c0 = load.read()
     t0 = time.time()
     with open(pm_path, "w") as pmf:
         pm = subprocess.Popen([POWERMETRICS, "--samplers", "cpu_power,gpu_power,thermal", "-i", "1000",
-                               "-n", str(args.sample)], stdout=pmf, stderr=subprocess.STDOUT)
+                               "-n", str(seconds)], stdout=pmf, stderr=subprocess.STDOUT)
         polls, aborted = [], None
         try:
             while pm.poll() is None:
-                if time.time() - t0 > args.sample + 30:
+                if time.time() - t0 > seconds + 30:
                     pm.kill()
                     raise RuntimeError("powermetrics 逾時")
                 s = cool42_status()
                 polls.append(s)
                 if s_temp(s) >= abort_temp_for(mode, args):
                     aborted = f"取樣中溫度 {s_temp(s):.1f}°C ≥ {abort_temp_for(mode, args):g}，中止"
+                    pm.terminate()
+                    break
+                if mode.kind in ("fixed", "auto") and \
+                        PRESSURE_RANK.get(s.get("thermalPressure") or "Nominal", 0) >= PRESSURE_RANK["Heavy"]:
+                    aborted = f"取樣中 thermal pressure {s.get('thermalPressure')}，中止"
                     pm.terminate()
                     break
                 time.sleep(args.poll)
@@ -414,6 +507,8 @@ def sample_mode(mode: Mode, load, args, log, pm_path: str) -> dict:
     row = {
         "temp_c": mean(temps), "temp_max_c": max(temps) if temps else None,
         "cpu_max_c": mean([s.get("cpuMax") for s in polls]), "gpu_max_c": mean([s.get("gpuMax") for s in polls]),
+        "pcore_min_poll": min([p.get("pcoreMHz") for p in polls if p.get("pcoreMHz")], default=None),
+        "pressure_seq": [s.get("thermalPressure") for s in polls],
         "rpm_actual": mean(rpms), "rpm_min": min(rpms) if rpms else None, "rpm_max": max(rpms) if rpms else None,
         "pcore_mhz": pcore, "ecore_mhz": pmd["ecluster_mhz"],
         "cpu_w": cpu_w, "gpu_w": (pmd["gpu_mw"] or 0) / 1000,
@@ -558,8 +653,27 @@ def render_markdown(meta: dict, results: list) -> str:
         else:
             L.append("缺轉速資料，無法推估。")
         L.append("")
+    L.append("## 降頻觀察（原廠自動檔）\n")
+    auto_rows = [r for r in results if r.get("mode") == "auto"]
+    if not auto_rows:
+        L.append("沒有原廠自動檔。\n")
+    for r in auto_rows:
+        tr = r.get("trace") or []
+        peak = max((w["temp"] for w in tr), default=None)
+        top = max(((w["rpm"] or 0) for w in tr[1:]), default=None)   # 第 0 筆是降溫階段殘留的轉速，不算
+        on = r.get("throttle_onset")
+        if on:
+            L.append(f"- 第 {r['rep']} 輪：**抓到降頻** —— t+{on['t']:.0f}s、{on['temp']:.1f}°C、風扇 {on['rpm'] or 0:.0f} rpm、"
+                     f"pressure {on['pressure']}；降頻期間取樣 {r.get('sample_s') or '—'}s：P-core {_f(r.get('pcore_mhz'), '{:.0f}')} MHz"
+                     f"（輪詢最低 {_f(r.get('pcore_min_poll'), '{:.0f}')}）、CPU {_f(r.get('cpu_w'), '{:.2f}')} W、"
+                     f"平均 {_f(r.get('temp_c'))}°C、最高 {_f(r.get('temp_max_c'))}°C、worst {r.get('pressure') or '—'}")
+        else:
+            L.append(f"- 第 {r['rep']} 輪：沒抓到降頻（{r.get('reason') or r.get('state')}）；期間最高 {_f(peak)}°C、"
+                     f"風扇最高 {_f(top, '{:.0f}')} rpm")
+    L.append("")
     L.append("## 讀法與限制\n")
     L.append("- ops = 每 worker 每 2000 次 sha256 記 1 次；ops/J 用 powermetrics 的 CPU Power（不含 DRAM、風扇、整機）。")
+    L.append("- 「降頻」= thermal pressure 離開 Nominal（Moderate 以上），和 cool42 hook 的判斷同一個定義。")
     L.append("- 頻率與功率來自 powermetrics 硬體計數器（`P-Cluster HW active frequency`、`CPU Power`）；溫度與轉速來自 cool42 status。")
     L.append("- 「macOS 原廠自動」= cool42 設定 mode=auto：guard 仍在跑但把風扇交還 SMC，不寫任何轉速。")
     L.append("- 同一台機器、同一負載、同一天；室溫沒控制，順序效應用 A/B/A/B 重複緩解。")
@@ -633,10 +747,12 @@ def dry_run(args, modes: list[Mode], cfg_path: str) -> None:
     print(f"load avg：{la[0]:.2f} {la[1]:.2f} {la[2]:.2f}（{os.cpu_count()} 核）")
     print(f"powermetrics：{'有' if os.path.exists(POWERMETRICS) else '沒有'}；實跑需 root：{'是（目前不是 root）' if os.geteuid() else '是（目前是 root）'}")
     print(f"\n負載：{'指令 ' + args.load_cmd if args.load_cmd else f'{args.workers} 個 sha256 worker'}")
-    print(f"安全：控制溫度 ≥ {args.abort_temp:g}°C 中止該檔（原廠自動檔 ≥ {args.auto_abort_temp:g}°C、最多觀察 {args.auto_observe_max}s）；"
-          f"固定轉速檔位 pressure ≥ Heavy 也中止；結束一律寫回原設定位元組")
+    print(f"GPU 負載：{'有（gpu_burn，Metal 滿載）' if args.gpu else '無'}")
+    print(f"安全：控制溫度 ≥ {args.abort_temp:g}°C 中止該檔；原廠自動檔 pressure 進 Moderate 記為降頻、再取樣 {args.throttle_observe}s，"
+          f"進 Heavy 或 ≥ {args.auto_abort_temp:g}°C 或滿 {args.auto_observe_max}s 就停；固定轉速檔位 Heavy 也中止；結束一律寫回原設定位元組")
     if args.cooldown_to > 0:
-        print(f"換檔：停負載、風扇固定 {args.cooldown_rpm:g} rpm，降到 ≤ {args.cooldown_to:g}°C 才開下一檔（最多 {args.cooldown_max}s）\n")
+        how = "風扇交給 cool42 曲線" if args.cooldown_mode == "curve" else f"風扇固定 {args.cooldown_rpm:g} rpm"
+        print(f"換檔：停負載、{how}，降到 ≤ {args.cooldown_to:g}°C 才開下一檔（最多 {args.cooldown_max}s）\n")
     else:
         print("換檔：不降溫（--cooldown-to 0）\n")
     lo, hi = step_bounds(args)
@@ -649,7 +765,7 @@ def dry_run(args, modes: list[Mode], cfg_path: str) -> None:
             fmin, fmax = fan_limits(s)
             if not (fmin <= m.rpm <= fmax):
                 warn = f"  ⚠ 超出 {fmin:.0f}–{fmax:.0f}，guard 會夾到範圍內"
-        extra = "（Heavy 照樣取樣）" if m.kind != "fixed" else ""
+        extra = {"curve": "（Heavy 照樣取樣）", "auto": "（Moderate＝抓到降頻、Heavy 停）"}.get(m.kind, "")
         print(f"  {i:2d}. 第 {rep} 輪  {m.title:<14} 設定改 {change}{extra}{warn}")
     print(f"  最後：寫回原設定（{'原 mode=' + str(base.get('mode')) if base else '原檔'}），確認 guard 重載")
     print(f"\n預估：每檔 {fmt_dur(lo)}（最快收斂）～ {fmt_dur(hi)}（上限）；"
@@ -677,12 +793,16 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--settle-max", type=int, default=480, help="每檔最多等多久（秒），到了以現況取樣並標記未收斂")
     ap.add_argument("--confirm-timeout", type=int, default=25, help="寫設定後等 guard 熱重載確認的上限（秒）")
     ap.add_argument("--abort-temp", type=float, default=103, help="控制溫度到此值就放棄該檔（auto 以外的檔位）")
-    ap.add_argument("--auto-abort-temp", type=float, default=108,
-                    help="macOS 原廠自動檔的中止溫度（原廠本來就會跑到 105°C 上下，103 會把要量的行為切掉）")
-    ap.add_argument("--auto-observe-max", type=int, default=300, help="原廠自動檔整段（等穩態＋取樣）最多幾秒")
+    ap.add_argument("--auto-abort-temp", type=float, default=112,
+                    help="macOS 原廠自動檔的溫度硬上限（主要保護是 pressure：Moderate 記錄降頻、Heavy 中止）")
+    ap.add_argument("--auto-observe-max", type=int, default=480, help="原廠自動檔整段（等穩態＋取樣）最多幾秒")
+    ap.add_argument("--throttle-observe", type=int, default=60, help="原廠自動檔抓到降頻（Moderate）後再取樣幾秒")
+    ap.add_argument("--gpu", action="store_true", help="另加 Metal GPU 滿載（extras/gpu_burn.swift），CPU＋GPU 一起跑")
     ap.add_argument("--cooldown-to", type=float, default=75, help="換檔前停負載、風扇拉滿，降到此溫度才開下一檔（0 = 不降溫）")
-    ap.add_argument("--cooldown-rpm", type=float, default=4900, help="降溫時的固定轉速")
-    ap.add_argument("--cooldown-max", type=int, default=300, help="降溫最多等幾秒")
+    ap.add_argument("--cooldown-mode", choices=["curve", "fixed"], default="curve",
+                    help="換檔降溫時風扇交給 cool42 曲線（預設，較溫和安靜）或固定 --cooldown-rpm")
+    ap.add_argument("--cooldown-rpm", type=float, default=4900, help="--cooldown-mode fixed 時的轉速")
+    ap.add_argument("--cooldown-max", type=int, default=420, help="降溫最多等幾秒")
     ap.add_argument("--config", default=GUARD_CONFIG, help=f"guard 讀的設定檔（預設 {GUARD_CONFIG}，launchd guard 只讀這份）")
     ap.add_argument("--out-dir", default=None, help="輸出資料夾（預設 ~/cool42-perf-<時間>/，sudo 下是原使用者的家目錄）")
     ap.add_argument("--dry-run", action="store_true", help="不碰 root、不寫設定、不跑負載，只印計畫與預估時間")
@@ -786,6 +906,8 @@ def main(argv: list[str] | None = None) -> int:
         log(f"預估 {fmt_dur(lo * len(steps))}（全部最快收斂）～ {fmt_dur(hi * len(steps))}（上限）")
 
         load = CmdLoad(args.load_cmd) if args.load_cmd else HashLoad(args.workers)
+        if args.gpu:
+            load = ComboLoad(load, GpuLoad(out_dir))
         meta["load"] = load.describe()
         load.start()
         log(f"負載已啟動：{meta['load']}")
@@ -810,9 +932,12 @@ def main(argv: list[str] | None = None) -> int:
                 row.update({"temp_c": last.get("temp"), "rpm_actual": last.get("rpm"), "pcore_mhz": last.get("pcore"),
                             "pressure": last.get("pressure")})
                 continue
-            log(f"   取樣 {args.sample}s ...")
+            secs = args.throttle_observe if state == "throttled" else args.sample
+            log(f"   取樣 {secs}s ..." + ("（降頻中）" if state == "throttled" else ""))
             pm_file = os.path.join(out_dir, "pm", f"{i:02d}-{mode.label}-r{rep}.txt")
-            srow = sample_mode(mode, load, args, log, pm_file)
+            srow = sample_mode(mode, load, args, log, pm_file, secs)
+            if state == "throttled":
+                srow["throttle_onset"] = trace[-1] if trace else None
             row.update(srow)
             row["measured"] = "abort_during_sample" not in srow
             if not row["measured"]:

@@ -2,7 +2,8 @@
 # 過夜跑 perf_vs_temp.py：「macOS 原廠自動 vs cool42 曲線」同機同負載穩態對照。
 #
 # 用法（在 Ghostty 等終端機裡跑，開頭會問一次 sudo 密碼）：
-#   extras/run_perf_overnight.sh                         # 預設 --modes curve auto --repeat 2 --sample 90
+#   extras/run_perf_overnight.sh                         # 預設 --modes curve auto --repeat 2 --sample 90 --gpu
+#   extras/run_perf_overnight.sh --cpu-only              # 不加 GPU 負載
 #   extras/run_perf_overnight.sh --modes curve auto 3000 # 其餘參數原樣交給 perf_vs_temp.py
 #   LOAD_MAX=2 WAIT_IDLE_MIN=60 extras/run_perf_overnight.sh
 #   extras/run_perf_overnight.sh --dry-run               # 只做檢查並印計畫，不問密碼、不量測
@@ -33,6 +34,11 @@ EXTRA=()
 case " $* " in *" --modes "*) ;; *) EXTRA+=(--modes curve auto) ;; esac
 case " $* " in *" --repeat "*) ;; *) EXTRA+=(--repeat 2) ;; esac
 case " $* " in *" --sample "*) ;; *) EXTRA+=(--sample 90) ;; esac
+# 預設 CPU＋GPU 一起滿載（要抓原廠降頻，只跑 CPU 在 108°C 內抓不到）；只要 CPU 就給 --cpu-only
+CPU_ONLY=0; ARGS=()
+for a in "$@"; do if [ "$a" = "--cpu-only" ]; then CPU_ONLY=1; else ARGS+=("$a"); fi; done
+set -- ${ARGS[@]+"${ARGS[@]}"}
+case " $* " in *" --gpu "*) ;; *) [ "${CPU_ONLY}" = 1 ] || EXTRA+=(--gpu) ;; esac
 
 notify() {  # $1 標題 $2 內容
   local t="${1//\"/\'}" m="${2//\"/\'}"
