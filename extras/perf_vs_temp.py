@@ -19,7 +19,9 @@
     過夜跑請用 extras/run_perf_overnight.sh（空閒檢查、防睡、完成通知）。
 
 安全：
-  * 控制溫度 ≥ --abort-temp 就放棄該檔（所有檔位）；固定轉速檔位另外在 pressure 進 Heavy 時放棄。
+  * 控制溫度 ≥ --abort-temp（預設 103）就放棄該檔；原廠自動檔改用 --auto-abort-temp（預設 108）、整段最多
+    --auto-observe-max 秒，因為原廠本來就會跑到 105°C 上下。固定轉速檔位另外在 pressure 進 Heavy 時放棄。
+  * 每檔開始前停負載、風扇拉滿，降到 --cooldown-to（預設 75°C）才開始，避免上一檔的餘熱污染下一檔。
     curve / auto 本身就是會自己保護晶片的控制策略，Heavy 是要量的結果，照樣取樣並記錄。
   * 結束（正常、Ctrl-C、SIGTERM/SIGHUP、例外）一律把設定檔「原位元組」寫回，guard 熱重載回原設定。
     直接覆寫不換 inode，檔案擁有者不變，面板照樣能寫。
@@ -170,11 +172,14 @@ def worst_pressure(levels) -> str | None:
 
 # ---------- 固定 CPU 負載 ----------
 
-def _worker(counter, stop):
-    """每 worker 一直做 sha256，每 2000 次把計數器 +1。工作量固定、可跨檔位比較。"""
+def _worker(counter, stop, pause):
+    """每 worker 一直做 sha256，每 2000 次把計數器 +1。工作量固定、可跨檔位比較。pause=1 時閒置（換檔降溫用）。"""
     signal.signal(signal.SIGINT, signal.SIG_IGN)   # Ctrl-C 交給主行程處理，worker 等 stop 旗標
     data = b"cool42-perf-vs-temp" * 8
     while not stop.value:
+        if pause.value:
+            time.sleep(0.2)
+            continue
         h = data
         for _ in range(2000):
             h = hashlib.sha256(h).digest()
@@ -187,7 +192,9 @@ class HashLoad:
         self.workers = workers
         self.counter = mp.Value("q", 0)
         self.stop = mp.Value("b", 0)
-        self.procs = [mp.Process(target=_worker, args=(self.counter, self.stop), daemon=True) for _ in range(workers)]
+        self.paused = mp.Value("b", 0)
+        self.procs = [mp.Process(target=_worker, args=(self.counter, self.stop, self.paused), daemon=True)
+                      for _ in range(workers)]
 
     def describe(self) -> str:
         return f"{self.workers} 個 sha256 worker"
@@ -198,6 +205,12 @@ class HashLoad:
 
     def read(self) -> int:
         return self.counter.value
+
+    def pause(self):
+        self.paused.value = 1
+
+    def resume(self):
+        self.paused.value = 0
 
     def close(self):
         self.stop.value = 1
@@ -225,8 +238,17 @@ class CmdLoad:
     def read(self) -> int:
         return 0
 
+    def pause(self):
+        if self.proc and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGSTOP)
+
+    def resume(self):
+        if self.proc and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGCONT)
+
     def close(self):
         if self.proc and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGCONT)
             os.killpg(self.proc.pid, signal.SIGTERM)
             try:
                 self.proc.wait(timeout=5)
@@ -236,10 +258,22 @@ class CmdLoad:
 
 # ---------- 時間估算 ----------
 
+def abort_temp_for(mode: "Mode", args) -> float:
+    """原廠自動本來就會跑到 105°C 上下（外部資料 105–107°C），用 103 會把要量的行為切掉，所以另設門檻。"""
+    return args.auto_abort_temp if mode.kind == "auto" else args.abort_temp
+
+
+def settle_max_for(mode: "Mode", args) -> int:
+    """auto 檔整段（等穩態＋取樣）最多 --auto-observe-max 秒。"""
+    if mode.kind == "auto":
+        return max(args.min_settle, min(args.settle_max, args.auto_observe_max - args.sample))
+    return args.settle_max
+
+
 def step_bounds(args) -> tuple[int, int]:
     """單一檔位的（最短, 最長）秒數，全部由參數推出，不是量測值。"""
     lo = args.min_settle + args.sample
-    hi = args.confirm_timeout + args.settle_max + args.sample + PM_OVERHEAD_S
+    hi = args.confirm_timeout + args.settle_max + args.sample + PM_OVERHEAD_S + args.cooldown_max
     return lo, hi
 
 
@@ -287,6 +321,26 @@ def apply_mode(mode: Mode, base: dict, path: str, args, log) -> dict:
     return s
 
 
+def cooldown(load, base: dict, path: str, args, log) -> dict:
+    """換檔前：停負載、風扇固定最高轉速，等控制溫度回到 --cooldown-to，讓每檔從同一個起點開始。"""
+    load.pause()
+    try:
+        apply_mode(Mode("fixed", args.cooldown_rpm), base, path, args, log)
+        t0 = time.time()
+        while True:
+            s = cool42_status()
+            temp, el = s_temp(s), time.time() - t0
+            if temp <= args.cooldown_to:
+                log(f"   降溫完成：{temp:.1f}°C（{el:.0f}s）")
+                return {"cooldown_s": round(el, 1), "cooldown_end_c": temp, "cooldown_ok": True}
+            if el > args.cooldown_max:
+                log(f"   ⚠ 降溫 {args.cooldown_max}s 仍 {temp:.1f}°C，照樣開始（起點較熱，這檔要打折看）")
+                return {"cooldown_s": round(el, 1), "cooldown_end_c": temp, "cooldown_ok": False}
+            time.sleep(args.poll)
+    finally:
+        load.resume()
+
+
 def wait_for_steady(mode: Mode, args, log) -> tuple[str, str, list]:
     """回傳 (state, reason, trace)。state: converged / timeout（仍取樣）/ aborted（不取樣）。"""
     trace = []
@@ -300,8 +354,10 @@ def wait_for_steady(mode: Mode, args, log) -> tuple[str, str, list]:
         el = trace[-1]["t"]
         log(f"    t+{el:4.0f}s  {temp:5.1f}°C  {rpm or 0:5.0f}rpm  P={s.get('pcoreMHz') or 0:4.0f}MHz  {pr or '-'}"
             f"{'  [預熱中]' if trace[-1]['boost'] else ''}")
-        if temp >= args.abort_temp:
-            return "aborted", f"溫度 {temp:.1f}°C ≥ {args.abort_temp:g}，中止", trace
+        lim = abort_temp_for(mode, args)
+        if temp >= lim:
+            top = max((w["rpm"] or 0) for w in trace)
+            return "aborted", f"溫度 {temp:.1f}°C ≥ {lim:g}，中止（t+{el:.0f}s，期間風扇最高 {top:.0f} rpm）", trace
         if mode.kind == "fixed" and PRESSURE_RANK.get(pr or "Nominal", 0) >= PRESSURE_RANK["Heavy"]:
             return "aborted", f"thermal pressure {pr}（固定轉速檔位），中止", trace
         win = trace[-need:]
@@ -311,8 +367,9 @@ def wait_for_steady(mode: Mode, args, log) -> tuple[str, str, list]:
             dr = (max(rpms) - min(rpms)) if rpms else 0
             if dt < args.settle_delta and (mode.kind == "fixed" or dr < args.settle_rpm_delta):
                 return "converged", f"穩態（{args.settle_window}s 內 ΔT {dt:.1f}°C、Δrpm {dr:.0f}）", trace
-        if el > args.settle_max:
-            return "timeout", f"超過 {args.settle_max}s 未收斂，以現況取樣", trace
+        smax = settle_max_for(mode, args)
+        if el > smax:
+            return "timeout", f"超過 {smax}s 未收斂，以現況取樣", trace
         time.sleep(args.poll)
 
 
@@ -331,8 +388,8 @@ def sample_mode(mode: Mode, load, args, log, pm_path: str) -> dict:
                     raise RuntimeError("powermetrics 逾時")
                 s = cool42_status()
                 polls.append(s)
-                if s_temp(s) >= args.abort_temp:
-                    aborted = f"取樣中溫度 {s_temp(s):.1f}°C ≥ {args.abort_temp:g}，中止"
+                if s_temp(s) >= abort_temp_for(mode, args):
+                    aborted = f"取樣中溫度 {s_temp(s):.1f}°C ≥ {abort_temp_for(mode, args):g}，中止"
                     pm.terminate()
                     break
                 time.sleep(args.poll)
@@ -576,7 +633,12 @@ def dry_run(args, modes: list[Mode], cfg_path: str) -> None:
     print(f"load avg：{la[0]:.2f} {la[1]:.2f} {la[2]:.2f}（{os.cpu_count()} 核）")
     print(f"powermetrics：{'有' if os.path.exists(POWERMETRICS) else '沒有'}；實跑需 root：{'是（目前不是 root）' if os.geteuid() else '是（目前是 root）'}")
     print(f"\n負載：{'指令 ' + args.load_cmd if args.load_cmd else f'{args.workers} 個 sha256 worker'}")
-    print(f"安全：控制溫度 ≥ {args.abort_temp:g}°C 中止該檔；固定轉速檔位 pressure ≥ Heavy 也中止；結束一律寫回原設定位元組\n")
+    print(f"安全：控制溫度 ≥ {args.abort_temp:g}°C 中止該檔（原廠自動檔 ≥ {args.auto_abort_temp:g}°C、最多觀察 {args.auto_observe_max}s）；"
+          f"固定轉速檔位 pressure ≥ Heavy 也中止；結束一律寫回原設定位元組")
+    if args.cooldown_to > 0:
+        print(f"換檔：停負載、風扇固定 {args.cooldown_rpm:g} rpm，降到 ≤ {args.cooldown_to:g}°C 才開下一檔（最多 {args.cooldown_max}s）\n")
+    else:
+        print("換檔：不降溫（--cooldown-to 0）\n")
     lo, hi = step_bounds(args)
     steps = [(rep, m) for rep in range(1, args.repeat + 1) for m in modes]
     print("計畫：")
@@ -614,7 +676,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--min-settle", type=int, default=120, help="每檔至少等多久才判穩態（秒；避免剛切檔、風扇還在爬就誤判）")
     ap.add_argument("--settle-max", type=int, default=480, help="每檔最多等多久（秒），到了以現況取樣並標記未收斂")
     ap.add_argument("--confirm-timeout", type=int, default=25, help="寫設定後等 guard 熱重載確認的上限（秒）")
-    ap.add_argument("--abort-temp", type=float, default=103, help="控制溫度到此值就放棄該檔（所有檔位）")
+    ap.add_argument("--abort-temp", type=float, default=103, help="控制溫度到此值就放棄該檔（auto 以外的檔位）")
+    ap.add_argument("--auto-abort-temp", type=float, default=108,
+                    help="macOS 原廠自動檔的中止溫度（原廠本來就會跑到 105°C 上下，103 會把要量的行為切掉）")
+    ap.add_argument("--auto-observe-max", type=int, default=300, help="原廠自動檔整段（等穩態＋取樣）最多幾秒")
+    ap.add_argument("--cooldown-to", type=float, default=75, help="換檔前停負載、風扇拉滿，降到此溫度才開下一檔（0 = 不降溫）")
+    ap.add_argument("--cooldown-rpm", type=float, default=4900, help="降溫時的固定轉速")
+    ap.add_argument("--cooldown-max", type=int, default=300, help="降溫最多等幾秒")
     ap.add_argument("--config", default=GUARD_CONFIG, help=f"guard 讀的設定檔（預設 {GUARD_CONFIG}，launchd guard 只讀這份）")
     ap.add_argument("--out-dir", default=None, help="輸出資料夾（預設 ~/cool42-perf-<時間>/，sudo 下是原使用者的家目錄）")
     ap.add_argument("--dry-run", action="store_true", help="不碰 root、不寫設定、不跑負載，只印計畫與預估時間")
@@ -729,6 +797,8 @@ def main(argv: list[str] | None = None) -> int:
             row = {"step": i, "rep": rep, "mode": mode.label, "title": mode.title, "rpm_set": mode.rpm,
                    "started_at": f"{datetime.now():%H:%M:%S}"}
             results.append(row)
+            if args.cooldown_to > 0:   # 第 1 檔若已夠涼會立刻過
+                row.update(cooldown(load, base, cfg_path, args, log))
             st = time.time()
             apply_mode(mode, base, cfg_path, args, log)
             state, reason, trace = wait_for_steady(mode, args, log)
