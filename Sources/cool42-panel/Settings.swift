@@ -408,6 +408,7 @@ extension SoundSettings {
 @Observable final class PanelLook {
     var appearance = GlassStyle.appearance
     var transparency = GlassStyle.transparency
+    var blur = GlassStyle.blur
 }
 
 struct DisplaySettings: View {
@@ -429,6 +430,8 @@ struct DisplaySettings: View {
                     Text(L("深色")).tag("dark")
                 }
                 .pickerStyle(.segmented)
+                Toggle(L("模糊背景"), isOn: Binding(get: { look.blur }, set: { look.blur = $0; GlassStyle.blur = $0 }))
+                    .toggleStyle(.switch).controlSize(.mini)
                 LabeledContent(L("透明度")) {
                     HStack(spacing: 8) {
                         Image(systemName: "circle.fill").imageScale(.small).foregroundStyle(.secondary).accessibilityHidden(true)
@@ -445,7 +448,9 @@ struct DisplaySettings: View {
             } header: { Text(L("面板外觀")) } footer: {
                 SettingsFooter(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
                     ? L("系統的「減少透明度」開著，面板用實色底，透明度設定暫時不作用")
-                    : L("越透明越看得到桌布，但底下是白色網頁或亮色視窗時字會變難讀；預設值是和 Dock 並排調出來的"))
+                    : look.blur
+                        ? L("模糊背景開著是 Apple 的玻璃材質：背景一定會被模糊，透明度只調深淺，看不到後面的東西。要看得到桌布與後面的視窗，把「模糊背景」關掉")
+                        : L("模糊背景關著：後面的桌布與視窗清楚可見，透明度調疊層濃淡。背景越花字越難讀，底下是白色網頁時建議把透明度調低"))
             }
             Section {
                 Toggle(L("降頻、過熱與恢復正常時發通知"), isOn: Binding(get: { monitor.notifyOn }, set: { monitor.notifyOn = $0 }))

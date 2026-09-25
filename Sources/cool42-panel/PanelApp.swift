@@ -171,7 +171,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NotificationCenter.default.addObserver(forName: GlassStyle.changed, object: nil, queue: .main) { [weak self] _ in
             guard let self, let p = self.panel else { return }
             p.appearance = GlassStyle.nsAppearance
-            if #available(macOS 26.0, *), let g = p.contentView as? TintedGlassView { g.applyStyle() } else { self.applyBackground() }
+            let root = p.contentView?.subviews.first
+            if !GlassStyle.blur, let s = root as? ScrimPanelBackground {
+                s.needsDisplay = true
+            } else if #available(macOS 26.0, *), GlassStyle.blur, let g = root as? TintedGlassView {
+                g.applyStyle()
+            } else {
+                self.applyBackground()
+            }
             p.invalidateShadow()
         }
         // 使用者切「減少透明度」「增加對比」時即時換底。這個通知發在 NSWorkspace 自己的 notificationCenter，
@@ -208,6 +215,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             root = solid
             host.frame = solid.bounds
             solid.addSubview(host)
+        } else if !GlassStyle.blur {
+            let scrim = ScrimPanelBackground()
+            scrim.radius = r
+            root = scrim
+            host.frame = scrim.bounds
+            scrim.addSubview(host)
         } else if #available(macOS 26.0, *), forced != "legacy" {
             let glass = TintedGlassView()
             glass.cornerRadius = r
@@ -380,6 +393,16 @@ enum GlassStyle {
     static var nsAppearance: NSAppearance? {
         switch appearance { case "light": return NSAppearance(named: .aqua); case "dark": return NSAppearance(named: .darkAqua); default: return nil }
     }
+    /// 模糊背景：開＝Apple 玻璃（NSGlassEffectView 一定會模糊並提亮背景，調色調只能在深 ↔ 霧灰之間走，看不到後面）；
+    /// 關＝不模糊的半透明疊層，桌布與後面視窗清楚可見（HUD 風）。2026-09-25 使用者回饋「透明度只是變灰變淺」後加的
+    static let blurKey = "panel.blur"
+    static var blur: Bool {
+        // bool(forKey:) 也吃命令列的 "-panel.blur NO"（字串）；as? Bool 只認真的布林值
+        get { UserDefaults.standard.object(forKey: blurKey) == nil ? true : UserDefaults.standard.bool(forKey: blurKey) }
+        set { UserDefaults.standard.set(newValue, forKey: blurKey); NotificationCenter.default.post(name: changed, object: nil) }
+    }
+    /// 疊層濃度：t=0 → 0.85（最清楚），t=1 → 0.10（幾乎全透）；預設 t=0.2 → 0.70，和玻璃深色預設同濃度
+    static var scrimAlpha: Double { 0.85 - 0.75 * transparency }
     static let changed = Notification.Name("cool42.panelLookChanged")
     static var fallback: String? { UserDefaults.standard.string(forKey: "glass.fallback") }
 }
@@ -432,6 +455,26 @@ final class SolidPanelBackground: NSView {
         layer?.masksToBounds = true
         effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = Neon.panelSolidColor.cgColor }
     }
+}
+
+/// 模糊背景關掉時的底：不模糊的半透明色層（深色黑、淺色白），濃度跟著透明度滑桿。
+/// 標成 GlassMaterial 讓窗緣用和玻璃一樣的上下緣方向光
+final class ScrimPanelBackground: NSView, GlassMaterial {
+    var radius: CGFloat = 16
+    override var wantsUpdateLayer: Bool { true }
+    override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true }
+    required init?(coder: NSCoder) { fatalError() }
+    override func updateLayer() {
+        layer?.cornerRadius = radius
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        var a = GlassStyle.scrimAlpha
+        if A11y.increaseContrast(effectiveAppearance) { a = max(a, 0.85) }
+        layer?.backgroundColor = A11y.isDark(effectiveAppearance)
+            ? NSColor(srgbRed: 0, green: 0, blue: 0.02, alpha: a).cgColor
+            : NSColor(white: 1, alpha: a).cgColor
+    }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
 }
 
 /// 舊系統（macOS 14–25）材質上的色層（跟 clear 玻璃配 tint 同一個道理）：
