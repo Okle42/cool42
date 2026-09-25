@@ -34,7 +34,7 @@
   "includeGPU": true,
   "warmTemp": 80,
   "hotTemp": 95,
-  "criticalTemp": 100,
+  "criticalTemp": 108,
   "hookWaitSeconds": 90,
   "hookBlockOnCritical": true,
   "hookAllowCommands": [

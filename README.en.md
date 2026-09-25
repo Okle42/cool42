@@ -173,7 +173,7 @@ guard reads thermal pressure and the P-core hardware clock from `powermetrics` a
 | not throttling (pressure Nominal, GPU not capped, clock not down) | allow regardless of temperature; if the command starts with `swift build` / `xcodebuild` / `blender` / `ffmpeg`… post a pre-warm event | 0 |
 | **throttling**: pressure Moderate / Heavy, or GPU capped by CLTM > 5%, or a clock drop (new version, below) | **wait for recovery (up to 90 s) then allow**, with an explanation | 1 |
 | Trapping / Sleeping | **deny**; can be disabled in config | 2 |
-| temperature ≥ critical (100 °C) | deny regardless of pressure (safety floor) | 2 |
+| temperature ≥ critical (108 °C) | deny regardless of pressure (safety floor) | 2 |
 
 Without guard (no pressure available) it falls back to temperature: ≥ 95 °C wait, ≥ 100 °C deny.
 
@@ -197,7 +197,7 @@ The all-core full-load clock comes from a table of measured values, currently on
 "clockFullLoadMHz": 3936
 ```
 
-**How this relates to the critical safety floor (from the rules, not measured)**: the default `criticalTemp` is also 100 °C, and the hook checks critical first — at a control temperature ≥ 100 °C it denies (or waits, with `hookBlockOnCritical` off). So with default settings, silent throttling at 105–111 °C like on 09-25 already gets new work denied because of the temperature; what the pressure blind spot really affects is the throttling record: daily seconds throttled, the log, the panel and `status`. The clock check changes hook behaviour directly only if `criticalTemp` is set above `clockThrottleTemp`. And to be straight about it: under the same CPU + GPU load the default cool42 curve also sits at 104.4 °C, above critical, so by the rules the hook denies new Bash calls there too — the default curve can't hold this extreme load below 100 °C.
+**How this relates to the critical safety floor (from the rules, not measured)**: the hook checks critical first — at a control temperature ≥ `criticalTemp` it denies (or waits, with `hookBlockOnCritical` off). The default used to be 100 °C, but on 09-25 the cool42 curve settled at 104.4 °C under the same CPU + GPU load with the P-core at full 3936 MHz — a 100 °C floor would deny AI work on a machine running at full speed, contradicting "wait only when actually throttled". So (from the unreleased version on) the default is **108 °C**: above cool42's full-load steady state, below what stock reaches from a cold start (both 09-25 runs passed 112 °C within 35–40 s). Silent throttling between 105 and 108 °C is left to the clock check (`clockThrottleTemp` 100 °C). Config files that hard-code `"criticalTemp": 100` need to be updated by hand.
 
 A wrong value turns a normal clock into "throttling" and makes the hook wait for nothing, which is also why guard doesn't learn the peak by itself: when hot, a single core boosts to 4464, and once that's taken as the peak, the all-core 3936 looks throttled. `clockThrottleRatio` must be between 0.5 and 1 or the config is rejected (the previous one stays in effect).
 

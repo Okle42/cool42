@@ -173,7 +173,7 @@ guard 以 root 從 `powermetrics` 讀 thermal pressure 與 P-core 硬體頻率�
 | 沒降頻（pressure Nominal、GPU 沒被限、時脈沒掉） | 放行，不管幾度；指令開頭是 `swift build` / `xcodebuild` / `blender` / `ffmpeg`… 就先發預熱事件 | 0 |
 | **降頻**：pressure Moderate / Heavy，或 GPU 被 CLTM 壓檔位 > 5%，或時脈降頻（新版，見下） | **等它恢復（最多 90 秒）再放行**，附說明 | 1 |
 | Trapping / Sleeping | **擋下（deny）**；可在 config 關掉 | 2 |
-| 溫度 ≥ critical（100°C） | 不管 pressure 都擋（安全底線） | 2 |
+| 溫度 ≥ critical（108°C） | 不管 pressure 都擋（安全底線） | 2 |
 
 guard 沒跑、拿不到 pressure 時退回溫度門檻：≥ 95°C 等、≥ 100°C 擋。
 
@@ -197,7 +197,7 @@ guard 的 log、每日「降頻秒數」、面板結論、`status --short` 與 h
 "clockFullLoadMHz": 3936
 ```
 
-**和 critical 安全底線的關係（照規則推，不是實測）**：預設 `criticalTemp` 也是 100°C，而 hook 先看 critical —— 控制溫度 ≥ 100°C 就擋下（`hookBlockOnCritical` 關掉則改成等）。所以在預設設定下，09-25 那種 105–111°C 的無聲降頻，hook 本來就會因為溫度擋下；pressure 的盲點實際影響的是「降頻」這個紀錄：每日降頻秒數、log、面板與 `status` 的降頻標示。時脈判斷會直接改變 hook 行為的，是把 `criticalTemp` 調到 `clockThrottleTemp` 以上的設定。也要照實講：同一個 CPU＋GPU 滿載下，cool42 預設曲線也停在 104.4°C，高於 critical，照規則 hook 一樣會擋新的 Bash —— 這種極端負載，預設曲線壓不到 100°C 以下。
+**和 critical 安全底線的關係（照規則推，不是實測）**：hook 先看 critical —— 控制溫度 ≥ `criticalTemp` 就擋下（`hookBlockOnCritical` 關掉則改成等）。預設 `criticalTemp` 原本是 100°C，但 09-25 同一個 CPU＋GPU 滿載下 cool42 曲線穩態是 104.4°C、P-core 全速 3936 MHz —— 用 100 會讓全速運作的機器也擋下 AI 的指令，跟「只在真的降頻才等」矛盾。所以（尚未發布的版本起）預設改為 **108°C**：高於 cool42 滿載穩態，低於原廠冷機起跑會衝到的溫度（09-25 兩輪 35–40 秒就過 112°C）。105–108°C 之間的無聲降頻交給時脈判斷（`clockThrottleTemp` 100°C）處理。舊設定檔若寫死 `"criticalTemp": 100`，要自己改。
 
 填錯會把正常頻率當成降頻、讓 hook 白等，所以不讓 guard 自己學峰值：高溫下單核會衝到 4464，被當成峰值之後，全核的 3936 就會被誤判成降頻。`clockThrottleRatio` 必須在 0.5–1 之間，否則設定檔會被拒收（保留上一份）。
 

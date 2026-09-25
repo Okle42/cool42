@@ -37,7 +37,9 @@ public struct Config: Codable {
     /// 把關門檻（以控制溫度為準）
     public var warmTemp: Double = 80
     public var hotTemp: Double = 95
-    public var criticalTemp: Double = 100
+    /// critical = hook 直接擋下的安全底線。108：2026-09-25 CPU＋GPU 滿載時 cool42 曲線穩態 104.4°C（全速），
+    /// 設 100 會讓全速運作也被擋；原廠同負載 106.8°C 且冷機起跑 40 秒衝過 112°C。降頻另由 pressure／GPU CLTM／時脈判斷
+    public var criticalTemp: Double = 108
     /// 時脈降頻（無聲降頻）：控制溫度 ≥ clockThrottleTemp 且 P-core 硬體頻率 < 全核滿載頻率 × clockThrottleRatio 就算降頻，
     /// 不管 thermal pressure。2026-09-25 實測 M4 原廠自動：pressure 全程 Nominal，P-core 3936 → ~3640 MHz（−7.5%）
     public var clockThrottleTemp: Double = 100

@@ -7,7 +7,7 @@
 - **時脈降頻判斷（無聲降頻）**：控制溫度 ≥ `clockThrottleTemp`（預設 100°C）且 P-core 硬體頻率 < 全核滿載頻率 × `clockThrottleRatio`（預設 0.95）就算降頻，不管 pressure；頻率回到 × 0.97 以上，或溫度低於 `clockThrottleTemp` − `levelHysteresis` 才解除。快照新增 `clockThrottled`
 - 「降頻」的定義改成三選一：pressure 非 Nominal、GPU CLTM > 5%、時脈降頻。hook / `cool42 check` / `wait`、每日「降頻秒數」、log（「熱降頻開始：時脈（pressure 仍 Nominal）」）、面板、`status --short`（「降頻(時脈)」）一起生效
 - **全核滿載頻率用實測表**，目前只有 Apple M4 = 3936 MHz（09-25 所有曲線檔 powermetrics 450/450 筆）；**表外晶片預設不判斷**，可用新設定鍵 `clockFullLoadMHz` 自訂。不讓 guard 自己學峰值：高溫下單核衝到 4464 會被當成峰值，之後全核 3936 就被誤判。`clockThrottleRatio` 必須在 0.5–1 之間
-- 注意：預設 `criticalTemp` 也是 100°C，hook 先看 critical，所以在預設設定下這條主要讓「降頻」紀錄變正確；把 `criticalTemp` 調高時才會直接改變 hook 行為
+- 預設 `criticalTemp` 100 → 108°C：09-25 CPU＋GPU 滿載時 cool42 曲線穩態 104.4°C 且全速，100 會讓全速運作也擋下 AI；108 高於 cool42 滿載穩態、低於原廠冷機起跑的峰值（35–40 秒過 112°C）。105–108°C 的無聲降頻由時脈判斷處理。設定檔寫死 100 的要自己改
 - 3 條新測試（共 43 項）；**還沒實機跑過**，裝上後要再跑一次原廠對照確認不誤判、不漏判
 - **perf 對照腳本**：`extras/perf_vs_temp.py`（每檔切 cool42 設定、等穩態、取樣 powermetrics，記溫度 / 轉速 / P-core 硬體頻率 / 功率 / sha256 工作量 / pressure）、`extras/run_perf_overnight.sh`（空閒檢查、防睡、備份還原設定、完成通知）、`extras/gpu_burn.swift`（`--gpu` 的 Metal 滿載）。四次實跑修掉的坑：換檔前要停負載並降溫（至少 120 秒、維持 30 秒 ≤ 55°C，只看晶片溫度會熱機起跑）；原廠自動檔與曲線檔共用 112°C 安全上限；報表加 P-core 硬體頻率與「比全速 3936」百分比。用法見 [`docs/perf-vs-temp.md`](docs/perf-vs-temp.md)
 - 數據圖新增兩張（CPU＋GPU 時間軸、CPU-only 原廠接手前 60 秒），共 11 張；README 的「數據」改以同機對照為主
