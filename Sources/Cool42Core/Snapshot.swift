@@ -37,6 +37,11 @@ public struct Snapshot: Codable {
     public var gpuThrottlePercent: Double? = nil
     /// 現在誰在吃 CPU（前幾名）
     public var topProcesses: [TopProcess]? = nil
+    /// 目前生效的情境規則名稱（nil = 基本設定）
+    public var profile: String? = nil
+    /// 目前生效的噪音上限（rpm；nil = 不限）與「安全例外暫停中」（critical／降頻時忽略上限）
+    public var maxRPM: Double? = nil
+    public var maxRPMSuspended: Bool? = nil
 
     public struct FanState: Codable {
         public var index: Int
@@ -87,7 +92,8 @@ public struct Snapshot: Codable {
     /// 手動解碼：新加的欄位缺席時用預設值，舊版 guard 寫的快照也讀得懂
     enum CodingKeys: String, CodingKey {
         case time, cpuMax, cpuAvg, gpuMax, controlTemp, ssd, fans, level, sensorOK, guardRunning, guardTargetRPM, guardMode, boostUntil, stats,
-             pcoreMHz, ecoreMHz, thermalPressure, cpuKeys, gpuKeys, gpuActive, gpuMHz, gpuThrottlePercent, topProcesses, clockThrottled
+             pcoreMHz, ecoreMHz, thermalPressure, cpuKeys, gpuKeys, gpuActive, gpuMHz, gpuThrottlePercent, topProcesses, clockThrottled,
+             profile, maxRPM, maxRPMSuspended
     }
     public init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -115,6 +121,9 @@ public struct Snapshot: Codable {
         gpuMHz = try c.decodeIfPresent(Double.self, forKey: .gpuMHz)
         gpuThrottlePercent = try c.decodeIfPresent(Double.self, forKey: .gpuThrottlePercent)
         topProcesses = try c.decodeIfPresent([TopProcess].self, forKey: .topProcesses)
+        profile = try c.decodeIfPresent(String.self, forKey: .profile)
+        maxRPM = try c.decodeIfPresent(Double.self, forKey: .maxRPM)
+        maxRPMSuspended = try c.decodeIfPresent(Bool.self, forKey: .maxRPMSuspended)
     }
     public init(time: Date, cpuMax: Double, cpuAvg: Double, gpuMax: Double, ssd: Double?, fans: [FanState], level: Level, guardRunning: Bool, guardTargetRPM: Double?) {
         self.time = time; self.cpuMax = cpuMax; self.cpuAvg = cpuAvg; self.gpuMax = gpuMax; self.ssd = ssd
@@ -196,6 +205,9 @@ public struct Snapshot: Codable {
         snap.ecoreMHz = alive ? saved?.ecoreMHz : nil
         snap.thermalPressure = alive ? saved?.thermalPressure : nil
         snap.clockThrottled = alive ? saved?.clockThrottled : nil
+        snap.profile = alive ? saved?.profile : nil
+        snap.maxRPM = alive ? saved?.maxRPM : nil
+        snap.maxRPMSuspended = alive ? saved?.maxRPMSuspended : nil
         return snap
     }
 
@@ -292,6 +304,8 @@ public struct Snapshot: Codable {
         if guardRunning {
             s += String(format: "guard 執行中（%@），目標 %@", guardMode ?? "curve", guardTargetRPM.map { String(format: "%.0f rpm", $0) } ?? "auto")
             if let b = boostUntil, b > Date() { s += String(format: "，預熱中（剩 %.0f 秒）", b.timeIntervalSinceNow) }
+            if let p = profile { s += "，情境「\(p)」" }
+            if let m = maxRPM { s += String(format: "，上限 %.0f rpm%@", m, maxRPMSuspended == true ? "（降頻／危險，暫停中）" : "") }
             if let st = stats {
                 s += String(format: "\n今日 %@：最高 %.0f°C，warm %@，hot %@，critical %@；hook 等待 %d 次、擋下 %d 次；預熱 %d 次",
                             st.date, st.maxTemp, Format.hms(st.warmSeconds), Format.hms(st.hotSeconds), Format.hms(st.criticalSeconds),
@@ -352,6 +366,10 @@ public struct Event: Codable {
     public var rpm: Double? = nil
     public var seconds: Double? = nil
     public var note: String? = nil
+    /// 事件檔的擁有者 uid（drain 時從 lstat 填；不寫進 JSON，事件檔自己說的不算）
+    public var ownerUID: uid_t? = nil
+
+    enum CodingKeys: String, CodingKey { case kind, time, rpm, seconds, note }
 
     public static let dir = Snapshot.runDir + "/events"
 
@@ -391,6 +409,7 @@ public struct Event: Codable {
                   let d = FileManager.default.contents(atPath: p), var e = try? dec.decode(Event.self, from: d)
             else { dropped += 1; continue }
             e.note = e.note.map(sanitizeNote)
+            e.ownerUID = st.st_uid
             out.append(e)
         }
         lastDropped = dropped

@@ -57,6 +57,21 @@ public struct Config: Codable {
     public var boostCommands: [String] = ["swift build", "xcodebuild", "cmake", "ninja", "cargo build", "cargo test", "blender", "ffmpeg", "clang", "gcc", "rustc", "go build", "npm run build", "pytest", "python -m", "python3 -m", "make "]
     public var boostRPM: Double = 3000
     public var boostSeconds: Double = 120
+    /// 預熱漸進：先用 boostStartRPM（0 = 不漸進，直接 boostRPM），控制溫度 ≥ boostEscalateTemp、
+    /// 或 10 秒內升溫 ≥ boostEscalateRise 才加碼到 boostRPM。09-20～25 的 log 按波次算 82% 的預熱 30 秒後仍只有 44–52°C，那段不必轟 3000
+    public var boostStartRPM: Double = 2000
+    public var boostEscalateTemp: Double = 70
+    public var boostEscalateRise: Double = 10
+    /// 預熱學習：同一個關鍵字連續 3 次預熱都「不像重工作」就暫停替它預熱 24 小時（狀態在 /var/db/cool42/boost-learn.json）
+    public var boostLearn: Bool = true
+    /// 接管去抖：從交還自動的狀態重新接管，要控制溫度連續這麼多秒都在曲線起點 −5°C 以上（0 = 不等）。
+    /// ≥ hotTemp 或降頻中一律立刻接管。預設 10 秒 = 2 輪，擋掉「單輪尖峰接管、36 秒後交還」的呼吸
+    public var takeoverHoldSeconds: Double = 10
+    /// 噪音上限：guard 的所有目標轉速（曲線、固定、預熱）都夾在這以下；nil = 不限（到風扇上限）。
+    /// 安全例外：hot、critical 或降頻中一律忽略上限（閂鎖，降溫且連續幾輪沒降頻才恢復）。上限越低越安靜，也越可能降頻（09-25 實測原廠停在 ~2,950 rpm 時 P-core −7.4%）
+    public var maxRPM: Double? = nil
+    /// 情境自動切換：依序第一條符合的規則生效（換預設曲線／設 maxRPM），都不符合用上面的基本設定。見 Profiles.swift
+    public var profiles: [Profile] = []
     /// 溫度取樣來源前綴：Tp = P-core、Te = E-core、Tg = GPU
     public var cpuPrefixes: [String] = ["Tp", "Te"]
     public var gpuPrefixes: [String] = ["Tg"]
@@ -91,7 +106,9 @@ public struct Config: Codable {
         case curve, mode, fixedRPM, interval, deadband, smoothingUp, smoothingDown, maxRampDown, maxRampUp, rampDownHoldRounds, levelHysteresis, includeGPU,
              warmTemp, hotTemp, criticalTemp, hookWaitSeconds, hookBlockOnCritical, hookAllowCommands,
              boostCommands, boostRPM, boostSeconds, cpuPrefixes, gpuPrefixes, sounds,
-             clockThrottleTemp, clockThrottleRatio, clockFullLoadMHz
+             clockThrottleTemp, clockThrottleRatio, clockFullLoadMHz,
+             boostStartRPM, boostEscalateTemp, boostEscalateRise, boostLearn, takeoverHoldSeconds,
+             maxRPM, profiles
     }
 
     public init(from d: Decoder) throws {
@@ -123,6 +140,13 @@ public struct Config: Codable {
         clockThrottleTemp = try c.decodeIfPresent(Double.self, forKey: .clockThrottleTemp) ?? clockThrottleTemp
         clockThrottleRatio = try c.decodeIfPresent(Double.self, forKey: .clockThrottleRatio) ?? clockThrottleRatio
         clockFullLoadMHz = try c.decodeIfPresent(Double.self, forKey: .clockFullLoadMHz)
+        boostStartRPM = try c.decodeIfPresent(Double.self, forKey: .boostStartRPM) ?? boostStartRPM
+        boostEscalateTemp = try c.decodeIfPresent(Double.self, forKey: .boostEscalateTemp) ?? boostEscalateTemp
+        boostEscalateRise = try c.decodeIfPresent(Double.self, forKey: .boostEscalateRise) ?? boostEscalateRise
+        boostLearn = try c.decodeIfPresent(Bool.self, forKey: .boostLearn) ?? boostLearn
+        takeoverHoldSeconds = try c.decodeIfPresent(Double.self, forKey: .takeoverHoldSeconds) ?? takeoverHoldSeconds
+        maxRPM = try c.decodeIfPresent(Double.self, forKey: .maxRPM)
+        profiles = try c.decodeIfPresent([Profile].self, forKey: .profiles) ?? profiles
         try validate()
     }
 
@@ -134,6 +158,14 @@ public struct Config: Codable {
         guard (0...1).contains(smoothingUp), (0...1).contains(smoothingDown) else { throw Cool42Error.usage("smoothingUp/Down 必須在 0–1") }
         guard warmTemp < hotTemp, hotTemp < criticalTemp else { throw Cool42Error.usage("門檻必須 warm < hot < critical") }
         guard (0.5..<1).contains(clockThrottleRatio) else { throw Cool42Error.usage("clockThrottleRatio 必須在 0.5–1 之間") }
+        guard boostStartRPM >= 0 else { throw Cool42Error.usage("boostStartRPM 不能是負的（0 = 不漸進）") }
+        guard boostEscalateRise > 0, boostEscalateTemp > 0 else { throw Cool42Error.usage("boostEscalateTemp / boostEscalateRise 必須大於 0") }
+        guard (0...60).contains(takeoverHoldSeconds) else { throw Cool42Error.usage("takeoverHoldSeconds 必須在 0–60 秒（太久等於不接管；hot 與降頻本來就立刻接管）") }
+        if let m = maxRPM, !(m > 0) { throw Cool42Error.usage("maxRPM 必須大於 0（不限制請拿掉這個鍵）") }
+        guard profiles.count <= Profile.maxCount else { throw Cool42Error.usage("profiles 最多 \(Profile.maxCount) 條") }
+        for p in profiles { try p.validate() }
+        let names = profiles.map { $0.name.trimmingCharacters(in: .whitespaces) }
+        guard Set(names).count == names.count else { throw Cool42Error.usage("profiles 的 name 不能重複（guard 用名稱回報哪條生效）") }
         guard cooldownBelow < overheatAbove else { throw Cool42Error.usage("提示音門檻必須 cooldownBelow < overheatAbove") }
     }
 
