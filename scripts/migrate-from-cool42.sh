@@ -70,7 +70,8 @@ have_python() {
 retire() {
   local p="$1" dest
   exists "$p" || return 0
-  dest="$B/removed$p"
+  # root 階段建的 removed/ 是 root 擁有，一般使用者階段寫不進去 → 分開放（restore.sh 照 manifest 的實際路徑搬回，不受影響）
+  if [ "$(id -u)" = 0 ]; then dest="$B/removed$p"; else dest="$B/removed-user$p"; fi
   say "  • 收進備份區：$p"
   run mkdir -p "$(dirname "$dest")"
   run mv "$p" "$dest"
