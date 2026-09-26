@@ -13,7 +13,7 @@
 
 <sub>hero 的三個數字出自 2026-09-25 同機實測（CPU＋GPU 滿載；原廠穩態只有 1 輪，見[數據](#數據)）；右邊的面板是另一個情境（ffmpeg 4K 編碼）的實機取樣。</sub>
 
-<sub>上面 GIF 與 hero 裡的面板是離屏渲染的**實色底**（等同開了「減少透明度」，色值取樣自實機深色玻璃）。macOS 26 以上實機是無邊框的 Liquid Glass 面板：clear 玻璃＋深色 tint（淺色外觀是較淡的白色 tint，底下的顏色透得過來）、和 Dock 一樣只有上下緣的方向光、圓角 26pt，沒有實心卡片，和 Dock、桌面 widget 同一種「深、通透」。下面兩張是實機截圖（截圖為改名前 cool42 時期，畫面上的名稱是舊名；`scripts/snapshot/capture-glass.sh`，即時資料；後面墊的是受控的星空與花俏漸層背景）；與 Dock、widget 的並排對照（含 4× 圓角與窗緣逐像素亮度）在 [`glass-compare.png`](docs/img/screens/glass-compare.png)：</sub>
+<sub>上面 GIF 與 hero 裡的面板是離屏渲染的**實色底**（等同開了「減少透明度」，色值取樣自實機深色玻璃）。macOS 26 以上實機是無邊框的 Liquid Glass 面板：clear 玻璃＋深色 tint（淺色外觀是較淡的白色 tint，底下的顏色透得過來）、和 Dock 一樣只有上下緣的方向光、圓角 26pt，沒有實心卡片，和 Dock、桌面 widget 同一種「深、通透」。下面兩張是實機截圖（`scripts/snapshot/capture-glass.sh`，即時資料；後面墊的是受控的星空與花俏漸層背景）；與 Dock、widget 的並排對照（含 4× 圓角與窗緣逐像素亮度）在 [`glass-compare.png`](docs/img/screens/glass-compare.png)：</sub>
 
 <p align="center"><img src="docs/img/screens/panel-glass-dark.png" width="300" alt="實機截圖：深色外觀、星空桌布上的 Liquid Glass 面板"> <img src="docs/img/screens/panel-glass-light.png" width="300" alt="實機截圖：淺色外觀、花俏漸層背景上的 Liquid Glass 面板（看得到底下的顏色）"></p>
 
