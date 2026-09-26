@@ -419,3 +419,9 @@
 "背景模糊度" = "Background blur";
 "模糊背景關著：模糊度 0 是完全不模糊的真透明，往右越模糊；透明度調疊層濃淡。背景越花字越難讀，可以把模糊度調高一點" = "With Blur Background off, blur 0 is fully sharp transparency and moving right blurs more; transparency sets how dense the overlay is. Busy backgrounds make text harder to read — try a little more blur.";
 "這台 macOS 不支援自訂模糊度，面板維持不模糊的真透明；透明度調疊層濃淡" = "This version of macOS doesn’t support custom blur, so the panel stays sharp and transparent; transparency sets how dense the overlay is.";
+
+/* 健康檢查：自訂模糊度 */
+"自訂模糊度" = "Custom blur";
+"可用（%@）" = "Available (%@)";
+"這版 macOS 找不到系統的模糊函式，面板已改用 Apple 玻璃（模糊度固定）；請回報 issue" = "This version of macOS doesn’t have the system blur function, so the panel switched to Apple glass (fixed blur). Please file an issue.";
+"這版 macOS 找不到系統的模糊函式，模糊度滑桿停用；Apple 玻璃不受影響" = "This version of macOS doesn’t have the system blur function, so the Blur slider is disabled. Apple glass isn’t affected.";

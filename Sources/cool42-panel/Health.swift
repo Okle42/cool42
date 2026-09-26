@@ -102,6 +102,16 @@ enum Health {
         // 9. log 輪替
         if !fm.fileExists(atPath: logRotation) { add(L("記錄檔輪替"), L("沒有%@，記錄檔會一直長大", logRotation), .warn) }
 
+        // 自訂模糊度用的是 SkyLight 私有函式：macOS 更新拿掉時要第一時間知道。只有使用者真的在用（模糊背景關、模糊度 > 0）才亮紅燈
+        let usingCustomBlur = !GlassStyle.blur && GlassStyle.blurRadius > 0
+        if let n = WindowBlur.symbolName {
+            add(L("自訂模糊度"), L("可用（%@）", n), .ok)
+        } else {
+            add(L("自訂模糊度"),
+                usingCustomBlur ? L("這版 macOS 找不到系統的模糊函式，面板已改用 Apple 玻璃（模糊度固定）；請回報 issue")
+                                : L("這版 macOS 找不到系統的模糊函式，模糊度滑桿停用；Apple 玻璃不受影響"),
+                usingCustomBlur ? .bad : .warn)
+        }
         return out
     }
 
