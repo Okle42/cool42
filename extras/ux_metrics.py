@@ -64,10 +64,12 @@ def collect(path):
         b["first"] = b["first"] or t
         b["last"] = t
         fields = []
-        if msg.startswith("cool42 guard 啟動"):
+        # 字首是產品名：改名前的 log 是舊名，跳過第一個字再比
+        after_name = msg.split(" ", 1)[-1]
+        if after_name.startswith("guard 啟動"):
             auto = True
             wave_until = None
-        elif msg.startswith("cool42 guard 結束"):
+        elif after_name.startswith("guard 結束"):
             auto = True  # SIGTERM 結束會保持轉速，但重啟後 guard 第一輪一定重寫目標，同樣記為接管
         elif "→ 交還自動" in msg or "風扇交還自動" in msg:
             fields += ["handbacks", "target_changes"]

@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     lazy var settings = SettingsWindowController(monitor: monitor)
 
     static func main() {
+        // 改名前的面板偏好（com.cool42.panel）搬一次；要在 AppDelegate() 之前，Monitor 初始化就會讀 UserDefaults
+        LegacyDefaults.migrateOnce()
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

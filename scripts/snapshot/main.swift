@@ -203,7 +203,10 @@ let monitor = Monitor()
     monitor.totalToday = monitor.todayEvents.count
     monitor.todayThrottles = monitor.todayEvents.filter { $0.kind == .throttleStart }.count
     monitor.todayBoosts = monitor.todayEvents.filter { $0.kind == .boost }.reduce(0) { $0 + ($1.boost?.count ?? 1) }
-    monitor.health = Health.run(snapshot: monitor.snapshot, config: cfg)
+    // 健康檢查會讀本機（LaunchDaemon plist、Claude Code hook、log 輪替⋯），跟情境無關：本機還沒裝好或剛改名、還沒重跑
+    // install.sh 時，每張 README 圖都會冒出紅燈。除了 health／health-bad 變體，只留 ok 的項目（等同健康的機器）
+    let health = Health.run(snapshot: monitor.snapshot, config: cfg)
+    monitor.health = variants.contains("health") || variants.contains("health-bad") ? health : health.filter { $0.severity == .ok }
     monitor.notifyOn = true
     monitor.notifyAuth = variants.contains("notify-denied") ? .denied : variants.contains("notify-unasked") ? .notDetermined : .allowed
     monitor.editingProfile = variants.contains("profile-edit") ? 1 : nil

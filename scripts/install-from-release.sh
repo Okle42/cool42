@@ -104,8 +104,7 @@ root_install() {
   # bootout 後 guard 要先把風扇交還再退出，launchd 還沒清完就 bootstrap 會回 5 (I/O error)，等它真的消失再裝
   launchctl bootout "system/$LABEL_GUARD" 2>/dev/null || true
   wait_guard_gone
-  # 1.0.2 以前的執行期檔案放 /tmp（有 symlink 風險），升級時清掉
-  rm -rf /tmp/cool42.json /tmp/cool42.json.tmp /tmp/cool42.history.json /tmp/cool42.history.json.tmp /tmp/cool42.events
+  # 改名前（原名 cool42）留下的檔案由 scripts/migrate-from-cool42.sh 處理，do_install 在 root 步驟之前就會先跑
   for i in 1 2 3; do
     launchctl bootstrap system /Library/LaunchDaemons/com.cool42.guard.plist && return 0
     echo "bootstrap 失敗，重試 ${i}…"; sleep 2
@@ -139,8 +138,7 @@ root_uninstall() {
   # guard 收 SIGTERM 會保持轉速（等重啟接管），移除時要明確交還
   if [ -x /usr/local/bin/cool42 ]; then /usr/local/bin/cool42 fan auto 2>/dev/null || true; fi
   rm -rf /Library/LaunchDaemons/com.cool42.guard.plist /usr/local/bin/cool42 /usr/local/bin/cool42-guard \
-         /etc/newsyslog.d/cool42.conf /var/db/cool42 /var/run/cool42 "$SHARE" \
-         /tmp/cool42.json /tmp/cool42.history.json /tmp/cool42.events
+         /etc/newsyslog.d/cool42.conf /var/db/cool42 /var/run/cool42 "$SHARE"
 }
 
 # ───────────── 使用者層級步驟 ─────────────
@@ -197,6 +195,14 @@ do_install() {
   chmod -R a+rX "$pay"; chmod a+rx "$pay"
   # 先在使用者這邊核對一次（及早報錯）；root 那邊會在自己的目錄再核對一次才安裝
   if [ -f "$pay/SHA256SUMS" ]; then (cd "$pay" && /usr/bin/shasum -a 256 -c -s SHA256SUMS) || die "SHA256SUMS 核對失敗：release 目錄內容被改過"; fi
+
+  # cool42 原名 cool42：偵測到改名前的安裝就先搬（設定、統計、log、hook、MCP 一起帶過來；舊檔收進 ~/cool42-migration-backup-*）
+  if [ -f "$pay/scripts/migrate-from-cool42.sh" ] && /bin/bash "$pay/scripts/migrate-from-cool42.sh" --detect; then
+    echo "▶ 偵測到改名前的 cool42，先搬遷"
+    local mig_args=(--mcp-script "$SHARE/mcp/cool42_mcp.py")
+    if [ "$skip_claude" = 1 ]; then mig_args+=(--skip-claude); fi
+    /bin/bash "$pay/scripts/migrate-from-cool42.sh" "${mig_args[@]}" || die "從 cool42 搬遷失敗（上面有還原方法），cool42 沒有安裝"
+  fi
 
   echo "▶ 安裝 CLI、guard LaunchDaemon、支援檔到 ${SHARE}（需要管理員密碼）"
   # root 不直接執行使用者可寫目錄裡的 install.sh：先複製到 root 擁有的暫存目錄、核對 SHA256SUMS，再從那份執行

@@ -20,8 +20,14 @@ enum GuardLogPattern {
     static let cap = "噪音上限 "
     static let capPause = "暫停"
     static let capResume = "恢復"
-    static let guardStart = "cool42 guard 啟動"
-    static let guardStop = "cool42 guard 結束"
+    /// guard 起訖行的字首是「產品名 guard 啟動／結束」。改名後 /var/log/cool42.log 裡還會有改名前留下的舊名行
+    /// （搬遷腳本把舊 log 接過來），所以比對時跳過第一個字，不寫死產品名，見 isGuardLine
+    static let guardStart = "guard 啟動"
+    static let guardStop = "guard 結束"
+    static func isGuardLine<S: StringProtocol>(_ m: S, _ pattern: String) -> Bool {
+        guard let sp = m.firstIndex(of: " ") else { return false }
+        return m[m.index(after: sp)...].hasPrefix(pattern)
+    }
     static let reload = "設定已重載"
     static let mode = "模式 "
     static let sensorFault = "⚠️ 感測器"

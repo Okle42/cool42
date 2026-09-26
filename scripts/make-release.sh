@@ -36,9 +36,9 @@ if [ -z "$VERSION" ]; then
   VERSION="$(grep -m1 -E '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
 fi
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "✗ 版本號格式不對：'$VERSION'"; exit 1; }
-# RELEASE_REF 是 tag 時，tag 名稱必須是 v$VERSION（避免拿 v1.0.3 的程式碼打成 1.0.4 的包）
+# RELEASE_REF 是 tag 時，tag 名稱必須是 v${VERSION}（避免拿 v1.0.3 的程式碼打成 1.0.4 的包）
 if git -C "$ROOT" show-ref --verify --quiet "refs/tags/$REF" || git -C "$ROOT" show-ref --verify --quiet "refs/tags/${REF#refs/tags/}"; then
-  [ "${REF#refs/tags/}" = "v$VERSION" ] || { echo "✗ RELEASE_REF=$REF 是 tag，但版本號是 $VERSION（應為 v$VERSION）"; exit 1; }
+  [ "${REF#refs/tags/}" = "v$VERSION" ] || { echo "✗ RELEASE_REF=$REF 是 tag，但版本號是 ${VERSION}（應為 v${VERSION}）"; exit 1; }
 fi
 BUILD_NUMBER="$(git -C "$ROOT" rev-list --count "$COMMIT")"
 NAME="cool42-$VERSION"
@@ -110,10 +110,10 @@ cat > "$STAGE/uninstall.sh" <<'SH'
 exec "$(cd "$(dirname "$0")" && pwd)/install.sh" --uninstall "$@"
 SH
 cp install/com.cool42.guard.plist install/newsyslog-cool42.conf install/claude-settings.snippet.json "$STAGE/install/"
-cp scripts/install-hook.py scripts/install-mcp.sh "$STAGE/scripts/"
+cp scripts/install-hook.py scripts/install-mcp.sh scripts/migrate-from-cool42.sh "$STAGE/scripts/"   # 最後一支：改名前（原名 cool42）的搬遷
 cp mcp/cool42_mcp.py "$STAGE/mcp/"
 cp config.example.json LICENSE README.md README.en.md CHANGELOG.md "$STAGE/"
-chmod 755 "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/scripts/install-hook.py" "$STAGE/scripts/install-mcp.sh" "$STAGE/mcp/cool42_mcp.py"
+chmod 755 "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/scripts/install-hook.py" "$STAGE/scripts/install-mcp.sh" "$STAGE/scripts/migrate-from-cool42.sh" "$STAGE/mcp/cool42_mcp.py"
 echo "$VERSION" > "$STAGE/VERSION"
 echo "$MODE" > "$STAGE/SIGNING"
 echo "$COMMIT" > "$STAGE/COMMIT"

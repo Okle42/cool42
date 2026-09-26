@@ -3,7 +3,7 @@
 
 資料來源（全部是真實數據，不捏造）：
   * docs/ab-test-2026-09-16/        A/B 實測（samples.txt、powermetrics-A/B.txt、config-A/B.json）
-  * extras/viz/data/cool42-log-*.txt  /var/log/cool42.log 凍結快照（2026-09-20 01:18:34 → 2026-09-23 23:42:28）
+  * extras/viz/data/cool42-log-*.txt  /var/log/cool42.log 凍結快照（2026-09-20 01:18:34 → 2026-09-23 23:42:28；內容保留原樣，當時名稱為 cool42）
   * extras/viz/data/stats-*.json      /var/db/cool42/stats.json 當日快照
   * extras/viz/data/perf-2026-09-25.json  docs/perf-2026-09-25 四次原廠對照實跑的 trace／powermetrics（recompute.py --viz 產生）
   加 --live 改讀 /var/log/cool42.log 與 /var/db/cool42/stats.json（數字會跟著變）。

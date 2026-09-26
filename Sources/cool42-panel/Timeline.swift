@@ -191,9 +191,9 @@ enum DayLog {
                 }
             } else if m.hasPrefix(GuardLogPattern.configKeysGone) {
                 out.append(DayEvent(time: t, kind: .warning, text: L("設定檔裡的上限或情境規則不見了（舊版面板按了套用？）")))
-            } else if m.hasPrefix(GuardLogPattern.guardStart) {
+            } else if GuardLogPattern.isGuardLine(m, GuardLogPattern.guardStart) {
                 out.append(DayEvent(time: t, kind: .guardStart, text: L("guard啟動")))
-            } else if m.hasPrefix(GuardLogPattern.guardStop) {
+            } else if GuardLogPattern.isGuardLine(m, GuardLogPattern.guardStop) {
                 out.append(DayEvent(time: t, kind: .guardStop, text: L("guard結束")))
             } else if m.hasPrefix(GuardLogPattern.reload) {
                 // 只記模式真的換了的那幾次（改曲線點、音檔不算）
