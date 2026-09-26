@@ -7,12 +7,12 @@
 #   其他參數：--skip-claude（不動 Claude Code 的 hook 與 MCP）、--mcp-script PATH（新 MCP server 的路徑，預設本專案 mcp/cool42_mcp.py）
 #
 # 會做的事（每一步先檢查、做完驗證，失敗就停並印還原方法；已經搬過的步驟會略過，可以重跑）：
-#   使用者層級：備份面板偏好（defaults export com.cool42.panel）→ 停舊面板、收掉舊 LaunchAgent 與 /Applications 的舊 app
-#   root（系統密碼視窗，做法同 install.sh）：停舊 guard（bootout com.cool42.guard）並把風扇交還 macOS →
+#   root（最先做；系統密碼視窗，做法同 install.sh；按取消就什麼都沒動）：停舊 guard（bootout com.cool42.guard）並把風扇交還 macOS →
 #     /etc/cool42/config.json 複製到 /etc/cool42/（內容、擁有者、權限不變；hookAllowCommands 的 "cool42" 換成 "cool42"）→
 #     /var/db/cool42 的統計與預熱學習、/var/log/cool42*.log 接到 cool42 的位置 →
 #     舊 LaunchDaemon plist、舊 CLI、舊 newsyslog 設定、/var/run/cool42、/usr/local/share/cool42、1.0.2 以前的 /tmp 檔收進備份區
-#   使用者層級：~/.config/cool42 → ~/.config/cool42；~/.claude/settings.json 的 cool42 hook 換成 cool42（先備份）；
+#   使用者層級：備份面板偏好（defaults export com.cool42.panel）→ 停舊面板、收掉舊 LaunchAgent 與 /Applications 的舊 app →
+#     ~/.config/cool42 → ~/.config/cool42；~/.claude/settings.json 的 cool42 hook 換成 cool42（先備份）；
 #     claude mcp remove cool42 → add cool42；最後提示 ~/.claude/scripts/statusline.py 裡讀 /var/run/cool42 的地方（只提示，不改）
 #
 # 不直接刪任何東西：舊檔一律 mv 到 ~/cool42-migration-backup-<時間>/removed/<原路徑>，新位置的檔案是複製後逐檔比對過的。
@@ -377,6 +377,9 @@ PY
   else
     say "  • settings.json 裡沒有 cool42 hook，略過"
   fi
+  if [ ! -x /usr/local/bin/cool42 ]; then
+    warn "/usr/local/bin/cool42 還沒裝：搬遷後到跑完 ./install.sh 之前（舊的 cool42 CLI 已收進備份區），Claude Code 每次 Bash 呼叫的 hook 會出現 command not found（不會擋工作）。請接著跑 ./install.sh"
+  fi
 
   say "▶ Claude Code MCP server：cool42 → cool42"
   if ! command -v claude >/dev/null 2>&1; then say "  • 找不到 claude CLI，略過"; return 0; fi
@@ -447,18 +450,20 @@ main() {
   say "備份目錄：$B"
   echo
 
-  user_stage_panel
-  echo
+  # root 階段放最前面：密碼視窗按取消（osascript -128）時，使用者層的東西（面板、LaunchAgent、settings.json）都還沒動，
+  # 舊 guard 和舊面板照常在跑，不需要 restore.sh
   if [ "$DRY" = 1 ]; then
     say "▶ 以下是 root 階段（實際執行時會跳一次系統密碼視窗）"
     root_stage "$B" "$(id -un)" 1
   else
     say "▶ root 階段（會跳系統密碼視窗）"
-    as_root /bin/bash "$SELF" --root-stage "$B" "$(id -un)" 0 || die "root 階段失敗"
+    as_root /bin/bash "$SELF" --root-stage "$B" "$(id -un)" 0 || die "root 階段失敗或密碼視窗被取消（使用者層的面板與設定都還沒動）"
     # 驗證 root 階段真的做完（osascript 路徑看不到 root 端的 exit code 以外的東西）
     guard_loaded && die "舊 guard 還在跑"
     [ -z "$(root_leftovers)" ] || die "root 階段之後還有舊檔：$(root_leftovers | tr '\n' ' ')"
   fi
+  echo
+  user_stage_panel
   echo
   user_stage_config
   echo

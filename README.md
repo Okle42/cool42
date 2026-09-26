@@ -13,7 +13,7 @@
 
 <sub>hero 的三個數字出自 2026-09-25 同機實測（CPU＋GPU 滿載；原廠穩態只有 1 輪，見[數據](#數據)）；右邊的面板是另一個情境（ffmpeg 4K 編碼）的實機取樣。</sub>
 
-<sub>上面 GIF 與 hero 裡的面板是離屏渲染的**實色底**（等同開了「減少透明度」，色值取樣自實機深色玻璃）。macOS 26 以上實機是無邊框的 Liquid Glass 面板：clear 玻璃＋深色 tint（淺色外觀是較淡的白色 tint，底下的顏色透得過來）、和 Dock 一樣只有上下緣的方向光、圓角 26pt，沒有實心卡片，和 Dock、桌面 widget 同一種「深、通透」。下面兩張是實機截圖（`scripts/snapshot/capture-glass.sh`，即時資料；後面墊的是受控的星空與花俏漸層背景）；與 Dock、widget 的並排對照（含 4× 圓角與窗緣逐像素亮度）在 [`glass-compare.png`](docs/img/screens/glass-compare.png)：</sub>
+<sub>上面 GIF 與 hero 裡的面板是離屏渲染的**實色底**（等同開了「減少透明度」，色值取樣自實機深色玻璃）。macOS 26 以上實機是無邊框的 Liquid Glass 面板：clear 玻璃＋深色 tint（淺色外觀是較淡的白色 tint，底下的顏色透得過來）、和 Dock 一樣只有上下緣的方向光、圓角 26pt，沒有實心卡片，和 Dock、桌面 widget 同一種「深、通透」。下面兩張是實機截圖（截圖為改名前 cool42 時期，畫面上的名稱是舊名；`scripts/snapshot/capture-glass.sh`，即時資料；後面墊的是受控的星空與花俏漸層背景）；與 Dock、widget 的並排對照（含 4× 圓角與窗緣逐像素亮度）在 [`glass-compare.png`](docs/img/screens/glass-compare.png)：</sub>
 
 <p align="center"><img src="docs/img/screens/panel-glass-dark.png" width="300" alt="實機截圖：深色外觀、星空桌布上的 Liquid Glass 面板"> <img src="docs/img/screens/panel-glass-light.png" width="300" alt="實機截圖：淺色外觀、花俏漸層背景上的 Liquid Glass 面板（看得到底下的顏色）"></p>
 
@@ -269,7 +269,7 @@ scripts/migrate-from-cool42.sh --dry-run   # 只印會做什麼，不動任何�
 scripts/migrate-from-cool42.sh             # 跳一次系統密碼視窗；跑完再 ./install.sh 裝 cool42
 ```
 
-它會：停掉舊 guard（先把風扇交還 macOS）、把 `/etc/cool42/config.json` 搬到 `/etc/cool42/`（內容與擁有者不變，`hookAllowCommands` 裡的舊名換成 `cool42`）、搬 `/var/db/cool42` 的統計與預熱學習、把舊 log 接到 `/var/log/cool42.log`、`~/.config/cool42` 搬到 `~/.config/cool42`、收掉舊 LaunchDaemon／CLI／newsyslog／面板 app 與 LaunchAgent、`~/.claude/settings.json` 的 hook 換成 `cool42 hook`、MCP server 從 `cool42` 換成 `cool42`。面板偏好（`com.cool42.panel`）由新面板第一次啟動時自己讀過來。所有被換掉或移走的東西都先放進 `~/cool42-migration-backup-<時間>/`（不直接刪），任何一步失敗就停下並印出還原方法。可以重跑：已經搬過的步驟會略過。
+它會：停掉舊 guard（先把風扇交還 macOS）、把 `/etc/cool42/config.json` 搬到 `/etc/cool42/`（內容與擁有者不變，`hookAllowCommands` 裡的舊名換成 `cool42`）、搬 `/var/db/cool42` 的統計與預熱學習、把舊 log 接到 `/var/log/cool42.log`、`~/.config/cool42` 搬到 `~/.config/cool42`、收掉舊 LaunchDaemon／CLI／newsyslog／面板 app 與 LaunchAgent、`~/.claude/settings.json` 的 hook 換成 `cool42 hook`、MCP server 從 `cool42` 換成 `cool42`。面板偏好（`com.cool42.panel`）由新面板第一次啟動時自己讀過來。所有被換掉或移走的東西都先放進 `~/cool42-migration-backup-<時間>/`（不直接刪），任何一步失敗就停下並印出還原方法；需要 root 的步驟最先做，密碼視窗按取消的話舊 guard 與面板都照常在跑、什麼都沒動。只跑搬遷、還沒跑 `./install.sh` 之前，Claude Code 的 hook 會找不到 `cool42`（不會擋工作），所以搬完請接著裝。可以重跑：已經搬過的步驟會略過。
 
 MCP server 需要 [`uv`](https://docs.astral.sh/uv/)（自動抓 `mcp` 套件到隔離環境，不碰系統 Python）；沒有 `uv` 或 `claude` CLI 時 install.sh 會略過這一步，其他功能不受影響。
 
@@ -508,7 +508,7 @@ docs/                   A/B 與原廠對照實測資料、技術發現、長文�
 
 ## 作者
 
-**[Okle42](https://github.com/Okle42)** —— 把 AI agent 放進真實工作流程的實作團隊。cool42 本身就是一個例子：約 4 天、42 個 commit 從 0.1 走到 1.0.3，大部分程式和 Claude Code 一起寫；1.0.1 的四個修正是讓 agent 讀 guard 自己的 log 找出來的。問題、回報、合作請開 [issue](https://github.com/Okle42/cool42/issues)。
+cool42 是 **[okle42](https://github.com/Okle42)** 的個人作品：約 4 天、42 個 commit 從 0.1 走到 1.0.3，大部分程式和 Claude Code 一起寫；1.0.1 的四個修正是讓 agent 讀 guard 自己的 log 找出來的。問題與回報請開 [issue](https://github.com/Okle42/cool42/issues)。
 
 ## 授權
 
