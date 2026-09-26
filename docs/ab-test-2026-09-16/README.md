@@ -1,5 +1,7 @@
 # A/B 實測：激進曲線 vs 中間路線（2026-09-16）
 
+> **當時名稱為 cool42**（cool42 原名 cool42，2026-09-27 改名）。這個資料夾的原始檔（`ab.sh`、`config-A.json`、`config-B.json`、`history-*.json`、`powermetrics-*.txt`、`samples.txt`、`timeline.txt`）保留量測當時的原樣，裡面的指令與路徑還是 `cool42`（例如 `cool42 status --short`、`/etc/cool42/config.json`、`/tmp/cool42.history.json`）；要重跑請把 `ab.sh` 裡的名稱與路徑換成 cool42 的（`/var/run/cool42/history.json`、`/etc/cool42/config.json`）。
+
 目的：確認「風扇少轉 25%」會不會讓 M4 降頻。
 
 結論（照資料能說到的程度）：同一負載下 B 曲線比 A 少轉 25%、控制溫度只多 3.8°C，B 段最高 93°C。**B 段 5 分鐘內沒有 powermetrics 取樣**，所以「B 段內有沒有降頻」這份資料回答不了；下面的 powermetrics 都是在 A 曲線生效時量的（見「powermetrics 取樣時間」）。

@@ -1,5 +1,7 @@
 # 原廠自動 vs cool42 曲線：四次同機實跑（2026-09-25）
 
+> **當時名稱為 cool42**（cool42 原名 cool42，2026-09-27 改名）。這個資料夾的原始數據（`run*/perf.log`、`run*/pm/*`、`run*/results.*`、`run*/summary.md`、`guard-log-2026-09-25-1110.txt`）是量測當時的輸出，保留原樣，裡面的指令、路徑與標題都還是 `cool42`（例如 `/usr/local/bin/cool42`、`/etc/cool42/config.json`、`/var/log/cool42.log`）；本文與 `recompute.py` 已改用新名稱。
+
 目的：同一台 Mac、同一個負載下，把風扇交給 macOS 原廠自動與 cool42 曲線，比較溫度、轉速、P-core 頻率與工作量；順便抓「pressure 還是 Nominal、但頻率已經掉了」的無聲降頻。
 
 **一句話（照資料能說到的程度）**：CPU＋GPU 滿載時，原廠自動讓風扇停在約 2,950 rpm、溫度 106.8°C（取樣窗平均），P-core 從 3936 掉到 3644 MHz（−7.4%），thermal pressure 全程 Nominal；cool42 曲線同負載 4,877 rpm、104.4°C、P-core 3936 全速，工作量多 4.7%。**原廠穩態只有 1 輪、而且是熱機起跑**（腳本降溫判定 bug），冷機起跑的兩輪 35–40 秒就超過 112°C 被切掉，所以這是 n=1 的對照，不是定論。

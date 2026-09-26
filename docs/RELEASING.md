@@ -181,5 +181,5 @@ cask 做的事：`app` 把面板放進 `/Applications`，`binary` 把包裡的 `
 
 `install-root.sh` 會從 `.build/release/` 拿 binary，並且一律 `codesign --sign -` 重簽成 ad-hoc。
 release 包沒有 `.build/`，而 Developer ID 簽章一旦被重簽就失效，所以 `install-from-release.sh` 自帶 root 步驟：
-簽章有效就保留、壞了才補 ad-hoc；其餘（寫暫存檔再 `mv` 換 inode、等 guard 真的消失再 bootstrap、清 1.0.2 以前的 `/tmp` 檔）照原本的做法。
+簽章有效就保留、壞了才補 ad-hoc；其餘（寫暫存檔再 `mv` 換 inode、等 guard 真的消失再 bootstrap）照原本的做法；改名前（原名 cool42）的舊檔交給 `scripts/migrate-from-cool42.sh`。
 兩邊的 root 步驟改動時要一起看。

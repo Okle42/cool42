@@ -2,6 +2,8 @@
 
 [繁體中文](README.md)
 
+> **cool42 was formerly named cool42** (renamed 2026-09-27, same features). If you already have cool42 installed, see [Upgrading from cool42](#upgrading-from-cool42): one run carries your config, stats and panel preferences over.
+
 **In one line: your AI coding agent checks for throttling before heavy work — full speed while the Mac isn't throttling, hot or not (except at the ≥ 100 °C safety floor), and it waits only when it actually is.** "Throttling" means any of three signals: macOS thermal pressure above `Nominal`, the GPU capped by CLTM, or the P-core hardware clock dropping below its all-core full-load value. The third was added after a same-machine test on 2026-09-25 found **the P-cores 7.4% down while macOS still reported `Nominal`**, and it isn't in any release yet (see [Data](#data) and [What counts as throttling](#what-counts-as-throttling)).
 
 <p align="center"><img src="docs/img/demo-en.gif" width="880" alt="cool42 panel demo: idle → heavy load → throttling → Claude Code hook waits → allowed"></p>
@@ -257,6 +259,17 @@ cool42 doctor    # all 16 checks green = done
 ```
 
 Remove with `./uninstall.sh` (explicitly runs `cool42 fan auto` to hand the fan back to macOS, config kept). If you only stop guard with `launchctl bootout`, run `sudo cool42 fan auto` afterwards — guard keeps the current fan speed on SIGTERM (see "Worst case" below).
+
+#### Upgrading from cool42
+
+cool42 was formerly named cool42. The source install `./install.sh` detects an old install and runs `scripts/migrate-from-cool42.sh` first; you can also preview and run it yourself:
+
+```bash
+scripts/migrate-from-cool42.sh --dry-run   # print the plan only, change nothing
+scripts/migrate-from-cool42.sh             # one system password dialog; then ./install.sh installs cool42
+```
+
+It stops the old guard (handing the fan back to macOS first), moves `/etc/cool42/config.json` to `/etc/cool42/` (same content and owner; the old name in `hookAllowCommands` becomes `cool42`), moves the stats and pre-warm learning in `/var/db/cool42`, carries the old log over to `/var/log/cool42.log`, moves `~/.config/cool42` to `~/.config/cool42`, retires the old LaunchDaemon / CLI / newsyslog entry / panel app and LaunchAgent, switches the hook in `~/.claude/settings.json` to `cool42 hook`, and swaps the MCP server `cool42` for `cool42`. Panel preferences (`com.cool42.panel`) are read by the new panel on its first launch. Everything replaced or retired goes to `~/cool42-migration-backup-<time>/` first (nothing is deleted outright); any failed step stops the script and prints how to restore. Re-running is safe: finished steps are skipped.
 
 The MCP server needs [`uv`](https://docs.astral.sh/uv/) (fetches `mcp` into an isolated env, never touches system Python); without `uv` or the `claude` CLI, install.sh skips that step and everything else still works.
 
