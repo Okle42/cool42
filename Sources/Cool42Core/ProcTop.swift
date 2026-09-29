@@ -48,11 +48,18 @@ public final class ProcTop {
             // 取最後一段會在面板顯示成一個莫名的「T」
             let cwd = cp_cwd(pid, &buf, Int32(buf.count)) == 0 ? String(cString: buf) : nil
             return TopProcess(pid: pid, name: name, cpuPercent: pct, command: ProcTop.shorten(args, name: name),
-                              cwd: cwd.flatMap { $0.hasPrefix("/Users/") ? ($0 as NSString).lastPathComponent : nil })
+                              cwd: cwd.flatMap(ProcTop.displayCwd))
         }
     }
 
     /// 把命令列縮成人看得懂的一行：去掉直譯器長路徑、只留 -m 模組 / 腳本名 / 前幾個參數
+    /// 面板／status 顯示的工作目錄：使用者目錄底下才取最後一段，其餘（系統暫存區、/、空字串）不顯示
+    public static func displayCwd(_ path: String) -> String? {
+        guard path.hasPrefix("/Users/") else { return nil }
+        let last = (path as NSString).lastPathComponent
+        return last.isEmpty || last == "/" ? nil : last
+    }
+
     public static func shorten(_ args: String, name: String) -> String {
         var tokens = args.split(separator: " ").map(String.init)
         guard !tokens.isEmpty else { return name }

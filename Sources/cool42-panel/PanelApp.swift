@@ -333,16 +333,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    /// 點選單列圖示：面板開在別台螢幕時先搬過來（不是關掉）；啟動時不搬，那時圖示還沒定位
+    /// 點選單列圖示：面板開在別台螢幕時先搬過來（不是關掉）
     @objc func togglePanel() {
         if panel.isVisible {
             if bringToStatusItemScreen() { panel.orderFront(nil) } else { hidePanel() }
         } else {
-            bringToStatusItemScreen()
             showPanel()
         }
     }
+    /// 開機自動開、點通知、點圖示都走這裡，所以都會先搬到圖示那台螢幕
     func showPanel() {
+        bringToStatusItemScreen()
         panel.orderFront(nil)
         // 視窗第一次上螢幕才有 windowNumber，建背景時設的模糊半徑可能沒生效，顯示時再套一次
         if !GlassStyle.effectiveBlur { WindowBlur.set(panel, radius: GlassStyle.blurRadius) }
@@ -350,20 +351,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         UserDefaults.standard.set(true, forKey: "panel.open")
         monitor.tick()
     }
-    /// 記住的位置在別台螢幕（或那台已拔掉）時，搬到選單列圖示所在螢幕、貼圖示下方。
-    /// 雙螢幕時 autosave 會把面板留在另一台（例如關著的電視），點圖示看起來就像「沒開」。
-    /// 同一台螢幕內拖過的位置照舊保留。
+    /// 記住的位置在別台螢幕（或那台已拔掉）時，搬到選單列圖示所在螢幕、貼圖示下方（規則見 PanelPlacement）。
+    /// 剛啟動時圖示還沒排進選單列、位置不可信：每 0.25 秒再試，最多 5 秒（不可信時直接搬曾把面板丟到左上角）
     @discardableResult
-    private func bringToStatusItemScreen() -> Bool {
-        guard let p = panel, let bw = statusItem?.button?.window, let scr = bw.screen else { return false }
-        let center = NSPoint(x: p.frame.midX, y: p.frame.midY)
-        guard !scr.frame.contains(center) else { return false }
-        let vf = scr.visibleFrame
-        var f = p.frame
-        f.size.height = min(f.height, vf.height - 16)
-        f.origin.x = min(max(bw.frame.midX - f.width / 2, vf.minX + 12), vf.maxX - f.width - 12)
-        f.origin.y = vf.maxY - f.height - 8
-        p.setFrame(f, display: false)
+    private func bringToStatusItemScreen(retry: Int = 0) -> Bool {
+        guard let p = panel else { return false }
+        guard let bw = statusItem?.button?.window, let scr = bw.screen,
+              PanelPlacement.anchorIsValid(button: bw.frame, screen: scr.frame) else {
+            if retry < 20 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                    guard let self, self.panel.isVisible else { return }
+                    self.bringToStatusItemScreen(retry: retry + 1)
+                }
+            }
+            return false
+        }
+        guard let f = PanelPlacement.relocated(panel: p.frame, anchorMidX: bw.frame.midX,
+                                               screen: scr.frame, visible: scr.visibleFrame) else { return false }
+        p.setFrame(f, display: p.isVisible)
         return true
     }
     func hidePanel() {

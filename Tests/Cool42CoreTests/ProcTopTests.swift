@@ -14,6 +14,16 @@ final class ProcTopTests: XCTestCase {
         _ = x
     }
 
+    /// 系統行程的 cwd 在 /private/var/folders/…/T，曾在面板顯示成一個「T」
+    func testDisplayCwdHidesSystemDirs() {
+        XCTAssertNil(ProcTop.displayCwd("/private/var/folders/xy/abc123/T"))
+        XCTAssertNil(ProcTop.displayCwd("/var/folders/xy/abc123/T"))
+        XCTAssertNil(ProcTop.displayCwd("/"))
+        XCTAssertNil(ProcTop.displayCwd("/tmp"))
+        XCTAssertEqual(ProcTop.displayCwd("/Users/me/github-repos/cool42"), "cool42")
+        XCTAssertEqual(ProcTop.displayCwd("/Users/me/github-repos/cool42/"), "cool42")
+    }
+
     func testShorten() {
         XCTAssertEqual(ProcTop.shorten("/opt/homebrew/bin/Python -u -m tools.gen.bwb.shell --mid 16 --isogrid --iso-cache /x/y", name: "Python"), "Python -m tools.gen.bwb.shell --mid 16 --isogrid")
         XCTAssertEqual(ProcTop.shorten("/usr/bin/swift build -c release", name: "swift"), "swift build -c release")
