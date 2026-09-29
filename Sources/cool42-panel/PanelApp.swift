@@ -333,7 +333,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    @objc func togglePanel() { panel.isVisible ? hidePanel() : showPanel() }
+    /// 點選單列圖示：面板開在別台螢幕時先搬過來（不是關掉）；啟動時不搬，那時圖示還沒定位
+    @objc func togglePanel() {
+        if panel.isVisible {
+            if bringToStatusItemScreen() { panel.orderFront(nil) } else { hidePanel() }
+        } else {
+            bringToStatusItemScreen()
+            showPanel()
+        }
+    }
     func showPanel() {
         panel.orderFront(nil)
         // 視窗第一次上螢幕才有 windowNumber，建背景時設的模糊半徑可能沒生效，顯示時再套一次
@@ -341,6 +349,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         fitHeight(to: monitor.contentHeight)
         UserDefaults.standard.set(true, forKey: "panel.open")
         monitor.tick()
+    }
+    /// 記住的位置在別台螢幕（或那台已拔掉）時，搬到選單列圖示所在螢幕、貼圖示下方。
+    /// 雙螢幕時 autosave 會把面板留在另一台（例如關著的電視），點圖示看起來就像「沒開」。
+    /// 同一台螢幕內拖過的位置照舊保留。
+    @discardableResult
+    private func bringToStatusItemScreen() -> Bool {
+        guard let p = panel, let bw = statusItem?.button?.window, let scr = bw.screen else { return false }
+        let center = NSPoint(x: p.frame.midX, y: p.frame.midY)
+        guard !scr.frame.contains(center) else { return false }
+        let vf = scr.visibleFrame
+        var f = p.frame
+        f.size.height = min(f.height, vf.height - 16)
+        f.origin.x = min(max(bw.frame.midX - f.width / 2, vf.minX + 12), vf.maxX - f.width - 12)
+        f.origin.y = vf.maxY - f.height - 8
+        p.setFrame(f, display: false)
+        return true
     }
     func hidePanel() {
         panel.orderOut(nil)
@@ -809,13 +833,14 @@ final class Monitor {
         FocusWatcher.shared.request { [weak self] a in self?.focusAuth = a; self?.pollFocus() }
     }
 
-    /// 今天的事件：log 有變才重讀，最多每 15 秒一次（force：剛展開時）
+    /// 今天的事件：log 有變才重讀，展開時最多每 15 秒一次、收合時 60 秒一次（force：剛展開時）。
+    /// 收合時也要讀：標題列的摘要（「降頻 n 次 · 共 n 件」）靠它，原本只在展開時讀，收合就永遠顯示「沒有事件」
     func refreshToday(force: Bool = false) {
-        guard showToday else { return }
+        let minInterval: TimeInterval = showToday ? 15 : 60
         let attrs = try? FileManager.default.attributesOfItem(atPath: DayLog.path)
         let mtime = attrs?[.modificationDate] as? Date
         let size = (attrs?[.size] as? NSNumber)?.uint64Value ?? 0
-        if !force, let (t, m, sz) = todayStamp, (m == mtime && sz == size) || Date().timeIntervalSince(t) < 15 {
+        if !force, let (t, m, sz) = todayStamp, (m == mtime && sz == size) || Date().timeIntervalSince(t) < minInterval {
             // log 沒變時仍要併入新的 hook 記號
             if m == mtime && sz == size { mergeHookMarks() }
             return

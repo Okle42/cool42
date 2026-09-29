@@ -11,6 +11,10 @@ final class LegacyDefaultsTests: XCTestCase {
     }
     override func tearDown() {
         defaults.removePersistentDomain(forName: suite)
+        // removePersistentDomain 只清空內容，~/Library/Preferences 裡的空 plist 還在，每跑一次測試多一個網域
+        let plist = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Preferences/\(suite!).plist")
+        try? FileManager.default.removeItem(at: plist)
     }
 
     func testCopiesMissingKeysOnceAndKeepsNewValues() {

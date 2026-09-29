@@ -44,9 +44,11 @@ public final class ProcTop {
             var buf = [CChar](repeating: 0, count: 4096)
             let name = cp_name(pid, &buf, Int32(buf.count)) == 0 ? String(cString: buf) : "?"
             let args = cp_args(pid, &buf, Int32(buf.count)) == 0 ? String(cString: buf) : name
+            // 只留使用者目錄底下的工作目錄（專案夾才有意義）：系統行程的 cwd 常是 /private/var/folders/…/T，
+            // 取最後一段會在面板顯示成一個莫名的「T」
             let cwd = cp_cwd(pid, &buf, Int32(buf.count)) == 0 ? String(cString: buf) : nil
             return TopProcess(pid: pid, name: name, cpuPercent: pct, command: ProcTop.shorten(args, name: name),
-                              cwd: cwd.map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty || $0 == "/" ? nil : $0 })
+                              cwd: cwd.flatMap { $0.hasPrefix("/Users/") ? ($0 as NSString).lastPathComponent : nil })
         }
     }
 
