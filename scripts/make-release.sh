@@ -112,7 +112,7 @@ SH
 cp install/com.cool42.guard.plist install/newsyslog-cool42.conf install/claude-settings.snippet.json "$STAGE/install/"
 cp scripts/install-hook.py scripts/install-mcp.sh scripts/migrate-from-cool42.sh "$STAGE/scripts/"   # 最後一支：改名前（原名 cool42）的搬遷
 cp mcp/cool42_mcp.py "$STAGE/mcp/"
-cp config.example.json LICENSE README.md README.en.md CHANGELOG.md "$STAGE/"
+cp config.example.json LICENSE README.md README.zh-TW.md CHANGELOG.md "$STAGE/"
 chmod 755 "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/scripts/install-hook.py" "$STAGE/scripts/install-mcp.sh" "$STAGE/scripts/migrate-from-cool42.sh" "$STAGE/mcp/cool42_mcp.py"
 echo "$VERSION" > "$STAGE/VERSION"
 echo "$MODE" > "$STAGE/SIGNING"

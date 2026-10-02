@@ -85,7 +85,7 @@ root_install() {
   # 支援檔（MCP server、hook 片段、移除腳本）放固定位置，zip 解壓目錄裝完就能刪
   rm -rf "$SHARE.new"
   mkdir -p "$SHARE.new"
-  for f in install.sh uninstall.sh install scripts mcp config.example.json LICENSE README.md README.en.md CHANGELOG.md VERSION SIGNING COMMIT; do
+  for f in install.sh uninstall.sh install scripts mcp config.example.json LICENSE README.md README.zh-TW.md README.en.md CHANGELOG.md VERSION SIGNING COMMIT; do
     if [ -e "$pay/$f" ]; then cp -R "$pay/$f" "$SHARE.new/"; fi
   done
   xattr -cr "$SHARE.new" 2>/dev/null || true
@@ -189,7 +189,7 @@ do_install() {
   PAYLOAD="$(mktemp -d "${TMPDIR:-/tmp}/cool42-install.XXXXXX")"
   trap 'rm -rf "$PAYLOAD"' EXIT
   local pay="$PAYLOAD"
-  for f in bin install.sh uninstall.sh install scripts mcp config.example.json LICENSE README.md README.en.md CHANGELOG.md VERSION SIGNING COMMIT SHA256SUMS; do
+  for f in bin install.sh uninstall.sh install scripts mcp config.example.json LICENSE README.md README.zh-TW.md README.en.md CHANGELOG.md VERSION SIGNING COMMIT SHA256SUMS; do
     if [ -e "$SELF_DIR/$f" ]; then cp -R "$SELF_DIR/$f" "$pay/"; fi
   done
   chmod -R a+rX "$pay"; chmod a+rx "$pay"

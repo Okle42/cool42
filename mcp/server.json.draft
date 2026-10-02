@@ -4,7 +4,7 @@
   "title": "cool42 — Apple Silicon thermal gate",
   "description": "Apple Silicon thermal gate for AI agents: check macOS thermal pressure, wait for cool-down, set fan mode.",
   "version": "1.0.3",
-  "websiteUrl": "https://github.com/Okle42/cool42/blob/main/README.en.md",
+  "websiteUrl": "https://github.com/Okle42/cool42/blob/main/README.md",
   "repository": {
     "url": "https://github.com/Okle42/cool42",
     "source": "github",

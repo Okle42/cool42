@@ -225,7 +225,7 @@ final class ProfileTests: XCTestCase {
     /// README 裡給的情境範例要真的解得開（文件不能寫出 guard 拒絕載入的設定）
     func testReadmeProfileExampleDecodes() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["README.md", "README.en.md"] {
+        for name in ["README.md", "README.zh-TW.md"] {
             let text = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
             guard let start = text.range(of: "<!-- profiles-example -->"), let fence = text.range(of: "```json\n", range: start.upperBound..<text.endIndex),
                   let end = text.range(of: "\n```", range: fence.upperBound..<text.endIndex) else { return XCTFail("\(name) 找不到 profiles-example 區塊") }

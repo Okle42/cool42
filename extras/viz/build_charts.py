@@ -9,8 +9,8 @@
   加 --live 改讀 /var/log/cool42.log 與 /var/db/cool42/stats.json（數字會跟著變）。
 
 輸出：
-  * docs/img/charts/<name>-light.svg、<name>-dark.svg   README 用（<picture> 切換亮暗）
-  * docs/img/charts/<name>-en-light.svg、<name>-en-dark.svg   英文版（README.en.md 用），11 張都有
+  * docs/img/charts/<name>-light.svg、<name>-dark.svg   中文版（README.zh-TW.md 用）（<picture> 切換亮暗）
+  * docs/img/charts/<name>-en-light.svg、<name>-en-dark.svg   英文版（README.md 用），11 張都有
   * docs/viz/index.html                                 互動比對頁（單檔、內嵌 SVG＋數據、hover 看值）
   * 另外複製到 ~/Desktop/cool42-數據比對.html（--no-desktop 可略過）
 
