@@ -64,7 +64,7 @@ def collect(path):
         b["first"] = b["first"] or t
         b["last"] = t
         fields = []
-        # 字首是產品名：改名前的 log 是舊名，跳過第一個字再比
+        # 字首是產品名，跳過第一個字再比
         after_name = msg.split(" ", 1)[-1]
         if after_name.startswith("guard 啟動"):
             auto = True
