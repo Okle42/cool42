@@ -1,6 +1,6 @@
 # 原廠自動 vs cool42 曲線：四次同機實跑（2026-09-25）
 
-> **當時名稱為 cool42**（cool42 原名 cool42，2026-09-27 改名）。這個資料夾的原始數據（`run*/perf.log`、`run*/pm/*`、`run*/results.*`、`run*/summary.md`、`guard-log-2026-09-25-1110.txt`）是量測當時的輸出，保留原樣，裡面的指令、路徑與標題都還是 `cool42`（例如 `/usr/local/bin/cool42`、`/etc/cool42/config.json`、`/var/log/cool42.log`）；本文與 `recompute.py` 已改用新名稱。
+> 這個資料夾的原始數據（`run*/perf.log`、`run*/pm/*`、`run*/results.*`、`run*/summary.md`、`guard-log-2026-09-25-1110.txt`）是量測當時的輸出，數值保留原樣。
 
 目的：同一台 Mac、同一個負載下，把風扇交給 macOS 原廠自動與 cool42 曲線，比較溫度、轉速、P-core 頻率與工作量；順便抓「pressure 還是 Nominal、但頻率已經掉了」的無聲降頻。
 

@@ -2,16 +2,12 @@
 
 ## Unreleased
 
-### 改名：cool42 → cool42（原名 cool42）
+### 專案名稱統一為 cool42
 
-2026-09-27 專案改名為 **cool42**，功能不變。下面舊條目裡的 `cool42` 是當時的名字，保留原樣。
+2026-09-27 起各處名稱統一為 **cool42**，功能不變。
 
-- 全部跟著改：CLI 執行檔 `cool42`（daemon 用 `cool42-guard` 啟動）、SwiftPM 產品與 target（`cool42`、`cool42-panel`、`Cool42Core`）、面板「cool42 Panel.app」（bundle id `com.cool42.panel`，LaunchAgent 同名）、LaunchDaemon `com.cool42.guard`、`/etc/cool42/config.json`、`~/.config/cool42/`、`/var/db/cool42/`、`/var/run/cool42/`、`/var/log/cool42.log`、newsyslog `/etc/newsyslog.d/cool42.conf`、MCP server `cool42`（`mcp/cool42_mcp.py`，工具 `cool42_check`／`cool42_wait`／`cool42_top`／`cool42_status`／`cool42_doctor`／`cool42_get_config`／`cool42_set_fan`）、Claude Code hook `/usr/local/bin/cool42 hook`、`hookAllowCommands` 預設值、log 與介面字串、Homebrew `cool42`／`cool42-setup`、release 檔名 `cool42-<版本>-arm64.zip`
-- **搬遷腳本 `scripts/migrate-from-cool42.sh`**：停舊 guard 並把風扇交還 macOS、設定檔搬到 `/etc/cool42/`（內容與擁有者不變，`hookAllowCommands` 的舊名換新名）、統計與預熱學習、舊 log 接到 `/var/log/cool42.log`、`~/.config/cool42` → `~/.config/cool42`、收掉舊 LaunchDaemon／CLI／newsyslog／面板 app 與 LaunchAgent、`~/.claude/settings.json` 的 hook 與 MCP server 換成 cool42，最後提示 statusline 之類讀舊路徑的地方。舊檔一律 mv 進 `~/cool42-migration-backup-<時間>/`（不刪），附 `restore.sh` 一鍵還原；每一步驗證，失敗就停並印還原方法；可重跑；`--dry-run` 只印計畫。`install.sh` 與 release 的 `install.sh` 偵測到舊版會自動先跑
-- 面板偏好（UserDefaults）第一次啟動時從舊網域 `com.cool42.panel` 補讀一次（新網域已有的鍵不蓋；視窗位置的鍵 `NSWindow Frame cool42.panel`／`.settings` 跟著改名，面板位置與高度不會跑掉；`Cool42Core/LegacyDefaults.swift`，3 條新測試，共 92 項），舊網域不刪
-- 面板「今天」時間軸與 `extras/ux_metrics.py` 比對 guard 起訖行時不再寫死產品名，搬過來的舊 log 行一樣認得
-- 原始數據（`docs/perf-2026-09-25/` 的 perf.log／pm／results／summary／guard log 摘錄、`docs/ab-test-2026-09-16/` 的原始檔、`extras/viz/data/` 的 log 快照內容）不改，當時的名稱是 cool42；各資料夾 README 有註明
-- git 歷史不改寫；GitHub repo 改名後舊網址會自動轉址
+- 全部統一：CLI 執行檔 `cool42`（daemon 用 `cool42-guard` 啟動）、SwiftPM 產品與 target（`cool42`、`cool42-panel`、`Cool42Core`）、面板「cool42 Panel.app」（bundle id `com.cool42.panel`，LaunchAgent 同名）、LaunchDaemon `com.cool42.guard`、`/etc/cool42/config.json`、`~/.config/cool42/`、`/var/db/cool42/`、`/var/run/cool42/`、`/var/log/cool42.log`、newsyslog `/etc/newsyslog.d/cool42.conf`、MCP server `cool42`（`mcp/cool42_mcp.py`，工具 `cool42_check`／`cool42_wait`／`cool42_top`／`cool42_status`／`cool42_doctor`／`cool42_get_config`／`cool42_set_fan`）、Claude Code hook `/usr/local/bin/cool42 hook`、`hookAllowCommands` 預設值、log 與介面字串、Homebrew `cool42`／`cool42-setup`、release 檔名 `cool42-<版本>-arm64.zip`
+- 面板「今天」時間軸與 `extras/ux_metrics.py` 比對 guard 起訖行時不再寫死產品名
 
 2026-09-25 同機實測「macOS 原廠自動 vs cool42 曲線」，發現 thermal pressure 會在已經降頻時仍回報 Nominal：CPU＋GPU 滿載交給原廠，P-core 硬體頻率 3936 → 平均 3644 MHz（−7.4%），pressure 輪詢 79/79、powermetrics 90/90 全是 Nominal。資料、已知 bug 與限制在 [`docs/perf-2026-09-25/`](docs/perf-2026-09-25/)（原廠穩態只有 1 輪、熱機起跑）。
 

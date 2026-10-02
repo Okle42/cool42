@@ -2,8 +2,6 @@
 
 [English](README.md)
 
-> **cool42 原名 cool42**（2026-09-27 改名，功能不變）。已經裝了 cool42 的話，照[從 cool42 升級](#從-cool42-升級)跑一次就好，設定、統計、面板偏好都會搬過來。
-
 **一句話：AI 寫程式時自己看降頻排隊 —— 沒降頻就全速放行，溫度高也照跑（≥ 100°C 的安全底線除外）；真的降頻了才等。** 「降頻」看三個訊號：macOS 的 thermal pressure 非 Nominal、GPU 被 CLTM 限頻、P-core 硬體時脈掉到全核滿載以下。第三條是 2026-09-25 同機實測發現 **pressure 回報 Nominal 時 P-core 已經掉了 7.4%** 之後才加的，還沒進任何 release（見[數據](#數據)與[「降頻」的定義](#降頻的定義)）。
 
 <p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 面板示意：閒置 → 重載 → 降頻 → Claude Code hook 等待 → 放行"></p>
@@ -259,17 +257,6 @@ cool42 doctor    # 16 項檢查全綠就對了
 ```
 
 移除：`./uninstall.sh`（會明確 `cool42 fan auto` 把風扇交還 macOS，設定檔保留）。只想暫停 guard 的話，`launchctl bootout` 之後記得跑 `sudo cool42 fan auto` —— guard 收到 SIGTERM 會維持目前轉速（見下方「最壞情況」）。
-
-#### 從 cool42 升級
-
-cool42 原名 cool42。原始碼安裝的 `./install.sh` 偵測到舊版會先自動跑 `scripts/migrate-from-cool42.sh`；也可以自己先看計畫再跑：
-
-```bash
-scripts/migrate-from-cool42.sh --dry-run   # 只印會做什麼，不動任何東西
-scripts/migrate-from-cool42.sh             # 跳一次系統密碼視窗；跑完再 ./install.sh 裝 cool42
-```
-
-它會：停掉舊 guard（先把風扇交還 macOS）、把 `/etc/cool42/config.json` 搬到 `/etc/cool42/`（內容與擁有者不變，`hookAllowCommands` 裡的舊名換成 `cool42`）、搬 `/var/db/cool42` 的統計與預熱學習、把舊 log 接到 `/var/log/cool42.log`、`~/.config/cool42` 搬到 `~/.config/cool42`、收掉舊 LaunchDaemon／CLI／newsyslog／面板 app 與 LaunchAgent、`~/.claude/settings.json` 的 hook 換成 `cool42 hook`、MCP server 從 `cool42` 換成 `cool42`。面板偏好（`com.cool42.panel`）由新面板第一次啟動時自己讀過來。所有被換掉或移走的東西都先放進 `~/cool42-migration-backup-<時間>/`（不直接刪），任何一步失敗就停下並印出還原方法；需要 root 的步驟最先做，密碼視窗按取消的話舊 guard 與面板都照常在跑、什麼都沒動。只跑搬遷、還沒跑 `./install.sh` 之前，Claude Code 的 hook 會找不到 `cool42`（不會擋工作），所以搬完請接著裝。可以重跑：已經搬過的步驟會略過。
 
 MCP server 需要 [`uv`](https://docs.astral.sh/uv/)（自動抓 `mcp` 套件到隔離環境，不碰系統 Python）；沒有 `uv` 或 `claude` CLI 時 install.sh 會略過這一步，其他功能不受影響。
 

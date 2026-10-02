@@ -1,6 +1,6 @@
 # A/B 實測：激進曲線 vs 中間路線（2026-09-16）
 
-> **當時名稱為 cool42**（cool42 原名 cool42，2026-09-27 改名）。這個資料夾的原始檔（`ab.sh`、`config-A.json`、`config-B.json`、`history-*.json`、`powermetrics-*.txt`、`samples.txt`、`timeline.txt`）保留量測當時的原樣，裡面的指令與路徑還是 `cool42`（例如 `cool42 status --short`、`/etc/cool42/config.json`、`/tmp/cool42.history.json`）；要重跑請把 `ab.sh` 裡的名稱與路徑換成 cool42 的（`/var/run/cool42/history.json`、`/etc/cool42/config.json`）。
+> 這個資料夾的原始檔（`ab.sh`、`config-A.json`、`config-B.json`、`history-*.json`、`powermetrics-*.txt`、`samples.txt`、`timeline.txt`）是量測當時的輸出，數值保留原樣；`ab.sh` 用的是當時的路徑（`/tmp/cool42.history.json`），要重跑請改成現在的 `/var/run/cool42/history.json`。
 
 目的：確認「風扇少轉 25%」會不會讓 M4 降頻。
 
