@@ -13,16 +13,6 @@ if pgrep -f "Macs Fan Control.app/Contents/MacOS" >/dev/null; then
   exit 1
 fi
 
-# cool42 原名 cool42：偵測到改名前的安裝就先搬（設定、統計、log、hook、MCP 一起帶過來；舊檔收進 ~/cool42-migration-backup-*）
-if ./scripts/migrate-from-cool42.sh --detect; then
-  if [ "$(id -u)" = "0" ]; then
-    echo "⚠️  偵測到改名前的 cool42。請用一般使用者身分先跑 ./scripts/migrate-from-cool42.sh（或直接 ./install.sh，不要 sudo）"
-    exit 1
-  fi
-  echo "▶ 偵測到改名前的 cool42，先搬遷（先看計畫：./scripts/migrate-from-cool42.sh --dry-run）"
-  ./scripts/migrate-from-cool42.sh
-fi
-
 echo "▶ 安裝 CLI、設定檔、guard LaunchDaemon（會跳出系統密碼視窗）"
 if [ "$(id -u)" = "0" ]; then
   ./scripts/install-root.sh "$SRC" "${SUDO_USER:-$(id -un)}"
