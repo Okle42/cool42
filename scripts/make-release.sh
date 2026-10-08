@@ -81,6 +81,7 @@ APP="$STAGE/$APP_NAME"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Sounds"
 cp "$BIN_DIR/cool42-panel" "$APP/Contents/MacOS/cool42-panel"
 cp Sounds/*.m4a "$APP/Contents/Resources/Sounds/"
+cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp -R Sources/cool42-panel/Resources/*.lproj "$APP/Contents/Resources/"   # 介面字串 zh-Hant＋en（同 make-app.sh）
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -92,6 +93,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>cool42 Panel</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleExecutable</key><string>cool42-panel</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>

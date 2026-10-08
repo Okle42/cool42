@@ -15,6 +15,7 @@ cp "$BIN" "$APP/Contents/MacOS/cool42-panel"
 # 內建提示音（config 沒指定音檔時用）
 mkdir -p "$APP/Contents/Resources/Sounds"
 cp Sounds/*.m4a "$APP/Contents/Resources/Sounds/"
+cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # 介面字串（zh-Hant 開發語言＋en），依系統語言切換；面板用 Bundle.main 讀 Contents/Resources/*.lproj
 cp -R Sources/cool42-panel/Resources/*.lproj "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -27,6 +28,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDisplayName</key><string>cool42 Panel</string>
   <key>CFBundleIdentifier</key><string>com.cool42.panel</string>
   <key>CFBundleExecutable</key><string>cool42-panel</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>4</string>
   <key>CFBundleShortVersionString</key><string>1.0.3</string>
