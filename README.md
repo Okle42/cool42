@@ -4,7 +4,7 @@ Part of the **42 series** by [Okle42](https://github.com/Okle42) — follow for 
 
 [繁體中文說明](README.zh-TW.md)
 
-**In one line: your AI coding agent checks for throttling before heavy work — full speed while the Mac isn't throttling, hot or not (except at the ≥ 100 °C safety floor), and it waits only when it actually is.** "Throttling" means any of three signals: macOS thermal pressure above `Nominal`, the GPU capped by CLTM, or the P-core hardware clock dropping below its all-core full-load value. The third was added after a same-machine test on 2026-09-25 found **the P-cores 7.4% down while macOS still reported `Nominal`**, and it isn't in any release yet (see [Data](#data) and [What counts as throttling](#what-counts-as-throttling)).
+**In one line: your AI coding agent checks for throttling before heavy work — full speed while the Mac isn't throttling, hot or not (except at the ≥ 108 °C default safety floor), and it waits only when it actually is.** "Throttling" means any of three signals: macOS thermal pressure above `Nominal`, the GPU capped by CLTM, or the P-core hardware clock dropping below its all-core full-load value. The third was added after a same-machine test on 2026-09-25 found **the P-cores 7.4% down while macOS still reported `Nominal`**, and it ships from 1.1.0 (see [Data](#data) and [What counts as throttling](#what-counts-as-throttling)).
 
 <p align="center"><img src="docs/img/demo-en.gif" width="880" alt="cool42 panel demo: idle → heavy load → throttling → Claude Code hook waits → allowed"></p>
 <p align="center"><sub>18-second demo. The idle and heavy-load hold frames are real captures; the ~1.4 s transition between them is linearly interpolated (labelled "Transition · interpolated" — those numbers are not real readings); the "throttling" segment is a staged scenario (not a recorded event), and the terminal frames reproduce the source code's output format. The panel is shown in its English UI; cool42's own CLI / hook status strings inside the terminal frames are still Chinese, as in the product.</sub></p>
@@ -58,7 +58,7 @@ I wanted something that **sees the truth** (hardware clocks, per-core temperatur
 |---|---|---|
 | Menu bar | ✅ `🟡 82°`; click for temperature / fan / clock cards with 5-minute charts | ✅ |
 | **Per-core temperature** | ✅ heat grid: P-core / E-core / GPU groups, 73 CPU/GPU temperature sensors (SMC) on M4, hover for value | partial (usually averages or PMU) |
-| **Hardware clock / thermal throttling detection** | ✅ shows the P-core hardware GHz from `powermetrics`; throttling = thermal pressure above Nominal or GPU CLTM, and the unreleased new version adds a **clock check** — a hot P-cluster below 95% of its all-core full-load clock counts too, because pressure was measured reading `Nominal` while already throttled; panel / statusline turn red, logged | ❌ |
+| **Hardware clock / thermal throttling detection** | ✅ shows the P-core hardware GHz from `powermetrics`; throttling = thermal pressure above Nominal or GPU CLTM, and 1.1.0 adds a **clock check** — a hot P-cluster below 95% of its all-core full-load clock counts too, because pressure was measured reading `Nominal` while already throttled; panel / statusline turn red, logged | ❌ |
 | **GPU utilisation / GPU throttling** | ✅ IOReport utilisation and clock, `GPU_CLTM` detection | ❌ |
 | Custom fan curve | ✅ Curve / Fixed / Automatic, one-click switch in the panel, curves in Settings, hot-reload on save | ✅ |
 | CPU + GPU together | ✅ max of both drives the fan | ✅ |
@@ -187,7 +187,7 @@ In guard's log, the daily "seconds throttled", the panel verdict, `status --shor
 
 1. **thermal pressure above Nominal** (`powermetrics`)
 2. **GPU capped by CLTM**: IOReport `CLTM-induced GPU Performance States` outside `NO_CLTM` for more than 5% of the time
-3. **clock throttling** (**unreleased**: in the repo source, not in any release yet): control temperature ≥ `clockThrottleTemp` (default 100 °C) and the P-core hardware clock < the all-core full-load clock × `clockThrottleRatio` (default 0.95; on M4, 3936 × 0.95 ≈ 3739 MHz). It clears once the clock is back above × 0.97, or the temperature falls below `clockThrottleTemp` − `levelHysteresis` (default 3 °C). `status --short` shows it as "降頻(時脈)" (clock throttling)
+3. **clock throttling** (since 1.1.0): control temperature ≥ `clockThrottleTemp` (default 100 °C) and the P-core hardware clock < the all-core full-load clock × `clockThrottleRatio` (default 0.95; on M4, 3936 × 0.95 ≈ 3739 MHz). It clears once the clock is back above × 0.97, or the temperature falls below `clockThrottleTemp` − `levelHysteresis` (default 3 °C). `status --short` shows it as "降頻(時脈)" (clock throttling)
 
 Rule 3 was added after the 2026-09-25 test, where macOS auto let the P-cores drop 7.4% under a CPU + GPU load with pressure `Nominal` from start to finish (see [Data](#data)). Applying the rule to that data: the stock run at 106.8 °C and 3644 MHz ⇒ throttling; the cool42 curve at 104.4 °C and 3936 MHz ⇒ not. That is the rule applied after the fact — **the new guard hasn't run on real hardware yet**.
 
@@ -199,7 +199,7 @@ The all-core full-load clock comes from a table of measured values, currently on
 "clockFullLoadMHz": 3936
 ```
 
-**How this relates to the critical safety floor (from the rules, not measured)**: the hook checks critical first — at a control temperature ≥ `criticalTemp` it denies (or waits, with `hookBlockOnCritical` off). The default used to be 100 °C, but on 09-25 the cool42 curve settled at 104.4 °C under the same CPU + GPU load with the P-core at full 3936 MHz — a 100 °C floor would deny AI work on a machine running at full speed, contradicting "wait only when actually throttled". So (from the unreleased version on) the default is **108 °C**: above cool42's full-load steady state, below what stock reaches from a cold start (both 09-25 runs passed 112 °C within 35–40 s). Silent throttling between 105 and 108 °C is left to the clock check (`clockThrottleTemp` 100 °C). Config files that hard-code `"criticalTemp": 100` need to be updated by hand.
+**How this relates to the critical safety floor (from the rules, not measured)**: the hook checks critical first — at a control temperature ≥ `criticalTemp` it denies (or waits, with `hookBlockOnCritical` off). The default used to be 100 °C, but on 09-25 the cool42 curve settled at 104.4 °C under the same CPU + GPU load with the P-core at full 3936 MHz — a 100 °C floor would deny AI work on a machine running at full speed, contradicting "wait only when actually throttled". So (from 1.1.0 on) the default is **108 °C**: above cool42's full-load steady state, below what stock reaches from a cold start (both 09-25 runs passed 112 °C within 35–40 s). Silent throttling between 105 and 108 °C is left to the clock check (`clockThrottleTemp` 100 °C). Config files that hard-code `"criticalTemp": 100` need to be updated by hand.
 
 A wrong value turns a normal clock into "throttling" and makes the hook wait for nothing, which is also why guard doesn't learn the peak by itself: when hot, a single core boosts to 4464, and once that's taken as the peak, the all-core 3936 looks throttled. `clockThrottleRatio` must be between 0.5 and 1 or the config is rejected (the previous one stays in effect).
 
@@ -232,12 +232,12 @@ brew install okle42/tap/cool42 && cool42-setup
 
 Releases are still ad-hoc signed and the tap isn't live yet; this path opens after Developer ID signing and notarization. `cool42-setup` installs the CLI, guard, Claude Code hook and MCP (asks for your password). Upgrade with `brew upgrade cool42 && cool42-setup`; remove completely with `brew uninstall --zap cool42` (a plain `brew uninstall` deliberately leaves guard running, so the fan isn't unmanaged mid-upgrade).
 
-**2. Download the release zip (no swift, no clone) — available once the release is published**
+**2. Download the release zip (no swift, no clone)**
 
-There is no GitHub release for this version yet. Once there is:
+From the [Releases page](https://github.com/Okle42/cool42/releases):
 
 ```bash
-V=1.0.3; T="$(mktemp -d)" && cd "$T" \
+V=1.1.0; T="$(mktemp -d)" && cd "$T" \
   && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" \
   && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip.sha256" \
   && shasum -a 256 -c "cool42-$V-arm64.zip.sha256" \
@@ -367,7 +367,7 @@ Above: normally at most 3200 rpm; while an editing app runs, the performance cur
 
 **The fan**: industrial L10 = 70,000 h @ 40 °C, life ∝ (rated ÷ actual rpm)^1.5; even 8 h/day at full speed is 24 years. The real cost is noise and dust. The ceiling is the firmware's own `F0Mx` (4900 on the M4 mini), which Apple uses itself in hot rooms. What actually hurts fans is **frequent start/stop and violent speed changes** — exactly what the asymmetric EMA + ramp limit + deadband prevent: cooling down is capped at −300 rpm per 5 s, so 4900 → 1000 takes at least 65 s. Idle sits at the firmware minimum 1000, same as Apple auto.
 
-**How to know the curve is right**: `cool42 status` daily stats, one number — **seconds throttled should be 0**; if not, raise the hot end of the curve. Note that up to 1.0.3 this counts only pressure and GPU CLTM, so 0 s doesn't rule out silent throttling; the unreleased new version adds the clock check (chips other than the M4 need `clockFullLoadMHz` set), and only then does 0 really mean the fan did its job. To check directly, watch the P-core clock in the panel or `cool42 status` under heavy load and see whether it drops below the all-core full-load value.
+**How to know the curve is right**: `cool42 status` daily stats, one number — **seconds throttled should be 0**; if not, raise the hot end of the curve. Note that up to 1.0.3 this counts only pressure and GPU CLTM, so 0 s doesn't rule out silent throttling; 1.1.0 adds the clock check (chips other than the M4 need `clockFullLoadMHz` set), and only then does 0 really mean the fan did its job. To check directly, watch the P-core clock in the panel or `cool42 status` under heavy load and see whether it drops below the all-core full-load value.
 
 **Worst case**: guard dies → launchd `KeepAlive` restarts it in seconds. On exit, SIGINT (Ctrl-C) / SIGHUP hand the fan back to auto; **SIGTERM (launchd stop / restart, including a manual `launchctl bootout`) keeps the current fan speed** so the restarted guard can take over (handing back to auto under heavy load hits 100 °C in 30 s) — so after stopping guard by hand the fan stays at its last manual speed; run `sudo cool42 fan auto` or `uninstall.sh`, both of which hand it back explicitly. Even with no one in control the SoC has its own hardware protection (throttle, then shutdown). Blow the dust out once a year.
 

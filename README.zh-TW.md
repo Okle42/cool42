@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-**一句話：AI 寫程式時自己看降頻排隊 —— 沒降頻就全速放行，溫度高也照跑（≥ 100°C 的安全底線除外）；真的降頻了才等。** 「降頻」看三個訊號：macOS 的 thermal pressure 非 Nominal、GPU 被 CLTM 限頻、P-core 硬體時脈掉到全核滿載以下。第三條是 2026-09-25 同機實測發現 **pressure 回報 Nominal 時 P-core 已經掉了 7.4%** 之後才加的，還沒進任何 release（見[數據](#數據)與[「降頻」的定義](#降頻的定義)）。
+**一句話：AI 寫程式時自己看降頻排隊 —— 沒降頻就全速放行，溫度高也照跑（預設 ≥ 108°C 的安全底線除外）；真的降頻了才等。** 「降頻」看三個訊號：macOS 的 thermal pressure 非 Nominal、GPU 被 CLTM 限頻、P-core 硬體時脈掉到全核滿載以下。第三條是 2026-09-25 同機實測發現 **pressure 回報 Nominal 時 P-core 已經掉了 7.4%** 之後才加的，1.1.0 起內建（見[數據](#數據)與[「降頻」的定義](#降頻的定義)）。
 
 <p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 面板示意：閒置 → 重載 → 降頻 → Claude Code hook 等待 → 放行"></p>
 <p align="center"><sub>18 秒示意：閒置與重載兩個定格是實機資料；中間約 1.4 秒的過場是兩者之間線性內插的示意（幀上標「過場 · 內插示意」，那些數字不是實機讀數）；「降頻」那一段是受控情境（非實機紀錄），終端機畫面照原始碼格式重現。</sub></p>
@@ -185,7 +185,7 @@ guard 的 log、每日「降頻秒數」、面板結論、`status --short` 與 h
 
 1. **thermal pressure 非 Nominal**（powermetrics）
 2. **GPU 被 CLTM 限頻**：IOReport `CLTM-induced GPU Performance States` 非 `NO_CLTM` 超過 5% 時間
-3. **時脈降頻**（**尚未發布**：在 repo 原始碼裡，還沒進任何 release）：控制溫度 ≥ `clockThrottleTemp`（預設 100°C）且 P-core 硬體頻率 < 全核滿載頻率 × `clockThrottleRatio`（預設 0.95；M4 是 3936 × 0.95 ≈ 3739 MHz）。頻率回到 × 0.97 以上，或溫度降到 `clockThrottleTemp` − `levelHysteresis`（預設 3°C）以下才解除。`status --short` 顯示「降頻(時脈)」
+3. **時脈降頻**（1.1.0 起）：控制溫度 ≥ `clockThrottleTemp`（預設 100°C）且 P-core 硬體頻率 < 全核滿載頻率 × `clockThrottleRatio`（預設 0.95；M4 是 3936 × 0.95 ≈ 3739 MHz）。頻率回到 × 0.97 以上，或溫度降到 `clockThrottleTemp` − `levelHysteresis`（預設 3°C）以下才解除。`status --short` 顯示「降頻(時脈)」
 
 第 3 條是 2026-09-25 實測之後加的：原廠自動在 CPU＋GPU 滿載下 P-core 掉了 7.4%，pressure 從頭到尾都是 Nominal（見[數據](#數據)）。拿那組數據套這條規則：原廠那輪 106.8°C、3644 MHz ⇒ 會判降頻；cool42 曲線 104.4°C、3936 MHz ⇒ 不會。這是照規則回推，**新版 guard 還沒實機跑過**。
 
@@ -197,7 +197,7 @@ guard 的 log、每日「降頻秒數」、面板結論、`status --short` 與 h
 "clockFullLoadMHz": 3936
 ```
 
-**和 critical 安全底線的關係（照規則推，不是實測）**：hook 先看 critical —— 控制溫度 ≥ `criticalTemp` 就擋下（`hookBlockOnCritical` 關掉則改成等）。預設 `criticalTemp` 原本是 100°C，但 09-25 同一個 CPU＋GPU 滿載下 cool42 曲線穩態是 104.4°C、P-core 全速 3936 MHz —— 用 100 會讓全速運作的機器也擋下 AI 的指令，跟「只在真的降頻才等」矛盾。所以（尚未發布的版本起）預設改為 **108°C**：高於 cool42 滿載穩態，低於原廠冷機起跑會衝到的溫度（09-25 兩輪 35–40 秒就過 112°C）。105–108°C 之間的無聲降頻交給時脈判斷（`clockThrottleTemp` 100°C）處理。舊設定檔若寫死 `"criticalTemp": 100`，要自己改。
+**和 critical 安全底線的關係（照規則推，不是實測）**：hook 先看 critical —— 控制溫度 ≥ `criticalTemp` 就擋下（`hookBlockOnCritical` 關掉則改成等）。預設 `criticalTemp` 原本是 100°C，但 09-25 同一個 CPU＋GPU 滿載下 cool42 曲線穩態是 104.4°C、P-core 全速 3936 MHz —— 用 100 會讓全速運作的機器也擋下 AI 的指令，跟「只在真的降頻才等」矛盾。所以（1.1.0 起）預設改為 **108°C**：高於 cool42 滿載穩態，低於原廠冷機起跑會衝到的溫度（09-25 兩輪 35–40 秒就過 112°C）。105–108°C 之間的無聲降頻交給時脈判斷（`clockThrottleTemp` 100°C）處理。舊設定檔若寫死 `"criticalTemp": 100`，要自己改。
 
 填錯會把正常頻率當成降頻、讓 hook 白等，所以不讓 guard 自己學峰值：高溫下單核會衝到 4464，被當成峰值之後，全核的 3936 就會被誤判成降頻。`clockThrottleRatio` 必須在 0.5–1 之間，否則設定檔會被拒收（保留上一份）。
 
@@ -230,12 +230,12 @@ brew install okle42/tap/cool42 && cool42-setup
 
 目前 release 還是 ad-hoc 簽章、tap 尚未上線，這條路等 Developer ID 簽章與公證完成後開放。`cool42-setup` 裝 CLI、guard、Claude Code hook 與 MCP（會要系統密碼）；升級用 `brew upgrade cool42 && cool42-setup`，完整移除用 `brew uninstall --zap cool42`（只 `brew uninstall` 不會停 guard，避免升級途中風扇沒人管）。
 
-**2. 下載 release zip（不需要 swift、不需要 clone）—— 待 release 上線後開放**
+**2. 下載 release zip（不需要 swift、不需要 clone）**
 
-GitHub 上還沒有這個版本的 release；上線後用：
+從 [Releases 頁](https://github.com/Okle42/cool42/releases)下載：
 
 ```bash
-V=1.0.3; T="$(mktemp -d)" && cd "$T" \
+V=1.1.0; T="$(mktemp -d)" && cd "$T" \
   && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip" \
   && curl -fsSLO "https://github.com/Okle42/cool42/releases/download/v$V/cool42-$V-arm64.zip.sha256" \
   && shasum -a 256 -c "cool42-$V-arm64.zip.sha256" \
@@ -365,7 +365,7 @@ powermetrics 只在 A 曲線生效時量過：A 段開始前 3 筆、B 結束並
 
 **風扇會不會操壞：**工業標準 L10 = 70,000 小時 @ 40°C，壽命 ∝ (額定 ÷ 實際轉速)^1.5；就算每天 8 小時滿速也是 24 年，風扇不是瓶頸，真正的代價只有噪音和灰塵。轉速上限是韌體回報的 `F0Mx`（M4 mini = 4900），Apple 自己在高環溫也會用到，不是超規格。真正傷風扇的是**頻繁啟停和劇烈變速**，這正是不對稱 EMA + 降速斜率限制 + deadband 在防的：降溫時每 5 秒最多降 300 rpm，從 4900 回到 1000 至少 65 秒。idle 時曲線最低點就是韌體最低轉速 1000，跟 Apple 自動一模一樣。
 
-**怎麼判斷曲線調得對不對：**看 `cool42 status` 的今日統計，關鍵一個數字：**降頻秒數應該是 0**；不是 0 就把曲線高溫段拉高。注意 1.0.3 以前的版本只算 pressure 與 GPU CLTM，0 秒不能排除無聲降頻；尚未發布的新版加了時脈判斷（M4 以外的晶片要自己設 `clockFullLoadMHz`），那個 0 才比較能代表「風扇有做到它的事」。想直接確認，就在重載時看面板或 `cool42 status` 的 P-core 頻率有沒有掉到全核滿載以下。
+**怎麼判斷曲線調得對不對：**看 `cool42 status` 的今日統計，關鍵一個數字：**降頻秒數應該是 0**；不是 0 就把曲線高溫段拉高。注意 1.0.3 以前的版本只算 pressure 與 GPU CLTM，0 秒不能排除無聲降頻；1.1.0 起加了時脈判斷（M4 以外的晶片要自己設 `clockFullLoadMHz`），那個 0 才比較能代表「風扇有做到它的事」。想直接確認，就在重載時看面板或 `cool42 status` 的 P-core 頻率有沒有掉到全核滿載以下。
 
 **最壞情況：**guard 掛了，launchd `KeepAlive` 幾秒內重啟。退出時：SIGINT（Ctrl-C）/ SIGHUP 會先交還自動；**SIGTERM（launchd 停止 / 重啟，含手動 `launchctl bootout`）會維持目前轉速**，等重啟後接管（交還自動反而會讓高負載下 30 秒衝到 100°C）—— 所以手動停用後風扇會停在 manual 模式的最後一個轉速，請跑 `sudo cool42 fan auto` 或 `uninstall.sh`（兩者都會明確交還）。就算沒有任何程式在控制，SoC 自己還有硬體熱保護（降頻、最後關機），不會燒壞。每年清一次灰塵就好。
 
