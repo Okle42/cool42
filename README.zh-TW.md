@@ -4,6 +4,10 @@
 
 **一句話：AI 寫程式時自己看降頻排隊 —— 沒降頻就全速放行，溫度高也照跑（預設 ≥ 108°C 的安全底線除外）；真的降頻了才等。** 「降頻」看三個訊號：macOS 的 thermal pressure 非 Nominal、GPU 被 CLTM 限頻、P-core 硬體時脈掉到全核滿載以下。第三條是 2026-09-25 同機實測發現 **pressure 回報 Nominal 時 P-core 已經掉了 7.4%** 之後才加的，1.1.0 起內建（見[數據](#數據)與[「降頻」的定義](#降頻的定義)）。
 
+**▶ 21 秒看懂 cool42（有聲）：**
+
+https://github.com/user-attachments/assets/fca16ee2-988a-4592-9193-04b658331ee1
+
 <p align="center"><img src="docs/img/demo.gif" width="880" alt="cool42 面板示意：閒置 → 重載 → 降頻 → Claude Code hook 等待 → 放行"></p>
 <p align="center"><sub>18 秒示意：閒置與重載兩個定格是實機資料；中間約 1.4 秒的過場是兩者之間線性內插的示意（幀上標「過場 · 內插示意」，那些數字不是實機讀數）；「降頻」那一段是受控情境（非實機紀錄），終端機畫面照原始碼格式重現。</sub></p>
 

@@ -6,6 +6,10 @@ Part of the **42 series** by [Okle42](https://github.com/Okle42) — follow for 
 
 **In one line: your AI coding agent checks for throttling before heavy work — full speed while the Mac isn't throttling, hot or not (except at the ≥ 108 °C default safety floor), and it waits only when it actually is.** "Throttling" means any of three signals: macOS thermal pressure above `Nominal`, the GPU capped by CLTM, or the P-core hardware clock dropping below its all-core full-load value. The third was added after a same-machine test on 2026-09-25 found **the P-cores 7.4% down while macOS still reported `Nominal`**, and it ships from 1.1.0 (see [Data](#data) and [What counts as throttling](#what-counts-as-throttling)).
 
+**▶ The 23-second intro (sound on):**
+
+https://github.com/user-attachments/assets/aca2bf82-d346-4890-8ab2-b1dabf36a1f2
+
 <p align="center"><img src="docs/img/demo-en.gif" width="880" alt="cool42 panel demo: idle → heavy load → throttling → Claude Code hook waits → allowed"></p>
 <p align="center"><sub>18-second demo. The idle and heavy-load hold frames are real captures; the ~1.4 s transition between them is linearly interpolated (labelled "Transition · interpolated" — those numbers are not real readings); the "throttling" segment is a staged scenario (not a recorded event), and the terminal frames reproduce the source code's output format. The panel is shown in its English UI; cool42's own CLI / hook status strings inside the terminal frames are still Chinese, as in the product.</sub></p>
 
